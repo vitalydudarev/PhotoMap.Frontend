@@ -1,0 +1,7 @@
+<mat-list role="list">
+  <mat-list-item
+    role="listitem"
+    *ngFor="let photoSource of photoSources$ | async"
+    >{{ photoSource.name }}</mat-list-item
+  >
+</mat-list>

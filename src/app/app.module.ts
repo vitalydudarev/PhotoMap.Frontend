@@ -1,42 +1,44 @@
-import { BrowserModule } from '@angular/platform-browser';
-import { NgModule } from '@angular/core';
+import { BrowserModule } from "@angular/platform-browser";
+import { NgModule } from "@angular/core";
 
-import { AppRoutingModule } from './app-routing.module';
-import { AppComponent } from './app.component';
-import { GalleryComponent } from './modules/gallery/gallery.component';
+import { AppRoutingModule } from "./app-routing.module";
+import { AppComponent } from "./app.component";
+import { GalleryComponent } from "./modules/gallery/gallery.component";
 
-import { MatSidenavModule } from  '@angular/material/sidenav';
-import { MatListModule } from '@angular/material/list';
-import { MatIconModule } from '@angular/material/icon';
-import { MatToolbarModule } from '@angular/material/toolbar';
-import { MatCardModule } from '@angular/material/card';
-import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
-import { MatButtonModule } from  '@angular/material/button';
-import { MatPaginatorModule } from '@angular/material/paginator';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatSidenavModule } from "@angular/material/sidenav";
+import { MatListModule } from "@angular/material/list";
+import { MatIconModule } from "@angular/material/icon";
+import { MatToolbarModule } from "@angular/material/toolbar";
+import { MatCardModule } from "@angular/material/card";
+import { BrowserAnimationsModule } from "@angular/platform-browser/animations";
+import { MatButtonModule } from "@angular/material/button";
+import { MatPaginatorModule } from "@angular/material/paginator";
+import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
+import { MatSnackBarModule } from "@angular/material/snack-bar";
+import { MatProgressBarModule } from "@angular/material/progress-bar";
+import { MatButtonToggleModule } from "@angular/material/button-toggle";
 
-import { HttpClientModule } from '@angular/common/http';
+import { HttpClientModule } from "@angular/common/http";
 
-import { FormsModule } from '@angular/forms';
+import { FormsModule } from "@angular/forms";
 
-import { UserService } from './core/services/user.service';
-import { YandexDiskComponent } from './modules/yandex-disk/yandex-disk.component';
-import { YandexDiskService } from './core/services/yandex-disk.service';
-import { UserPhotosService } from './core/services/user-photos.service';
-import { YandexDiskHubService } from './core/services/yandex-disk-hub.service';
-import { DataService } from './core/services/data.service';
-import { OAuthModule } from './oauth.module';
-import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
+import { UserService } from "./core/services/user.service";
+import { YandexDiskComponent } from "./modules/yandex-disk/yandex-disk.component";
+import { YandexDiskService } from "./core/services/yandex-disk.service";
+import { UserPhotosService } from "./core/services/user-photos.service";
+import { YandexDiskHubService } from "./core/services/yandex-disk-hub.service";
+import { DataService } from "./core/services/data.service";
+import { OAuthModule } from "./oauth.module";
+import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 
-import { MapComponent } from './modules/map/map.component';
-import { SharedModule } from './modules/shared/shared.module';
+import { MapComponent } from "./modules/map/map.component";
+import { SharedModule } from "./modules/shared/shared.module";
 import { LocalStorageModule } from "angular-2-local-storage";
 import { DropboxComponent } from "./modules/dropbox/dropbox.component";
-import { DropboxService } from './core/services/dropbox.service';
-import { DropboxHubService } from './core/services/dropbox-hub.service';
+import { DropboxService } from "./core/services/dropbox.service";
+import { DropboxHubService } from "./core/services/dropbox-hub.service";
+import { PhotoSourceListComponent } from "./modules/photo-source-list/photo-source-list.component";
+import { PhotoSourcesService } from "./core/services/photo-sources.service";
 
 @NgModule({
   declarations: [
@@ -44,7 +46,8 @@ import { DropboxHubService } from './core/services/dropbox-hub.service';
     GalleryComponent,
     YandexDiskComponent,
     DropboxComponent,
-    MapComponent
+    MapComponent,
+    PhotoSourceListComponent,
   ],
   imports: [
     BrowserModule,
@@ -72,9 +75,9 @@ import { DropboxHubService } from './core/services/dropbox-hub.service';
     NgbModule,
 
     LocalStorageModule.forRoot({
-      prefix: 'dropbox',
-      storageType: 'localStorage'
-    })
+      prefix: "dropbox",
+      storageType: "localStorage",
+    }),
   ],
   providers: [
     UserService,
@@ -83,9 +86,9 @@ import { DropboxHubService } from './core/services/dropbox-hub.service';
     YandexDiskHubService,
     DataService,
     DropboxService,
-    DropboxHubService
+    DropboxHubService,
+    PhotoSourcesService,
   ],
-  bootstrap: [AppComponent]
+  bootstrap: [AppComponent],
 })
-export class AppModule {
-}
+export class AppModule {}
