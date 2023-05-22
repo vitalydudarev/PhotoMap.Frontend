@@ -1,7 +1,19 @@
-<mat-list role="list">
-  <mat-list-item
-    role="listitem"
-    *ngFor="let photoSource of photoSources$ | async"
-    >{{ photoSource.name }}</mat-list-item
-  >
-</mat-list>
+<table mat-table [dataSource]="userPhotoSourceSettings$ | async" class="mat-elevation-z8">
+  <ng-container matColumnDef="id">
+    <th mat-header-cell *matHeaderCellDef>ID</th>
+    <td mat-cell *matCellDef="let element">{{ element.photoSourceId }}</td>
+  </ng-container>
+
+  <ng-container matColumnDef="name">
+    <th mat-header-cell *matHeaderCellDef>Source Name</th>
+    <td mat-cell *matCellDef="let element">{{ element.photoSourceName }}</td>
+  </ng-container>
+
+  <ng-container matColumnDef="isUserAuthorized">
+    <th mat-header-cell *matHeaderCellDef>Is Authorized</th>
+    <td mat-cell *matCellDef="let element">{{ element.isUserAuthorized }}</td>
+  </ng-container>
+
+  <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+  <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+</table>
