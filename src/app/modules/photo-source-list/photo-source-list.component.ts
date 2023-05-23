@@ -2,8 +2,7 @@ import {Component, OnInit, ChangeDetectionStrategy} from '@angular/core';
 import {Observable} from 'rxjs';
 import {OAuthConfiguration} from '../../core/models/oauth-configuration.model';
 import {untilDestroyed} from '@ngneat/until-destroy';
-import {UserPhotoSourcesService} from 'src/app/core/services/user-photo-sources.service';
-import {UserPhotoSourceSettings} from 'src/app/core/models/user-photo-source-settings.model';
+import {UserPhotoSourceDto, UsersPhotoSourcesClient} from 'src/app/shared/models/photomap-backend.swagger';
 
 @Component({
   selector: 'app-photo-source-list',
@@ -13,12 +12,12 @@ import {UserPhotoSourceSettings} from 'src/app/core/models/user-photo-source-set
   providers: [OAuthConfiguration],
 })
 export class PhotoSourceListComponent implements OnInit {
-  userPhotoSourceSettings$: Observable<UserPhotoSourceSettings[]>;
+  userPhotoSourceSettings$: Observable<UserPhotoSourceDto[]>;
   displayedColumns = ['id', 'name', 'isUserAuthorized'];
 
-  constructor(private userPhotoSourcesService: UserPhotoSourcesService) {}
+  constructor(private usersPhotoSourcesClient: UsersPhotoSourcesClient) {}
 
   ngOnInit(): void {
-    this.userPhotoSourceSettings$ = this.userPhotoSourcesService.getUserPhotoSourceSettings(1).pipe(untilDestroyed(this));
+    this.userPhotoSourceSettings$ = this.usersPhotoSourcesClient.getUserPhotoSources(1).pipe(untilDestroyed(this));
   }
 }

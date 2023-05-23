@@ -39,7 +39,8 @@ import {DropboxComponent} from './modules/dropbox/dropbox.component';
 import {DropboxService} from './core/services/dropbox.service';
 import {DropboxHubService} from './core/services/dropbox-hub.service';
 import {PhotoSourceListComponent} from './modules/photo-source-list/photo-source-list.component';
-import {UserPhotoSourcesService} from './core/services/user-photo-sources.service';
+import {BACKEND_URL} from './shared/models/photomap-backend.swagger';
+import {environment} from 'src/environments/environment';
 
 @NgModule({
   declarations: [AppComponent, GalleryComponent, YandexDiskComponent, DropboxComponent, MapComponent, PhotoSourceListComponent],
@@ -82,7 +83,10 @@ import {UserPhotoSourcesService} from './core/services/user-photo-sources.servic
     DataService,
     DropboxService,
     DropboxHubService,
-    UserPhotoSourcesService,
+    {
+      provide: BACKEND_URL,
+      useValue: environment.backendUrl,
+    },
   ],
   bootstrap: [AppComponent],
 })
