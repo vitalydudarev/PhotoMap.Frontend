@@ -479,7 +479,7 @@ export class PhotoSourcesClient {
     /**
      * @return Success
      */
-    getSourceAuthSettings(id: number): Observable<OAuthSettingsDto> {
+    getSourceAuthSettings(id: number): Observable<AuthSettingsDto> {
         let url_ = this.baseUrl + "/api/photo-sources/{id}/auth-settings";
         if (id === undefined || id === null)
             throw new Error("The parameter 'id' must be defined.");
@@ -501,14 +501,14 @@ export class PhotoSourcesClient {
                 try {
                     return this.processGetSourceAuthSettings(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<OAuthSettingsDto>;
+                    return _observableThrow(e) as any as Observable<AuthSettingsDto>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<OAuthSettingsDto>;
+                return _observableThrow(response_) as any as Observable<AuthSettingsDto>;
         }));
     }
 
-    protected processGetSourceAuthSettings(response: HttpResponseBase): Observable<OAuthSettingsDto> {
+    protected processGetSourceAuthSettings(response: HttpResponseBase): Observable<AuthSettingsDto> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -518,7 +518,7 @@ export class PhotoSourcesClient {
         if (status === 200) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as OAuthSettingsDto;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as AuthSettingsDto;
             return _observableOf(result200);
             }));
         } else if (status !== 200 && status !== 204) {
@@ -791,14 +791,14 @@ export class UsersPhotoSourcesClient {
      * @param body (optional) 
      * @return Success
      */
-    updateUserPhotoSource(userId: number, id: number, body: AuthResultDto | undefined): Observable<void> {
-        let url_ = this.baseUrl + "/api/users/{userId}/photo-sources/{id}";
+    updateUserPhotoSource(userId: number, sourceId: number, body: AuthResultInputDto | undefined): Observable<void> {
+        let url_ = this.baseUrl + "/api/users/{userId}/photo-sources/{sourceId}";
         if (userId === undefined || userId === null)
             throw new Error("The parameter 'userId' must be defined.");
         url_ = url_.replace("{userId}", encodeURIComponent("" + userId));
-        if (id === undefined || id === null)
-            throw new Error("The parameter 'id' must be defined.");
-        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        if (sourceId === undefined || sourceId === null)
+            throw new Error("The parameter 'sourceId' must be defined.");
+        url_ = url_.replace("{sourceId}", encodeURIComponent("" + sourceId));
         url_ = url_.replace(/[?&]$/, "");
 
         const content_ = JSON.stringify(body);
@@ -1014,17 +1014,28 @@ export class YandexDiskClient {
     }
 }
 
-export interface AuthResultDto {
+export interface AuthResultInputDto {
+    token?: string | undefined;
+    tokenExpiresIn?: number;
+}
+
+export interface AuthResultOutputDto {
     token?: string | undefined;
     tokenExpiresOn?: Date;
 }
 
-export interface OAuthSettingsDto {
+export interface AuthSettingsDto {
+    oAuthConfiguration?: OAuthConfigurationDto;
+    relativeAuthUrl?: string | undefined;
+}
+
+export interface OAuthConfigurationDto {
     clientId?: string | undefined;
     redirectUri?: string | undefined;
     responseType?: string | undefined;
     authorizeUrl?: string | undefined;
     tokenUrl?: string | undefined;
+    scope?: string | undefined;
 }
 
 export interface PhotoDto {
@@ -1095,7 +1106,7 @@ export interface UserPhotoSourceDto {
     userId?: number;
     photoSourceId?: number;
     photoSourceName?: string | undefined;
-    authResult?: AuthResultDto;
+    authResult?: AuthResultOutputDto;
     isUserAuthorized?: boolean;
 }
 

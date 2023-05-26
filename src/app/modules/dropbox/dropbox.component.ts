@@ -12,12 +12,15 @@ import {ToastService} from 'src/app/core/services/toast.service';
 import {DropboxService} from 'src/app/core/services/dropbox.service';
 import {DropboxHubService} from 'src/app/core/services/dropbox-hub.service';
 import {ProgressBarMode} from '@angular/material/progress-bar';
+import {PhotoSourcesClient} from 'src/app/shared/models/photomap-backend.swagger';
+import {DropboxAuthService} from 'src/app/core/services/dropbox-auth.service';
+import {UntilDestroy} from '@ngneat/until-destroy';
 
+@UntilDestroy()
 @Component({
   selector: 'app-dropbox',
   templateUrl: './dropbox.component.html',
   styleUrls: ['./dropbox.component.scss'],
-  providers: [OAuthConfiguration],
 })
 export class DropboxComponent implements OnInit, OnDestroy {
   needsAuthorization: boolean = true;
@@ -46,7 +49,9 @@ export class DropboxComponent implements OnInit, OnDestroy {
     private dropboxService: DropboxService,
     private dropboxHubService: DropboxHubService,
     private activatedRoute: ActivatedRoute,
-    private userService: UserService
+    private userService: UserService,
+    private photoSourcesClient: PhotoSourcesClient,
+    private dropboxAuthService: DropboxAuthService
   ) {
     this.oAuthService.setConfiguration(environment.oAuth.dropbox as OAuthConfiguration);
   }
@@ -57,8 +62,8 @@ export class DropboxComponent implements OnInit, OnDestroy {
     this.onRouteChanged();
 
     /*this.startHub();
-    this.subscribeToErrorEvent();
-    this.subscribeToProgressEvent();*/
+        this.subscribeToErrorEvent();
+        this.subscribeToProgressEvent();*/
   }
 
   ngOnDestroy(): void {
@@ -117,7 +122,7 @@ export class DropboxComponent implements OnInit, OnDestroy {
         if (params.code) {
           return this.oAuthService.getAccessToken(params.code, params.state);
         } else {
-          return of(null);
+          return of(undefined);
         }
       })
     );
@@ -127,11 +132,11 @@ export class DropboxComponent implements OnInit, OnDestroy {
         switchMap((response) => {
           if (response) {
             const token = response.access_token;
-            const expiresIn = response.expires_in ? response.expires_in : null;
+            const expiresIn = response.expires_in ? response.expires_in : undefined;
 
-            return this.userService.updateUser(this.userId, this.userName, null, null, token, expiresIn);
+            return this.userService.updateUser(this.userId, this.userName, undefined, undefined, token, expiresIn);
           } else {
-            return of(null);
+            return of(undefined);
           }
         })
       )

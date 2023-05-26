@@ -11,7 +11,17 @@
 
   <ng-container matColumnDef="isUserAuthorized">
     <th mat-header-cell *matHeaderCellDef>Is Authorized</th>
-    <td mat-cell *matCellDef="let element">{{ element.isUserAuthorized }}</td>
+    <td mat-cell *matCellDef="let element">
+      <button mat-button color="primary" (click)="authorize(element.photoSourceId)" *ngIf="!element.isUserAuthorized">Authorize</button>
+      <p *ngIf="element.isUserAuthorized">{{ element.isUserAuthorized }}</p>
+    </td>
+  </ng-container>
+
+  <ng-container matColumnDef="expiresOn">
+    <th mat-header-cell *matHeaderCellDef>Token Expires On</th>
+    <td mat-cell *matCellDef="let element">
+      <p *ngIf="element.authResult?.tokenExpiresOn">{{ element.authResult?.tokenExpiresOn }}</p>
+    </td>
   </ng-container>
 
   <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>

@@ -34,16 +34,25 @@ import {NgbModule} from '@ng-bootstrap/ng-bootstrap';
 
 import {MapComponent} from './modules/map/map.component';
 import {SharedModule} from './modules/shared/shared.module';
-import {LocalStorageModule} from 'angular-2-local-storage';
 import {DropboxComponent} from './modules/dropbox/dropbox.component';
 import {DropboxService} from './core/services/dropbox.service';
 import {DropboxHubService} from './core/services/dropbox-hub.service';
 import {PhotoSourceListComponent} from './modules/photo-source-list/photo-source-list.component';
 import {BACKEND_URL} from './shared/models/photomap-backend.swagger';
 import {environment} from 'src/environments/environment';
+import {DropboxAuthService} from './core/services/dropbox-auth.service';
+import {DropboxAuthComponent} from './modules/auth/dropbox/dropbox-auth.component';
 
 @NgModule({
-  declarations: [AppComponent, GalleryComponent, YandexDiskComponent, DropboxComponent, MapComponent, PhotoSourceListComponent],
+  declarations: [
+    AppComponent,
+    GalleryComponent,
+    YandexDiskComponent,
+    DropboxComponent,
+    MapComponent,
+    PhotoSourceListComponent,
+    DropboxAuthComponent,
+  ],
   imports: [
     BrowserModule,
     HttpClientModule,
@@ -69,11 +78,6 @@ import {environment} from 'src/environments/environment';
     OAuthModule,
 
     NgbModule,
-
-    LocalStorageModule.forRoot({
-      prefix: 'dropbox',
-      storageType: 'localStorage',
-    }),
   ],
   providers: [
     UserService,
@@ -83,6 +87,7 @@ import {environment} from 'src/environments/environment';
     DataService,
     DropboxService,
     DropboxHubService,
+    DropboxAuthService,
     {
       provide: BACKEND_URL,
       useValue: environment.backendUrl,

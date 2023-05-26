@@ -14,11 +14,14 @@
     "lib": [
       "es2018",
       "dom"
-    ]
+    ],
+    "strict": false
   },
   "angularCompilerOptions": {
     "strictTemplates": true,
     "fullTemplateTypeCheck": true,
-    "strictInjectionParameters": true
+    "strictInjectionParameters": true,
+    "strictInputAccessModifiers": true,
+    "strictPropertyInitialization": false
   }
 }

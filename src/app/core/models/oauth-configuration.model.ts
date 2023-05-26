@@ -4,4 +4,5 @@ export class OAuthConfiguration {
   responseType: string;
   authorizeUrl: string;
   tokenUrl: string;
+  scope: string;
 }
