@@ -1,32 +1,36 @@
-import { Injectable } from "@angular/core";
-import { Observable, Subject } from "rxjs";
-import { environment } from "src/environments/environment";
-import { Progress } from "../models/progress.model";
-import { SignalRService } from "./signalr.service";
+import {Injectable} from '@angular/core';
+import {Observable, Subject} from 'rxjs';
+import {environment} from 'src/environments/environment';
+import {Progress} from '../models/progress.model';
+import {SignalRService} from './signalr.service';
 
 @Injectable()
 export class YandexDiskHubService extends SignalRService {
   protected hubEvents: string[];
   protected hubUrl = environment.yandexDiskHub;
 
-  private subjects: { [eventName: string]: Subject<any> };
+  private subjects!: {[eventName: string]: Subject<any>};
 
   constructor() {
     super();
-    this.hubEvents = ["YandexDiskError", "YandexDiskProgress"];
+    this.hubEvents = ['YandexDiskError', 'YandexDiskProgress'];
     this.createSubjects();
   }
 
   registerClient(userId: number): Promise<any> {
-    return this.hubConnection.invoke("RegisterClient", userId);
+    if (this.hubConnection) {
+      return this.hubConnection.invoke('RegisterClient', userId);
+    }
+
+    return Promise.resolve();
   }
 
   yandexDiskError(): Observable<string> {
-    return this.subjects["YandexDiskError"].asObservable();
+    return this.subjects['YandexDiskError'].asObservable();
   }
 
   yandexDiskProgress(): Observable<Progress> {
-    return this.subjects["YandexDiskProgress"].asObservable();
+    return this.subjects['YandexDiskProgress'].asObservable();
   }
 
   buildHubConnection() {
@@ -34,11 +38,11 @@ export class YandexDiskHubService extends SignalRService {
   }
 
   private YandexDiskError(errorMessage: string) {
-    this.subjects["YandexDiskError"].next(errorMessage);
+    this.subjects['YandexDiskError'].next(errorMessage);
   }
 
   private YandexDiskProgress(progress: any) {
-    this.subjects["YandexDiskProgress"].next(progress);
+    this.subjects['YandexDiskProgress'].next(progress);
   }
 
   private createSubjects() {

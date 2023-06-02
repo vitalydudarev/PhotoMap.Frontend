@@ -1,28 +1,21 @@
-import {
-  Component,
-  ElementRef,
-  Input,
-  OnChanges,
-  SimpleChanges,
-  ViewChild,
-} from "@angular/core";
+import {Component, ElementRef, Input, OnChanges, SimpleChanges, ViewChild} from '@angular/core';
 // import { AgmInfoWindow } from '@agm/core';
 
-import { MarkerWrapper } from "src/app/core/models/marker-wrapper.model";
-import { Photo } from "src/app/core/models/photo.model";
-import { GoogleMapHelper } from "src/app/core/helpers/google-map.helper";
+import {MarkerWrapper} from 'src/app/core/models/marker-wrapper.model';
+import {Photo} from 'src/app/core/models/photo.model';
+import {GoogleMapHelper} from 'src/app/core/helpers/google-map.helper';
 
 @Component({
-  selector: "app-photos-map-view",
-  templateUrl: "./photos-map-view.component.html",
+  selector: 'app-photos-map-view',
+  templateUrl: './photos-map-view.component.html',
 })
 export class PhotosMapViewComponent implements OnChanges {
-  @Input() photos: Photo[];
-  @ViewChild("map", { read: ElementRef, static: true }) map: ElementRef;
+  @Input() photos: Photo[] = [];
+  @ViewChild('map', {read: ElementRef, static: true}) map?: ElementRef;
 
   markers: MarkerWrapper[] = [];
-  zoom: number;
-  center: { lat: number; lng: number } = { lat: 0, lng: 0 };
+  zoom: number = 0;
+  center: {lat: number; lng: number} = {lat: 0, lng: 0};
 
   // private infoWindowOpened: AgmInfoWindow;
   // private previousInfoWindow: AgmInfoWindow;
@@ -65,12 +58,7 @@ export class PhotosMapViewComponent implements OnChanges {
     for (const photo of this.photos) {
       if (photo.latitude && photo.longitude) {
         const title = photo.fileName;
-        const marker = this.createMarker(
-          title,
-          photo.latitude,
-          photo.longitude,
-          photo.thumbnailSmallUrl
-        );
+        const marker = this.createMarker(title, photo.latitude, photo.longitude, photo.thumbnailSmallUrl);
 
         markers.push(marker);
       }
@@ -79,17 +67,12 @@ export class PhotosMapViewComponent implements OnChanges {
     return markers;
   }
 
-  private createMarker(
-    title: string,
-    latitude: number,
-    longitude: number,
-    thumbnailUrl: string
-  ): MarkerWrapper {
+  private createMarker(title: string, latitude: number, longitude: number, thumbnailUrl: string): MarkerWrapper {
     const icon = {
       url: thumbnailUrl,
-      scaledSize: { width: 64, height: 64 },
-      origin: { x: 0, y: 0 },
-      anchor: { x: 0, y: 0 },
+      scaledSize: {width: 64, height: 64},
+      origin: {x: 0, y: 0},
+      anchor: {x: 0, y: 0},
     };
 
     return {

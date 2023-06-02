@@ -139,5 +139,8 @@
       }
     }
   },
-  "defaultProject": "photo-map-ui"
+  "defaultProject": "photo-map-ui",
+  "cli": {
+    "analytics": false
+  }
 }

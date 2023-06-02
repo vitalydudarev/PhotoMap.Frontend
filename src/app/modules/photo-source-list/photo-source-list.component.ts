@@ -12,7 +12,8 @@ import {Router} from '@angular/router';
 import {AUTH_CONFIGURATION, AUTH_FIRST_STEP, AUTH_SOURCE_ID, AUTH_TOKEN_RESPONSE} from 'src/app/core/constants/auth.constants';
 import {LocalStorageService} from 'src/app/core/services/local-storage.service';
 import {OAuthToken} from 'src/app/core/models/oauth-token.model';
-import {switchMap} from 'rxjs/operators';
+import {map, switchMap} from 'rxjs/operators';
+import {MatTableDataSource} from '@angular/material/table';
 
 @UntilDestroy()
 @Component({
@@ -22,8 +23,10 @@ import {switchMap} from 'rxjs/operators';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PhotoSourceListComponent implements OnInit {
-  userPhotoSourceSettings$: Observable<UserPhotoSourceDto[]>;
+  userPhotoSourceSettings$!: Observable<UserPhotoSourceDto[]>;
   displayedColumns = ['id', 'name', 'isUserAuthorized', 'expiresOn'];
+
+  dataSource = new MatTableDataSource<UserPhotoSourceDto>();
 
   private refreshDataSubject = new ReplaySubject();
 
@@ -41,6 +44,7 @@ export class PhotoSourceListComponent implements OnInit {
 
     this.userPhotoSourceSettings$ = this.refreshDataSubject.pipe(
       switchMap(() => this.usersPhotoSourcesClient.getUserPhotoSources(userId)),
+      map((results) => (this.dataSource.data = results)),
       untilDestroyed(this)
     );
 

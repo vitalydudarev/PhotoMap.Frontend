@@ -24,21 +24,21 @@ import {UntilDestroy} from '@ngneat/until-destroy';
 })
 export class DropboxComponent implements OnInit, OnDestroy {
   needsAuthorization: boolean = true;
-  tokenExpires: string;
+  tokenExpires?: string;
   status: string = '';
   hasError: boolean = false;
   error: string = '';
   isRunning: boolean = false;
   progressString: string = '';
   progressBarValue: number = 0;
-  progressBarMode: ProgressBarMode;
+  progressBarMode: ProgressBarMode = 'indeterminate';
 
   get action(): string {
     return this.isRunning ? 'Pause' : 'Start';
   }
 
   private subscriptions: Subscription = new Subscription();
-  private user: User;
+  private user?: User;
   private userId: number = 1;
   private userName: string = 'user';
 
@@ -59,7 +59,7 @@ export class DropboxComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.getUserData();
 
-    this.onRouteChanged();
+    // this.onRouteChanged();
 
     /*this.startHub();
         this.subscribeToErrorEvent();
@@ -71,7 +71,7 @@ export class DropboxComponent implements OnInit, OnDestroy {
   }
 
   goToLoginPage() {
-    this.oAuthService.goToLoginPage();
+    // this.oAuthService.goToLoginPage();
   }
 
   startStopProcessing() {
@@ -105,49 +105,17 @@ export class DropboxComponent implements OnInit, OnDestroy {
       next: (user) => {
         this.onGetUser(user);
 
-        if (Date.now() < new Date(this.user.dropboxTokenExpiresOn).getTime()) {
-          this.needsAuthorization = false;
-          this.tokenExpires = new Date(this.user.dropboxTokenExpiresOn).toLocaleString();
+        if (this.user?.dropboxTokenExpiresOn) {
+          if (Date.now() < new Date(this.user.dropboxTokenExpiresOn).getTime()) {
+            this.needsAuthorization = false;
+            this.tokenExpires = new Date(this.user.dropboxTokenExpiresOn).toLocaleString();
+          }
         }
       },
       error: () => this.toastService.information('An error has occurred while getting user data.'),
     });
 
     this.subscriptions.add(getUserSub);
-  }
-
-  private onRouteChanged() {
-    const obs1 = this.activatedRoute.queryParams.pipe(
-      switchMap((params) => {
-        if (params.code) {
-          return this.oAuthService.getAccessToken(params.code, params.state);
-        } else {
-          return of(undefined);
-        }
-      })
-    );
-
-    const sub1 = obs1
-      .pipe(
-        switchMap((response) => {
-          if (response) {
-            const token = response.access_token;
-            const expiresIn = response.expires_in ? response.expires_in : undefined;
-
-            return this.userService.updateUser(this.userId, this.userName, undefined, undefined, token, expiresIn);
-          } else {
-            return of(undefined);
-          }
-        })
-      )
-      .subscribe({
-        next: () => {
-          this.toastService.information('Dropbox authorized.');
-          this.router.navigate(['/dropbox']);
-        },
-      });
-
-    this.subscriptions.add(sub1);
   }
 
   private startHub() {
@@ -203,8 +171,11 @@ export class DropboxComponent implements OnInit, OnDestroy {
 
   private onGetUser(user: User) {
     this.user = user;
-    this.status = ProcessingStatus[user.dropboxStatus];
-    this.isRunning = user.dropboxStatus == ProcessingStatus.Running;
+
+    if (user.dropboxStatus) {
+      this.status = ProcessingStatus[user.dropboxStatus];
+      this.isRunning = user.dropboxStatus == ProcessingStatus.Running;
+    }
   }
 
   private setState(isRunning: boolean, hasError: boolean, error?: string): void {

@@ -1,34 +1,41 @@
-import { HubConnection, HubConnectionBuilder } from '@aspnet/signalr';
+import {HubConnection, HubConnectionBuilder} from '@aspnet/signalr';
 
 export abstract class SignalRService {
-    hubConnection: HubConnection;
+  hubConnection?: HubConnection;
 
-    protected abstract hubEvents: string[];
-    protected abstract hubUrl: string;
+  protected abstract hubEvents: string[];
+  protected abstract hubUrl: string;
 
-    startHubConnection(): Promise<void> {
-        if (this.hubConnection) {
-            return this.hubConnection.start();
-        }
+  startHubConnection(): Promise<void> {
+    if (this.hubConnection) {
+      return this.hubConnection.start();
     }
 
-    stopHubConnection(): Promise<any> {
-        if (this.hubConnection) {
-            return this.hubConnection.stop();
-        }
-    }
-    
-    protected buildHubConnection(hubUrl: string): void {
-        this.hubUrl = hubUrl;
-        this.hubConnection = new HubConnectionBuilder().withUrl(this.hubUrl).build();
-        this.subscribeToEvents();
+    return Promise.resolve();
+  }
+
+  stopHubConnection(): Promise<any> {
+    if (this.hubConnection) {
+      return this.hubConnection.stop();
     }
 
-    private subscribeToEvents() {
-        if (!this.hubEvents) { return; }
+    return Promise.resolve();
+  }
 
-        this.hubEvents.forEach(method => {
+  protected buildHubConnection(hubUrl: string): void {
+    this.hubUrl = hubUrl;
+    this.hubConnection = new HubConnectionBuilder().withUrl(this.hubUrl).build();
+    this.subscribeToEvents();
+  }
+
+  private subscribeToEvents() {
+    if (!this.hubEvents) {
+      return;
+    }
+
+    // TODO: restore
+    /*this.hubEvents.forEach(method => {
             this.hubConnection.on(method, (args: any[]) => { this[method](args); });
-        });
-    }
+        });*/
+  }
 }

@@ -19,8 +19,8 @@ export class AppComponent implements OnInit, OnDestroy {
   ];
 
   userId = 1;
-  yandexDiskAuthorized: boolean;
-  dropboxAuthorized: boolean;
+  yandexDiskAuthorized: boolean = false;
+  dropboxAuthorized: boolean = false;
 
   private subscriptions: Subscription = new Subscription();
 
@@ -37,11 +37,11 @@ export class AppComponent implements OnInit, OnDestroy {
   private getUserData(): void {
     const getUserSub = this.userService.getUser(this.userId).subscribe({
       next: (user) => {
-        if (Date.now() < new Date(user.yandexDiskTokenExpiresOn).getTime()) {
+        if (user.yandexDiskTokenExpiresOn && Date.now() < new Date(user.yandexDiskTokenExpiresOn).getTime()) {
           this.yandexDiskAuthorized = true;
         }
 
-        if (Date.now() < new Date(user.dropboxTokenExpiresOn).getTime()) {
+        if (user.dropboxTokenExpiresOn && Date.now() < new Date(user.dropboxTokenExpiresOn).getTime()) {
           this.dropboxAuthorized = true;
         }
       },

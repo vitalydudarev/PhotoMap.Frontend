@@ -1,6 +1,6 @@
 import * as CryptoJS from 'crypto-js';
 import {HttpClient, HttpParams} from '@angular/common/http';
-import {Observable} from 'rxjs';
+import {Observable, of} from 'rxjs';
 import {Injectable} from '@angular/core';
 import {OAuthConfigurationDto} from 'src/app/shared/models/photomap-backend.swagger';
 import {DropboxAuthTokenResponse} from '../models/dropbox-auth-token-response.model';
@@ -23,7 +23,7 @@ export class DropboxAuthService {
     const params = [
       'client_id=' + oAuthConfiguration.clientId,
       'response_type=' + oAuthConfiguration.responseType,
-      'redirect_uri=' + encodeURIComponent(oAuthConfiguration.redirectUri),
+      'redirect_uri=' + encodeURIComponent(oAuthConfiguration.redirectUri!),
       'scope=' + oAuthConfiguration.scope,
       'state=' + state,
       'code_challenge=' + codeChallenge,
@@ -36,7 +36,7 @@ export class DropboxAuthService {
   getAccessToken(code: string, state: string, oAuthConfiguration: OAuthConfigurationDto): Observable<DropboxAuthTokenResponse> {
     if (state !== this.localStorageService.getItem('state')) {
       alert('Invalid state');
-      return;
+      return of();
     }
 
     const codeVerifier = this.localStorageService.getItem('codeVerifier') as string;
@@ -45,12 +45,12 @@ export class DropboxAuthService {
       .append('grant_type', 'authorization_code')
       .append('code', code)
       .append('code_verifier', codeVerifier)
-      .append('redirect_uri', oAuthConfiguration.redirectUri)
-      .append('client_id', oAuthConfiguration.clientId);
+      .append('redirect_uri', oAuthConfiguration.redirectUri!)
+      .append('client_id', oAuthConfiguration.clientId!);
 
     console.log(payload);
 
-    return this.httpClient.post<DropboxAuthTokenResponse>(oAuthConfiguration.tokenUrl, payload, {
+    return this.httpClient.post<DropboxAuthTokenResponse>(oAuthConfiguration.tokenUrl!, payload, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
