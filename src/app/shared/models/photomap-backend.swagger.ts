@@ -429,56 +429,6 @@ export class PhotoSourcesClient {
     /**
      * @return Success
      */
-    getSources(): Observable<PhotoSourceDto[]> {
-        let url_ = this.baseUrl + "/api/photo-sources";
-        url_ = url_.replace(/[?&]$/, "");
-
-        let options_ : any = {
-            observe: "response",
-            responseType: "blob",
-            headers: new HttpHeaders({
-                "Accept": "text/plain"
-            })
-        };
-
-        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processGetSources(response_);
-        })).pipe(_observableCatch((response_: any) => {
-            if (response_ instanceof HttpResponseBase) {
-                try {
-                    return this.processGetSources(response_ as any);
-                } catch (e) {
-                    return _observableThrow(e) as any as Observable<PhotoSourceDto[]>;
-                }
-            } else
-                return _observableThrow(response_) as any as Observable<PhotoSourceDto[]>;
-        }));
-    }
-
-    protected processGetSources(response: HttpResponseBase): Observable<PhotoSourceDto[]> {
-        const status = response.status;
-        const responseBlob =
-            response instanceof HttpResponse ? response.body :
-            (response as any).error instanceof Blob ? (response as any).error : undefined;
-
-        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
-        if (status === 200) {
-            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
-            let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PhotoSourceDto[];
-            return _observableOf(result200);
-            }));
-        } else if (status !== 200 && status !== 204) {
-            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
-            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
-            }));
-        }
-        return _observableOf(null as any);
-    }
-
-    /**
-     * @return Success
-     */
     getSourceAuthSettings(id: number): Observable<AuthSettingsDto> {
         let url_ = this.baseUrl + "/api/photo-sources/{id}/auth-settings";
         if (id === undefined || id === null)
@@ -587,61 +537,6 @@ export class UsersClient {
             let result200: any = null;
             result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as User;
             return _observableOf(result200);
-            }));
-        } else if (status !== 200 && status !== 204) {
-            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
-            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
-            }));
-        }
-        return _observableOf(null as any);
-    }
-
-    /**
-     * @param body (optional) 
-     * @return Success
-     */
-    updateUser(id: number, body: UpdateUserDto | undefined): Observable<void> {
-        let url_ = this.baseUrl + "/api/users/{id}";
-        if (id === undefined || id === null)
-            throw new Error("The parameter 'id' must be defined.");
-        url_ = url_.replace("{id}", encodeURIComponent("" + id));
-        url_ = url_.replace(/[?&]$/, "");
-
-        const content_ = JSON.stringify(body);
-
-        let options_ : any = {
-            body: content_,
-            observe: "response",
-            responseType: "blob",
-            headers: new HttpHeaders({
-                "Content-Type": "application/json",
-            })
-        };
-
-        return this.http.request("patch", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processUpdateUser(response_);
-        })).pipe(_observableCatch((response_: any) => {
-            if (response_ instanceof HttpResponseBase) {
-                try {
-                    return this.processUpdateUser(response_ as any);
-                } catch (e) {
-                    return _observableThrow(e) as any as Observable<void>;
-                }
-            } else
-                return _observableThrow(response_) as any as Observable<void>;
-        }));
-    }
-
-    protected processUpdateUser(response: HttpResponseBase): Observable<void> {
-        const status = response.status;
-        const responseBlob =
-            response instanceof HttpResponse ? response.body :
-            (response as any).error instanceof Blob ? (response as any).error : undefined;
-
-        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
-        if (status === 200) {
-            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
-            return _observableOf(null as any);
             }));
         } else if (status !== 200 && status !== 204) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
@@ -844,6 +739,64 @@ export class UsersPhotoSourcesClient {
         }
         return _observableOf(null as any);
     }
+
+    /**
+     * @param body (optional) 
+     * @return Success
+     */
+    sourceProcessing(userId: number, sourceId: number, body: PhotoSourceProcessingCommands | undefined): Observable<void> {
+        let url_ = this.baseUrl + "/api/users/{userId}/photo-sources/{sourceId}";
+        if (userId === undefined || userId === null)
+            throw new Error("The parameter 'userId' must be defined.");
+        url_ = url_.replace("{userId}", encodeURIComponent("" + userId));
+        if (sourceId === undefined || sourceId === null)
+            throw new Error("The parameter 'sourceId' must be defined.");
+        url_ = url_.replace("{sourceId}", encodeURIComponent("" + sourceId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processSourceProcessing(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processSourceProcessing(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<void>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<void>;
+        }));
+    }
+
+    protected processSourceProcessing(response: HttpResponseBase): Observable<void> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return _observableOf(null as any);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
 }
 
 @Injectable({
@@ -1019,11 +972,6 @@ export interface AuthResultInputDto {
     tokenExpiresIn?: number;
 }
 
-export interface AuthResultOutputDto {
-    token?: string | undefined;
-    tokenExpiresOn?: Date;
-}
-
 export interface AuthSettingsDto {
     oAuthConfiguration?: OAuthConfigurationDto;
     relativeAuthUrl?: string | undefined;
@@ -1056,9 +1004,9 @@ export interface PhotoDtoPagedResponse {
     offset?: number;
 }
 
-export interface PhotoSourceDto {
-    id?: number;
-    name?: string | undefined;
+export enum PhotoSourceProcessingCommands {
+    _0 = 0,
+    _1 = 1,
 }
 
 export interface ProblemDetails {
@@ -1074,15 +1022,6 @@ export interface ProblemDetails {
 export enum ProcessingStatus {
     _0 = 0,
     _1 = 1,
-}
-
-export interface UpdateUserDto {
-    yandexDiskToken?: string | undefined;
-    yandexDiskTokenExpiresIn?: number | undefined;
-    yandexDiskStatus?: ProcessingStatus;
-    dropboxToken?: string | undefined;
-    dropboxTokenExpiresIn?: number | undefined;
-    dropboxStatus?: ProcessingStatus;
 }
 
 export interface User {
@@ -1106,8 +1045,8 @@ export interface UserPhotoSourceDto {
     userId?: number;
     photoSourceId?: number;
     photoSourceName?: string | undefined;
-    authResult?: AuthResultOutputDto;
     isUserAuthorized?: boolean;
+    tokenExpiresOn?: string | undefined;
 }
 
 export class ApiException extends Error {

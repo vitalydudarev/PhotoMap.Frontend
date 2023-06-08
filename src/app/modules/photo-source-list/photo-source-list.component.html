@@ -1,4 +1,4 @@
-<table mat-table [dataSource]="dataSource" class="mat-elevation-z8">
+<table mat-table [dataSource]="(dataSource$ | async)!" class="mat-elevation-z8">
   <ng-container matColumnDef="id">
     <th mat-header-cell *matHeaderCellDef>ID</th>
     <td mat-cell *matCellDef="let element">{{ element.photoSourceId }}</td>
@@ -20,7 +20,18 @@
   <ng-container matColumnDef="expiresOn">
     <th mat-header-cell *matHeaderCellDef>Token Expires On</th>
     <td mat-cell *matCellDef="let element">
-      <p *ngIf="element.authResult?.tokenExpiresOn">{{ element.authResult?.tokenExpiresOn }}</p>
+      <p *ngIf="element.tokenExpiresOn">
+        {{ element.tokenExpiresOn | date : 'medium' }}
+      </p>
+    </td>
+  </ng-container>
+
+  <ng-container matColumnDef="action">
+    <th mat-header-cell *matHeaderCellDef>Action</th>
+    <td mat-cell *matCellDef="let element">
+      <button mat-button [disabled]="!element.isUserAuthorized" color="primary" (click)="sendProcessingCommand(element.photoSourceId)">
+        Start/Stop Processing
+      </button>
     </td>
   </ng-container>
 

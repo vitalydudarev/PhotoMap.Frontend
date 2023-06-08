@@ -4,6 +4,7 @@ import {UntilDestroy, untilDestroyed} from '@ngneat/until-destroy';
 import {
   AuthResultInputDto,
   AuthSettingsDto,
+  PhotoSourceProcessingCommands,
   PhotoSourcesClient,
   UserPhotoSourceDto,
   UsersPhotoSourcesClient,
@@ -23,12 +24,15 @@ import {MatTableDataSource} from '@angular/material/table';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PhotoSourceListComponent implements OnInit {
-  userPhotoSourceSettings$!: Observable<UserPhotoSourceDto[]>;
-  displayedColumns = ['id', 'name', 'isUserAuthorized', 'expiresOn'];
+  displayedColumns = ['id', 'name', 'isUserAuthorized', 'expiresOn', 'action'];
 
-  dataSource = new MatTableDataSource<UserPhotoSourceDto>();
+  dataSource$!: Observable<MatTableDataSource<UserPhotoSourceDto>>;
 
   private refreshDataSubject = new ReplaySubject();
+  private isProcessingRunning = false;
+
+  // TODO: take user ID from cookies
+  private userId = 1;
 
   constructor(
     private router: Router,
@@ -38,19 +42,20 @@ export class PhotoSourceListComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    // TODO: take user ID from cookies
+    this.dataSource$ = this.refreshDataSubject.pipe(
+      switchMap(() => this.usersPhotoSourcesClient.getUserPhotoSources(this.userId)),
+      map((results) => {
+        const dataSource = new MatTableDataSource<UserPhotoSourceDto>();
+        dataSource.data = results;
 
-    const userId = 1;
-
-    this.userPhotoSourceSettings$ = this.refreshDataSubject.pipe(
-      switchMap(() => this.usersPhotoSourcesClient.getUserPhotoSources(userId)),
-      map((results) => (this.dataSource.data = results)),
+        return dataSource;
+      }),
       untilDestroyed(this)
     );
 
     this.refreshDataSubject.next();
 
-    this.updateTokenIfRelevant(userId);
+    this.updateTokenIfRelevant(this.userId);
   }
 
   authorize(sourceId: number) {
@@ -65,6 +70,18 @@ export class PhotoSourceListComponent implements OnInit {
         }
       },
     });
+  }
+
+  sendProcessingCommand(sourceId: number) {
+    this.usersPhotoSourcesClient
+      .sourceProcessing(
+        this.userId,
+        sourceId,
+        this.isProcessingRunning ? PhotoSourceProcessingCommands._1 : PhotoSourceProcessingCommands._0
+      )
+      .subscribe();
+
+    this.isProcessingRunning = !this.isProcessingRunning;
   }
 
   private updateTokenIfRelevant(userId: number): void {
