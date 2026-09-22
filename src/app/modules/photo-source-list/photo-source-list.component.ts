@@ -95,6 +95,7 @@ export class PhotoSourceListComponent implements OnInit {
       const authResult = {
         token: tokenResponse.accessToken,
         tokenExpiresIn: tokenResponse.expiresIn,
+        refreshToken: tokenResponse.refreshToken,
       } as AuthResultInputDto;
 
       this.localStorageService.removeItem(AUTH_SOURCE_ID);

@@ -62,7 +62,11 @@ export class DropboxAuthComponent implements OnInit {
           if (response) {
             const tokenResponse = SnakeCaseHelper.keysToCamel(response) as DropboxAuthTokenResponse;
 
-            const oAuthToken = {accessToken: tokenResponse.accessToken, expiresIn: tokenResponse.expiresIn} as OAuthToken;
+            const oAuthToken = {
+              accessToken: tokenResponse.accessToken,
+              expiresIn: tokenResponse.expiresIn,
+              refreshToken: tokenResponse.refreshToken,
+            } as OAuthToken;
 
             this.localStorageService.setItem(AUTH_TOKEN_RESPONSE, JSON.stringify(oAuthToken));
 

@@ -28,6 +28,8 @@ export class DropboxAuthService {
       'state=' + state,
       'code_challenge=' + codeChallenge,
       'code_challenge_method=S256',
+      // issue a refresh token as well, the backend uses it to renew the short-lived access token
+      'token_access_type=offline',
     ];
 
     window.location.href = oAuthConfiguration.authorizeUrl + '?' + params.join('&');

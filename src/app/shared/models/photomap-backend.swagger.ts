@@ -970,6 +970,7 @@ export class YandexDiskClient {
 export interface AuthResultInputDto {
     token?: string | undefined;
     tokenExpiresIn?: number;
+    refreshToken?: string | undefined;
 }
 
 export interface AuthSettingsDto {
