@@ -1,28 +1,26 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, DestroyRef, OnInit, inject} from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {ActivatedRoute, Router} from '@angular/router';
 import {of} from 'rxjs';
 import {switchMap} from 'rxjs/operators';
-import {DropboxAuthService} from 'src/app/core/services/dropbox-auth.service';
-import {UntilDestroy, untilDestroyed} from '@ngneat/until-destroy';
-import {OAuthConfigurationDto} from 'src/app/shared/models/photomap-backend.swagger';
-import {DropboxAuthTokenResponse} from 'src/app/core/models/dropbox-auth-token-response.model';
 import {AUTH_CONFIGURATION, AUTH_FIRST_STEP, AUTH_TOKEN_RESPONSE} from 'src/app/core/constants/auth.constants';
-import {LocalStorageService} from 'src/app/core/services/local-storage.service';
 import {SnakeCaseHelper} from 'src/app/core/helpers/snake-case.helper';
+import {DropboxAuthTokenResponse} from 'src/app/core/models/dropbox-auth-token-response.model';
 import {OAuthToken} from 'src/app/core/models/oauth-token.model';
+import {DropboxAuthService} from 'src/app/core/services/dropbox-auth.service';
+import {LocalStorageService} from 'src/app/core/services/local-storage.service';
+import {OAuthConfigurationDto} from 'src/app/shared/models/photomap-backend.swagger';
 
-@UntilDestroy()
 @Component({
   selector: 'app-dropbox-auth',
   template: '',
 })
 export class DropboxAuthComponent implements OnInit {
-  constructor(
-    private router: Router,
-    private activatedRoute: ActivatedRoute,
-    private dropboxAuthService: DropboxAuthService,
-    private localStorageService: LocalStorageService
-  ) {}
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly router = inject(Router);
+  private readonly activatedRoute = inject(ActivatedRoute);
+  private readonly dropboxAuthService = inject(DropboxAuthService);
+  private readonly localStorageService = inject(LocalStorageService);
 
   ngOnInit(): void {
     this.onRouteChanged();
@@ -39,7 +37,7 @@ export class DropboxAuthComponent implements OnInit {
       const oAuthConfiguration = JSON.parse(this.localStorageService.getItem(AUTH_CONFIGURATION) as string) as OAuthConfigurationDto;
 
       if (oAuthConfiguration) {
-        this.dropboxAuthService.authorize(oAuthConfiguration);
+        this.dropboxAuthService.authorize(oAuthConfiguration).catch((error) => console.error(error));
       }
     }
   }
@@ -48,12 +46,12 @@ export class DropboxAuthComponent implements OnInit {
     this.activatedRoute.queryParams
       .pipe(
         switchMap((params) => {
-          if (params.code) {
+          if (params['code']) {
             const oAuthConfiguration = JSON.parse(this.localStorageService.getItem(AUTH_CONFIGURATION) as string) as OAuthConfigurationDto;
 
             this.localStorageService.removeItem(AUTH_CONFIGURATION);
 
-            return this.dropboxAuthService.getAccessToken(params.code, params.state, oAuthConfiguration);
+            return this.dropboxAuthService.getAccessToken(params['code'], params['state'], oAuthConfiguration);
           } else {
             return of(undefined);
           }
@@ -75,7 +73,7 @@ export class DropboxAuthComponent implements OnInit {
             return of(false);
           }
         }),
-        untilDestroyed(this)
+        takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
         next: (response) => {

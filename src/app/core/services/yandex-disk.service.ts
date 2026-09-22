@@ -1,21 +1,19 @@
-import { HttpClient } from '@angular/common/http';
-import { Injectable } from '@angular/core';
-import { Observable } from 'rxjs';
-import { environment } from 'src/environments/environment';
+import {HttpClient} from '@angular/common/http';
+import {Injectable, inject} from '@angular/core';
+import {Observable} from 'rxjs';
+import {environment} from 'src/environments/environment';
 
 @Injectable()
 export class YandexDiskService {
+  private readonly _httpClient = inject(HttpClient);
 
-  private url: string = `${environment.photoMapApiUrl}/yandex-disk`;
+  private url = `${environment.photoMapApiUrl}/yandex-disk`;
 
-  constructor(private _httpClient: HttpClient) {
+  startProcessing(userId: number): Observable<void> {
+    return this._httpClient.post<void>(this.url, userId);
   }
 
-  startProcessing(userId: number): Observable<any> {
-    return this._httpClient.post(this.url, userId);
-  }
-
-  stopProcessing(userId: number): Observable<any> {
-    return this._httpClient.delete(this.url + '?userId=' + userId);
+  stopProcessing(userId: number): Observable<void> {
+    return this._httpClient.delete<void>(this.url + '?userId=' + userId);
   }
 }

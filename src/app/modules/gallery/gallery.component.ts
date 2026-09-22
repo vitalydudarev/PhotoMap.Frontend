@@ -1,45 +1,58 @@
-import {Component, OnDestroy, OnInit} from '@angular/core';
-import {Subscription} from 'rxjs';
+import {Location} from '@angular/common';
+import {HttpParams} from '@angular/common/http';
+import {Component, DestroyRef, OnInit, inject} from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+import {MatButtonToggleModule} from '@angular/material/button-toggle';
+import {MatCardModule} from '@angular/material/card';
+import {MatIconModule} from '@angular/material/icon';
+import {MatPaginatorModule, PageEvent} from '@angular/material/paginator';
+import {MatProgressSpinnerModule} from '@angular/material/progress-spinner';
+import {ActivatedRoute, Router} from '@angular/router';
+import {Photo} from 'src/app/core/models/photo.model';
 
 import {UserPhotosService} from '../../core/services/user-photos.service';
-import {PageEvent} from '@angular/material/paginator';
-import {ActivatedRoute, Router} from '@angular/router';
-import {HttpParams} from '@angular/common/http';
-import {Location} from '@angular/common';
-import {Photo} from 'src/app/core/models/photo.model';
+import {PhotosMapViewComponent} from '../shared/photos-map-view/photos-map-view.component';
+import {PhotosThumbViewComponent} from '../shared/photos-thumb-view/photos-thumb-view.component';
 
 @Component({
   selector: 'app-gallery-page',
   templateUrl: './gallery.component.html',
   styleUrls: ['./gallery.component.scss'],
+  imports: [
+    MatButtonToggleModule,
+    MatCardModule,
+    MatIconModule,
+    MatPaginatorModule,
+    MatProgressSpinnerModule,
+    PhotosMapViewComponent,
+    PhotosThumbViewComponent,
+  ],
 })
-export class GalleryComponent implements OnInit, OnDestroy {
+export class GalleryComponent implements OnInit {
   photos: Photo[] = [];
-  showSpinner: boolean = false;
+  showSpinner = false;
 
-  totalCount: number = 0;
-  pageIndex: number = 0;
-  pageSize: number = 100;
+  totalCount = 0;
+  pageIndex = 0;
+  pageSize = 100;
   pageSizes: number[] = [100, 250, 500, 1000];
 
-  thumbViewMode: string = 'thumbViewMode';
-  mapViewMode: string = 'mapViewMode';
+  thumbViewMode = 'thumbViewMode';
+  mapViewMode = 'mapViewMode';
   selectedViewMode: string = this.thumbViewMode;
 
-  private userId: number = 1;
-  private subscription?: Subscription;
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly router = inject(Router);
+  private readonly location = inject(Location);
+  private readonly activatedRoute = inject(ActivatedRoute);
+  private readonly userPhotosService = inject(UserPhotosService);
+
+  private userId = 1;
   private pageConst = 'page';
   private pageSizeConst = 'pageSize';
 
-  constructor(
-    private router: Router,
-    private location: Location,
-    private activatedRoute: ActivatedRoute,
-    private userPhotosService: UserPhotosService
-  ) {}
-
   ngOnInit(): void {
-    this.activatedRoute.queryParams.subscribe({
+    this.activatedRoute.queryParams.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (params) => {
         const pageIndex = params[this.pageConst];
         const pageSize = params[this.pageSizeConst];
@@ -56,10 +69,6 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
     this.setImages();
     this.addQueryString();
-  }
-
-  ngOnDestroy(): void {
-    this.subscription?.unsubscribe();
   }
 
   onViewModeChanged(value: string) {
@@ -86,12 +95,15 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private setImages() {
     this.showSpinner = true;
 
-    this.subscription = this.userPhotosService.getUserPhotos(this.userId, this.pageSize, this.pageSize * this.pageIndex).subscribe({
-      next: (pagedResponse) => {
-        this.totalCount = pagedResponse.total;
-        this.photos = pagedResponse.values;
-        this.showSpinner = false;
-      },
-    });
+    this.userPhotosService
+      .getUserPhotos(this.userId, this.pageSize, this.pageSize * this.pageIndex)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (pagedResponse) => {
+          this.totalCount = pagedResponse.total;
+          this.photos = pagedResponse.values;
+          this.showSpinner = false;
+        },
+      });
   }
 }

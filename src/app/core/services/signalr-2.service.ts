@@ -1,4 +1,4 @@
-import {HubConnection, HubConnectionBuilder} from '@aspnet/signalr';
+import {HubConnection, HubConnectionBuilder} from '@microsoft/signalr';
 
 export class SignalRService2 {
   private hubConnection: HubConnection | undefined;
@@ -6,23 +6,22 @@ export class SignalRService2 {
 
   public startConnection(userId: number): void {
     const url = this.url + userId;
-    this.hubConnection = new HubConnectionBuilder().withUrl(this.url).build();
+    this.hubConnection = new HubConnectionBuilder().withUrl(url).build();
     this.hubConnection.start().then(
       () => {
-        console.log('Hub connection started!');
         this.registerServerEvents();
       },
-      (error) => console.error(error)
+      (error) => console.error(error),
     );
   }
 
   private registerServerEvents(): void {
     if (this.hubConnection) {
-      this.hubConnection.on('Error', (error: any) => {
+      this.hubConnection.on('Error', () => {
         //   this.error$.next(question);
       });
 
-      this.hubConnection.on('Progress', (progress: any) => {
+      this.hubConnection.on('Progress', () => {
         //   this.progress$.next({ player, guess });
       });
     }

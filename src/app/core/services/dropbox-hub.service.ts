@@ -1,6 +1,7 @@
 import {Injectable} from '@angular/core';
 import {Observable, Subject} from 'rxjs';
 import {environment} from 'src/environments/environment';
+
 import {Progress} from '../models/progress.model';
 import {SignalRService} from './signalr.service';
 
@@ -9,7 +10,7 @@ export class DropboxHubService extends SignalRService {
   protected hubEvents: string[];
   protected hubUrl = environment.dropboxHub;
 
-  private subjects!: {[eventName: string]: Subject<any>};
+  private subjects!: Record<string, Subject<unknown>>;
 
   constructor() {
     super();
@@ -17,7 +18,7 @@ export class DropboxHubService extends SignalRService {
     this.createSubjects();
   }
 
-  registerClient(userId: number): Promise<any> {
+  registerClient(userId: number): Promise<unknown> {
     if (this.hubConnection) {
       return this.hubConnection.invoke('RegisterClient', userId);
     }
@@ -26,14 +27,14 @@ export class DropboxHubService extends SignalRService {
   }
 
   dropboxError(): Observable<string> {
-    return this.subjects['DropboxError'].asObservable();
+    return this.subjects['DropboxError'].asObservable() as Observable<string>;
   }
 
   dropboxProgress(): Observable<Progress> {
-    return this.subjects['DropboxProgress'].asObservable();
+    return this.subjects['DropboxProgress'].asObservable() as Observable<Progress>;
   }
 
-  buildHubConnection() {
+  override buildHubConnection() {
     super.buildHubConnection(this.hubUrl);
   }
 
@@ -41,14 +42,14 @@ export class DropboxHubService extends SignalRService {
     this.subjects['DropboxError'].next(errorMessage);
   }
 
-  private DropboxProgress(progress: any) {
+  private DropboxProgress(progress: Progress) {
     this.subjects['DropboxProgress'].next(progress);
   }
 
   private createSubjects() {
     this.subjects = {};
     this.hubEvents.forEach((eventName) => {
-      this.subjects[eventName] = new Subject<any>();
+      this.subjects[eventName] = new Subject<unknown>();
     });
   }
 }

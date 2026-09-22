@@ -1,4 +1,4 @@
-import {HubConnection, HubConnectionBuilder} from '@aspnet/signalr';
+import {HubConnection, HubConnectionBuilder} from '@microsoft/signalr';
 
 export abstract class SignalRService {
   hubConnection?: HubConnection;
@@ -14,7 +14,7 @@ export abstract class SignalRService {
     return Promise.resolve();
   }
 
-  stopHubConnection(): Promise<any> {
+  stopHubConnection(): Promise<void> {
     if (this.hubConnection) {
       return this.hubConnection.stop();
     }

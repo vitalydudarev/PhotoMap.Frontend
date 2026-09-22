@@ -1,1 +1,3 @@
-<app-photos-map-view *ngIf="photos" [photos]="photos"></app-photos-map-view>
+@if (photos) {
+  <app-photos-map-view [photos]="photos"></app-photos-map-view>
+}

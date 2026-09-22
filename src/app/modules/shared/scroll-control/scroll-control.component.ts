@@ -1,17 +1,20 @@
-import {Component, OnInit, Inject, HostListener, ViewEncapsulation} from '@angular/core';
-import {DOCUMENT} from '@angular/common';
+import {DOCUMENT, NgClass} from '@angular/common';
+import {Component, HostListener, OnInit, ViewEncapsulation, inject} from '@angular/core';
+import {MatButtonModule} from '@angular/material/button';
+import {MatIconModule} from '@angular/material/icon';
 
 @Component({
   selector: 'app-scroll-control',
   templateUrl: './scroll-control.component.html',
   styleUrls: ['./scroll-control.component.scss'],
   encapsulation: ViewEncapsulation.Emulated,
+  imports: [MatButtonModule, MatIconModule, NgClass],
 })
 export class ScrollControlComponent implements OnInit {
-  canScrollUp: boolean = false;
-  canScrollDown: boolean = false;
+  canScrollUp = false;
+  canScrollDown = false;
 
-  constructor(@Inject(DOCUMENT) private document: Document) {}
+  private readonly document = inject(DOCUMENT);
 
   ngOnInit() {
     this.checkIfCanScrollDown();
@@ -24,43 +27,54 @@ export class ScrollControlComponent implements OnInit {
   }
 
   scrollToTop() {
-    (function smoothscroll() {
-      const currentPosition = document.documentElement.scrollTop;
+    const documentElement = this.document.documentElement;
+    const view = this.document.defaultView;
+
+    const smoothscroll = () => {
+      const currentPosition = documentElement.scrollTop;
 
       if (currentPosition > 0) {
-        window.requestAnimationFrame(smoothscroll);
-        window.scrollTo(0, currentPosition - currentPosition / 8);
+        view?.requestAnimationFrame(smoothscroll);
+        view?.scrollTo(0, currentPosition - currentPosition / 8);
       }
-    })();
+    };
+
+    smoothscroll();
   }
 
   scrollToBottom(): void {
-    (function smoothscroll() {
-      const currentPosition = document.documentElement.scrollTop;
-      const endPosition = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+    const documentElement = this.document.documentElement;
+    const view = this.document.defaultView;
+
+    const smoothscroll = () => {
+      const currentPosition = documentElement.scrollTop;
+      const endPosition = documentElement.scrollHeight - documentElement.clientHeight;
       const diff = endPosition - currentPosition;
       const newPosition = currentPosition + diff / 8;
 
       if (currentPosition + 10 < endPosition) {
-        window.requestAnimationFrame(smoothscroll);
-        window.scrollTo(0, newPosition);
+        view?.requestAnimationFrame(smoothscroll);
+        view?.scrollTo(0, newPosition);
       }
-    })();
+    };
+
+    smoothscroll();
   }
 
   private checkIfCanScrollUp() {
-    if (window.pageYOffset || document.documentElement.scrollTop > 100) {
+    const documentElement = this.document.documentElement;
+    const scrollY = this.document.defaultView?.scrollY ?? 0;
+
+    if (scrollY || documentElement.scrollTop > 100) {
       this.canScrollUp = true;
-    } else if ((this.canScrollUp && window.pageYOffset) || document.documentElement.scrollTop < 10) {
+    } else if ((this.canScrollUp && scrollY) || documentElement.scrollTop < 10) {
       this.canScrollUp = false;
     }
   }
 
   private checkIfCanScrollDown() {
-    if (document.documentElement.scrollTop < document.documentElement.scrollHeight - document.documentElement.clientHeight) {
-      this.canScrollDown = true;
-    } else {
-      this.canScrollDown = false;
-    }
+    const documentElement = this.document.documentElement;
+
+    this.canScrollDown = documentElement.scrollTop < documentElement.scrollHeight - documentElement.clientHeight;
   }
 }

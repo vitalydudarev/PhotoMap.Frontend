@@ -1,16 +1,17 @@
 export class SnakeCaseHelper {
-  public static keysToCamel(o: any): any {
-    if (o === Object(o) && !Array.isArray(o) && typeof o !== 'function') {
-      const n: {[key: string]: any} = {};
-      Object.keys(o).forEach((k) => {
-        n[this.toCamel(k)] = this.keysToCamel(o[k]);
+  public static keysToCamel(o: unknown): unknown {
+    if (Array.isArray(o)) {
+      return o.map((i) => this.keysToCamel(i));
+    }
+
+    if (o === Object(o) && typeof o !== 'function') {
+      const n: Record<string, unknown> = {};
+      Object.entries(o as Record<string, unknown>).forEach(([k, v]) => {
+        n[this.toCamel(k)] = this.keysToCamel(v);
       });
       return n;
-    } else if (Array.isArray(o)) {
-      return o.map((i) => {
-        return this.keysToCamel(i);
-      });
     }
+
     return o;
   }
 

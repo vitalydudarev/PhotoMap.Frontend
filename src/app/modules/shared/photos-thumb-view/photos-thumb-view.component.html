@@ -1,12 +1,5 @@
 <section>
-    <ks-modal-gallery
-        [id]="1"
-        [modalImages]="images"
-        [previewConfig]="{visible: false}"
-        [dotsConfig]="dotsConfig"
-        [buttonsConfig]="buttonsConfig"
-        [plainGalleryConfig]="plainGalleryGridConfig">
-    </ks-modal-gallery>
+  <ks-plain-gallery [id]="galleryId" [images]="images" [config]="plainGalleryConfig" (clickImage)="onImageClicked($event)" />
 </section>
 
 <app-scroll-control></app-scroll-control>

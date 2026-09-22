@@ -1,4 +1,20 @@
-@import "bootstrap/scss/bootstrap-grid";
+/* The toolbar row uses a handful of Bootstrap utility classes. Declaring them here keeps
+   the component stylesheet small instead of pulling all of bootstrap-grid into it. */
+.d-flex {
+  display: flex;
+}
+
+.align-items-start {
+  align-items: flex-start;
+}
+
+.justify-content-between {
+  justify-content: space-between;
+}
+
+.m-2 {
+  margin: 0.5rem;
+}
 
 .spinner-wrapper {
   display: flex;

@@ -1,17 +1,15 @@
-import { HttpClient } from '@angular/common/http';
-import { Injectable } from '@angular/core';
-import { Observable } from 'rxjs';
-import { environment } from 'src/environments/environment';
+import {HttpClient} from '@angular/common/http';
+import {Injectable, inject} from '@angular/core';
+import {Observable} from 'rxjs';
+import {environment} from 'src/environments/environment';
 
 @Injectable()
 export class DataService {
+  private readonly _httpClient = inject(HttpClient);
 
-  private url: string = `${environment.photoMapApiUrl}/data`;
+  private url = `${environment.photoMapApiUrl}/data`;
 
-  constructor(private _httpClient: HttpClient) {
-  }
-
-  deleteAllData(): Observable<any> {
-    return this._httpClient.delete(this.url);
+  deleteAllData(): Observable<void> {
+    return this._httpClient.delete<void>(this.url);
   }
 }

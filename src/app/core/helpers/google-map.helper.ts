@@ -2,7 +2,7 @@ import {MarkerWrapper} from '../models/marker-wrapper.model';
 
 export class GoogleMapHelper {
   /* https://stackoverflow.com/questions/6048975/google-maps-v3-how-to-calculate-the-zoom-level-for-a-given-bounds */
-  static getBoundsZoomLevel(markers: MarkerWrapper[], mapDim: any): number {
+  static getBoundsZoomLevel(markers: MarkerWrapper[], mapDim: {height: number; width: number}): number {
     const WORLD_DIM = {height: 256, width: 256};
     const ZOOM_MAX = 21;
 

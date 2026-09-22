@@ -1,13 +1,19 @@
-import {Component, OnDestroy, OnInit} from '@angular/core';
-import {Subscription} from 'rxjs';
+import {Component, DestroyRef, OnInit, inject} from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+import {MatButtonModule} from '@angular/material/button';
+import {MatIconModule} from '@angular/material/icon';
+import {MatToolbarModule} from '@angular/material/toolbar';
+import {RouterLink, RouterOutlet} from '@angular/router';
+
 import {UserService} from './core/services/user.service';
 
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss'],
+  imports: [MatToolbarModule, MatButtonModule, MatIconModule, RouterLink, RouterOutlet],
 })
-export class AppComponent implements OnInit, OnDestroy {
+export class AppComponent implements OnInit {
   title = 'photo-map-ui';
 
   menuItems = [
@@ -19,35 +25,31 @@ export class AppComponent implements OnInit, OnDestroy {
   ];
 
   userId = 1;
-  yandexDiskAuthorized: boolean = false;
-  dropboxAuthorized: boolean = false;
+  yandexDiskAuthorized = false;
+  dropboxAuthorized = false;
 
-  private subscriptions: Subscription = new Subscription();
-
-  constructor(private userService: UserService) {}
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly userService = inject(UserService);
 
   ngOnInit(): void {
     this.getUserData();
   }
 
-  ngOnDestroy(): void {
-    this.subscriptions.unsubscribe();
-  }
-
   private getUserData(): void {
-    const getUserSub = this.userService.getUser(this.userId).subscribe({
-      next: (user) => {
-        if (user.yandexDiskTokenExpiresOn && Date.now() < new Date(user.yandexDiskTokenExpiresOn).getTime()) {
-          this.yandexDiskAuthorized = true;
-        }
+    this.userService
+      .getUser(this.userId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (user) => {
+          if (user.yandexDiskTokenExpiresOn && Date.now() < new Date(user.yandexDiskTokenExpiresOn).getTime()) {
+            this.yandexDiskAuthorized = true;
+          }
 
-        if (user.dropboxTokenExpiresOn && Date.now() < new Date(user.dropboxTokenExpiresOn).getTime()) {
-          this.dropboxAuthorized = true;
-        }
-      },
-      error: () => console.log('An error has occurred while getting user data.'),
-    });
-
-    this.subscriptions.add(getUserSub);
+          if (user.dropboxTokenExpiresOn && Date.now() < new Date(user.dropboxTokenExpiresOn).getTime()) {
+            this.dropboxAuthorized = true;
+          }
+        },
+        error: () => console.error('An error has occurred while getting user data.'),
+      });
   }
 }

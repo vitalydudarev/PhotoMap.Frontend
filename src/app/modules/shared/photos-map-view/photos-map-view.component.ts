@@ -1,9 +1,8 @@
-import {Component, ElementRef, Input, OnChanges, SimpleChanges, ViewChild} from '@angular/core';
-// import { AgmInfoWindow } from '@agm/core';
+import {Component, ElementRef, Input, OnChanges, ViewChild} from '@angular/core';
 
+import {GoogleMapHelper} from 'src/app/core/helpers/google-map.helper';
 import {MarkerWrapper} from 'src/app/core/models/marker-wrapper.model';
 import {Photo} from 'src/app/core/models/photo.model';
-import {GoogleMapHelper} from 'src/app/core/helpers/google-map.helper';
 
 @Component({
   selector: 'app-photos-map-view',
@@ -14,43 +13,18 @@ export class PhotosMapViewComponent implements OnChanges {
   @ViewChild('map', {read: ElementRef, static: true}) map?: ElementRef;
 
   markers: MarkerWrapper[] = [];
-  zoom: number = 0;
+  zoom = 0;
   center: {lat: number; lng: number} = {lat: 0, lng: 0};
 
-  // private infoWindowOpened: AgmInfoWindow;
-  // private previousInfoWindow: AgmInfoWindow;
-
-  constructor() {}
-
-  ngOnChanges(changes: SimpleChanges): void {
-    // this.previousInfoWindow = null;
-    // this.infoWindowOpened = null;
-
+  ngOnChanges(): void {
     const markers = this.createMarkers();
 
-    // const map = document.getElementsByClassName('agm-map-container-inner sebm-google-map-container-inner')[0];
-
-    // this.zoom = GoogleMapHelper.getBoundsZoomLevel(markers, { height: map.clientHeight, width: map.clientWidth });
-    this.center = GoogleMapHelper.getCenter(markers);
-    this.markers = markers;
-  }
-
-  /*onMarkerClicked(infoWindow: AgmInfoWindow) {
-        if (!this.previousInfoWindow) {
-            this.previousInfoWindow = infoWindow;
-        } else {
-            this.infoWindowOpened = infoWindow;
-            this.previousInfoWindow.close();
-        }
-
-        this.previousInfoWindow = infoWindow;
+    if (markers.length > 0) {
+      this.center = GoogleMapHelper.getCenter(markers);
     }
 
-    onMapClicked($event: MouseEvent) {
-        if (this.previousInfoWindow) {
-            this.previousInfoWindow.close();
-        }
-    }*/
+    this.markers = markers;
+  }
 
   private createMarkers(): MarkerWrapper[] {
     const markers: MarkerWrapper[] = [];

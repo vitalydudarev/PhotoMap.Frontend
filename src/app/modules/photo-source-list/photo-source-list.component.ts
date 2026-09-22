@@ -1,6 +1,14 @@
-import {Component, OnInit, ChangeDetectionStrategy} from '@angular/core';
+import {AsyncPipe, DatePipe} from '@angular/common';
+import {ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject} from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+import {MatButtonModule} from '@angular/material/button';
+import {MatTableDataSource, MatTableModule} from '@angular/material/table';
+import {Router} from '@angular/router';
 import {Observable, ReplaySubject} from 'rxjs';
-import {UntilDestroy, untilDestroyed} from '@ngneat/until-destroy';
+import {map, switchMap} from 'rxjs/operators';
+import {AUTH_CONFIGURATION, AUTH_FIRST_STEP, AUTH_SOURCE_ID, AUTH_TOKEN_RESPONSE} from 'src/app/core/constants/auth.constants';
+import {OAuthToken} from 'src/app/core/models/oauth-token.model';
+import {LocalStorageService} from 'src/app/core/services/local-storage.service';
 import {
   AuthResultInputDto,
   AuthSettingsDto,
@@ -9,37 +17,30 @@ import {
   UserPhotoSourceDto,
   UsersPhotoSourcesClient,
 } from 'src/app/shared/models/photomap-backend.swagger';
-import {Router} from '@angular/router';
-import {AUTH_CONFIGURATION, AUTH_FIRST_STEP, AUTH_SOURCE_ID, AUTH_TOKEN_RESPONSE} from 'src/app/core/constants/auth.constants';
-import {LocalStorageService} from 'src/app/core/services/local-storage.service';
-import {OAuthToken} from 'src/app/core/models/oauth-token.model';
-import {map, switchMap} from 'rxjs/operators';
-import {MatTableDataSource} from '@angular/material/table';
 
-@UntilDestroy()
 @Component({
   selector: 'app-photo-source-list',
   templateUrl: './photo-source-list.component.html',
   styleUrls: ['./photo-source-list.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [AsyncPipe, DatePipe, MatButtonModule, MatTableModule],
 })
 export class PhotoSourceListComponent implements OnInit {
   displayedColumns = ['id', 'name', 'isUserAuthorized', 'expiresOn', 'action'];
 
   dataSource$!: Observable<MatTableDataSource<UserPhotoSourceDto>>;
 
-  private refreshDataSubject = new ReplaySubject();
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly router = inject(Router);
+  private readonly localStorageService = inject(LocalStorageService);
+  private readonly usersPhotoSourcesClient = inject(UsersPhotoSourcesClient);
+  private readonly photoSourcesClient = inject(PhotoSourcesClient);
+
+  private refreshDataSubject = new ReplaySubject<void>();
   private isProcessingRunning = false;
 
   // TODO: take user ID from cookies
   private userId = 1;
-
-  constructor(
-    private router: Router,
-    private localStorageService: LocalStorageService,
-    private usersPhotoSourcesClient: UsersPhotoSourcesClient,
-    private photoSourcesClient: PhotoSourcesClient
-  ) {}
 
   ngOnInit(): void {
     this.dataSource$ = this.refreshDataSubject.pipe(
@@ -50,7 +51,7 @@ export class PhotoSourceListComponent implements OnInit {
 
         return dataSource;
       }),
-      untilDestroyed(this)
+      takeUntilDestroyed(this.destroyRef),
     );
 
     this.refreshDataSubject.next();
@@ -59,17 +60,20 @@ export class PhotoSourceListComponent implements OnInit {
   }
 
   authorize(sourceId: number) {
-    this.photoSourcesClient.getSourceAuthSettings(sourceId).subscribe({
-      next: (authSettings: AuthSettingsDto) => {
-        if (authSettings) {
-          this.localStorageService.setItem(AUTH_FIRST_STEP, true);
-          this.localStorageService.setItem(AUTH_CONFIGURATION, JSON.stringify(authSettings.oAuthConfiguration));
-          this.localStorageService.setItem(AUTH_SOURCE_ID, sourceId);
+    this.photoSourcesClient
+      .getSourceAuthSettings(sourceId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (authSettings: AuthSettingsDto) => {
+          if (authSettings) {
+            this.localStorageService.setItem(AUTH_FIRST_STEP, true);
+            this.localStorageService.setItem(AUTH_CONFIGURATION, JSON.stringify(authSettings.oAuthConfiguration));
+            this.localStorageService.setItem(AUTH_SOURCE_ID, sourceId);
 
-          this.router.navigate([authSettings.relativeAuthUrl]);
-        }
-      },
-    });
+            this.router.navigate([authSettings.relativeAuthUrl]);
+          }
+        },
+      });
   }
 
   sendProcessingCommand(sourceId: number) {
@@ -77,8 +81,9 @@ export class PhotoSourceListComponent implements OnInit {
       .sourceProcessing(
         this.userId,
         sourceId,
-        this.isProcessingRunning ? PhotoSourceProcessingCommands._1 : PhotoSourceProcessingCommands._0
+        this.isProcessingRunning ? PhotoSourceProcessingCommands._1 : PhotoSourceProcessingCommands._0,
       )
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe();
 
     this.isProcessingRunning = !this.isProcessingRunning;
@@ -103,7 +108,7 @@ export class PhotoSourceListComponent implements OnInit {
 
       this.usersPhotoSourcesClient
         .updateUserPhotoSource(userId, sourceId, authResult)
-        .pipe(untilDestroyed(this))
+        .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
           next: () => this.refreshDataSubject.next(),
         });

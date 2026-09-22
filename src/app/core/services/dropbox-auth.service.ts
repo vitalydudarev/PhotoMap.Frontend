@@ -1,24 +1,24 @@
-import * as CryptoJS from 'crypto-js';
 import {HttpClient, HttpParams} from '@angular/common/http';
+import {Injectable, inject} from '@angular/core';
 import {Observable, of} from 'rxjs';
-import {Injectable} from '@angular/core';
 import {OAuthConfigurationDto} from 'src/app/shared/models/photomap-backend.swagger';
+
 import {DropboxAuthTokenResponse} from '../models/dropbox-auth-token-response.model';
 import {LocalStorageService} from './local-storage.service';
 
 @Injectable()
 export class DropboxAuthService {
-  constructor(private localStorageService: LocalStorageService, private httpClient: HttpClient) {}
+  private readonly localStorageService = inject(LocalStorageService);
+  private readonly httpClient = inject(HttpClient);
 
-  authorize(oAuthConfiguration: OAuthConfigurationDto) {
+  async authorize(oAuthConfiguration: OAuthConfigurationDto): Promise<void> {
     const state = this.strRandom(40);
     const codeVerifier = this.strRandom(128);
 
     this.localStorageService.setItem('state', state);
     this.localStorageService.setItem('codeVerifier', codeVerifier);
 
-    const codeVerifierHash = CryptoJS.SHA256(codeVerifier).toString(CryptoJS.enc.Base64);
-    const codeChallenge = codeVerifierHash.replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+    const codeChallenge = await this.createCodeChallenge(codeVerifier);
 
     const params = [
       'client_id=' + oAuthConfiguration.clientId,
@@ -50,8 +50,6 @@ export class DropboxAuthService {
       .append('redirect_uri', oAuthConfiguration.redirectUri!)
       .append('client_id', oAuthConfiguration.clientId!);
 
-    console.log(payload);
-
     return this.httpClient.post<DropboxAuthTokenResponse>(oAuthConfiguration.tokenUrl!, payload, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -59,14 +57,31 @@ export class DropboxAuthService {
     });
   }
 
-  private strRandom(length: number) {
+  /** RFC 7636 S256 code challenge: base64url(SHA-256(codeVerifier)). */
+  private async createCodeChallenge(codeVerifier: string): Promise<string> {
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(codeVerifier));
+
+    return this.toBase64Url(new Uint8Array(digest));
+  }
+
+  private toBase64Url(bytes: Uint8Array): string {
+    let binary = '';
+
+    for (const byte of bytes) {
+      binary += String.fromCharCode(byte);
+    }
+
+    return btoa(binary).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  }
+
+  private strRandom(length: number): string {
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    const charactersLength = characters.length;
+    const randomValues = crypto.getRandomValues(new Uint8Array(length));
 
     let result = '';
 
-    for (let i = 0; i < length; i++) {
-      result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    for (const value of randomValues) {
+      result += characters.charAt(value % characters.length);
     }
 
     return result;

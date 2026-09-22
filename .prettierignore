@@ -1,0 +1,6 @@
+# Generated from the backend OpenAPI document by `npm run nswag:backend`.
+src/app/shared/models/photomap-backend.swagger.ts
+
+dist
+coverage
+package-lock.json
