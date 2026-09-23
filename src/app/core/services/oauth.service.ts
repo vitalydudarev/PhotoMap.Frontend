@@ -1,31 +1,31 @@
-import {OAuthConfiguration} from '../models/oauth-configuration.model';
-import {OAuthToken} from '../models/oauth-token.model';
 import {Injectable} from '@angular/core';
+import {OAuthConfigurationDto} from 'src/app/shared/models/photomap-backend.swagger';
 
-@Injectable()
+import {OAuthToken} from '../models/oauth-token.model';
+
+/**
+ * OAuth 2 implicit flow (`response_type=token`), which Yandex.Disk uses: the provider sends the
+ * access token back in the URL fragment. Dropbox uses the authorization code flow instead, see
+ * `PkceAuthService`.
+ */
+@Injectable({providedIn: 'root'})
 export class OAuthService {
-  private oAuthConfiguration?: OAuthConfiguration;
-
-  setConfiguration(oAuthConfiguration: OAuthConfiguration) {
-    this.oAuthConfiguration = oAuthConfiguration;
-  }
-
-  // Yandex.Disk
-  authorize(): void {
+  authorize(configuration: OAuthConfigurationDto): void {
     const params = [
-      'client_id=' + this.oAuthConfiguration?.clientId,
-      'response_type=' + this.oAuthConfiguration?.responseType,
-      'redirect_uri=' + encodeURIComponent(this.oAuthConfiguration?.redirectUri ?? ''),
+      'client_id=' + configuration.clientId,
+      'response_type=' + configuration.responseType,
+      'redirect_uri=' + encodeURIComponent(configuration.redirectUri ?? ''),
     ];
 
-    window.location.href = this.oAuthConfiguration?.authorizeUrl + '?' + params.join('&');
+    window.location.href = configuration.authorizeUrl + '?' + params.join('&');
   }
 
-  parseAuthResponse(queryParams: string): OAuthToken {
-    const params = new URLSearchParams(queryParams);
-    const accessToken = params.get('access_token');
-    const expiresIn = parseInt(params.get('expires_in') ?? '');
+  parseAuthResponse(fragment: string): OAuthToken {
+    const params = new URLSearchParams(fragment);
 
-    return {accessToken: accessToken, expiresIn: expiresIn} as OAuthToken;
+    return {
+      accessToken: params.get('access_token') ?? undefined,
+      expiresIn: parseInt(params.get('expires_in') ?? ''),
+    } as OAuthToken;
   }
 }

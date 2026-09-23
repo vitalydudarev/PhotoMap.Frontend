@@ -2,13 +2,9 @@ import {DatePipe} from '@angular/common';
 import {ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {Router} from '@angular/router';
-import {AUTH_CONFIGURATION, AUTH_FIRST_STEP, AUTH_SOURCE_ID, AUTH_TOKEN_RESPONSE} from 'src/app/core/constants/auth.constants';
-import {OAuthToken} from 'src/app/core/models/oauth-token.model';
-import {LocalStorageService} from 'src/app/core/services/local-storage.service';
+import {PhotoSourceAuthService} from 'src/app/core/services/photo-source-auth.service';
 import {ToastService} from 'src/app/core/services/toast.service';
 import {
-  AuthResultInputDto,
-  AuthSettingsDto,
   PhotoSourceProcessingCommands,
   PhotoSourcesClient,
   UserPhotoSourceDto,
@@ -18,6 +14,11 @@ import {ButtonDirective} from 'src/app/shared/ui/button/button.directive';
 import {CardComponent} from 'src/app/shared/ui/card/card.component';
 import {IconComponent} from 'src/app/shared/ui/icon/icon.component';
 import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
+
+// The generated enum names its members after their values; these are the backend's
+// `PhotoSourceProcessingCommands.Start` and `.Stop`.
+const START_PROCESSING = PhotoSourceProcessingCommands._1;
+const STOP_PROCESSING = PhotoSourceProcessingCommands._2;
 
 @Component({
   selector: 'app-photo-source-list',
@@ -32,8 +33,8 @@ export class PhotoSourceListComponent implements OnInit {
 
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
-  private readonly localStorageService = inject(LocalStorageService);
   private readonly toastService = inject(ToastService);
+  private readonly authService = inject(PhotoSourceAuthService);
   private readonly usersPhotoSourcesClient = inject(UsersPhotoSourcesClient);
   private readonly photoSourcesClient = inject(PhotoSourcesClient);
 
@@ -44,10 +45,12 @@ export class PhotoSourceListComponent implements OnInit {
 
   ngOnInit(): void {
     this.refresh();
-
-    this.updateTokenIfRelevant(this.userId);
   }
 
+  /**
+   * Hands off to the source's own page, which runs the OAuth flow and handles the provider's
+   * redirect back. `relativeAuthUrl` is the route the backend seeds as that source's redirect URI.
+   */
   authorize(sourceId: number | undefined) {
     if (sourceId === undefined) {
       return;
@@ -57,12 +60,9 @@ export class PhotoSourceListComponent implements OnInit {
       .getSourceAuthSettings(sourceId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (authSettings: AuthSettingsDto) => {
-          if (authSettings) {
-            this.localStorageService.setItem(AUTH_FIRST_STEP, true);
-            this.localStorageService.setItem(AUTH_CONFIGURATION, JSON.stringify(authSettings.oAuthConfiguration));
-            this.localStorageService.setItem(AUTH_SOURCE_ID, sourceId);
-
+        next: (authSettings) => {
+          if (authSettings?.relativeAuthUrl) {
+            this.authService.requestAutoStart();
             this.router.navigate([authSettings.relativeAuthUrl]);
           }
         },
@@ -76,11 +76,7 @@ export class PhotoSourceListComponent implements OnInit {
     }
 
     this.usersPhotoSourcesClient
-      .sourceProcessing(
-        this.userId,
-        sourceId,
-        this.isProcessingRunning ? PhotoSourceProcessingCommands._1 : PhotoSourceProcessingCommands._0,
-      )
+      .sourceProcessing(this.userId, sourceId, this.isProcessingRunning ? STOP_PROCESSING : START_PROCESSING)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         error: () => this.toastService.error('Could not send the processing command.'),
@@ -105,32 +101,5 @@ export class PhotoSourceListComponent implements OnInit {
           this.toastService.error('Could not load photo sources.');
         },
       });
-  }
-
-  private updateTokenIfRelevant(userId: number): void {
-    const authSourceId = this.localStorageService.getItem(AUTH_SOURCE_ID);
-    const authTokenResponse = this.localStorageService.getItem(AUTH_TOKEN_RESPONSE);
-
-    if (authSourceId && authTokenResponse) {
-      const sourceId = authSourceId as number;
-      const tokenResponse = JSON.parse(authTokenResponse as string) as OAuthToken;
-
-      const authResult = {
-        token: tokenResponse.accessToken,
-        tokenExpiresIn: tokenResponse.expiresIn,
-        refreshToken: tokenResponse.refreshToken,
-      } as AuthResultInputDto;
-
-      this.localStorageService.removeItem(AUTH_SOURCE_ID);
-      this.localStorageService.removeItem(AUTH_TOKEN_RESPONSE);
-
-      this.usersPhotoSourcesClient
-        .updateUserPhotoSource(userId, sourceId, authResult)
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe({
-          next: () => this.refresh(),
-          error: () => this.toastService.error('Could not save the new access token.'),
-        });
-    }
   }
 }

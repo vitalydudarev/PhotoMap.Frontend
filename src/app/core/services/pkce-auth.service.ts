@@ -1,13 +1,18 @@
 import {HttpClient, HttpParams} from '@angular/common/http';
 import {Injectable, inject} from '@angular/core';
-import {Observable, of} from 'rxjs';
+import {Observable} from 'rxjs';
 import {OAuthConfigurationDto} from 'src/app/shared/models/photomap-backend.swagger';
 
-import {DropboxAuthTokenResponse} from '../models/dropbox-auth-token-response.model';
+import {AUTH_CODE_VERIFIER, AUTH_STATE} from '../constants/auth.constants';
+import {OAuthTokenResponse} from '../models/oauth-token-response.model';
 import {LocalStorageService} from './local-storage.service';
 
-@Injectable()
-export class DropboxAuthService {
+/**
+ * OAuth 2 authorization code flow with PKCE (`response_type=code`), which Dropbox uses. The
+ * verifier is kept in local storage across the redirect and exchanged for a token on return.
+ */
+@Injectable({providedIn: 'root'})
+export class PkceAuthService {
   private readonly localStorageService = inject(LocalStorageService);
   private readonly httpClient = inject(HttpClient);
 
@@ -15,8 +20,8 @@ export class DropboxAuthService {
     const state = this.strRandom(40);
     const codeVerifier = this.strRandom(128);
 
-    this.localStorageService.setItem('state', state);
-    this.localStorageService.setItem('codeVerifier', codeVerifier);
+    this.localStorageService.setItem(AUTH_STATE, state);
+    this.localStorageService.setItem(AUTH_CODE_VERIFIER, codeVerifier);
 
     const codeChallenge = await this.createCodeChallenge(codeVerifier);
 
@@ -35,13 +40,17 @@ export class DropboxAuthService {
     window.location.href = oAuthConfiguration.authorizeUrl + '?' + params.join('&');
   }
 
-  getAccessToken(code: string, state: string, oAuthConfiguration: OAuthConfigurationDto): Observable<DropboxAuthTokenResponse> {
-    if (state !== this.localStorageService.getItem('state')) {
-      alert('Invalid state');
-      return of();
-    }
+  /** Rejects when the returned state does not match the one this client sent. */
+  getAccessToken(code: string, state: string, oAuthConfiguration: OAuthConfigurationDto): Observable<OAuthTokenResponse> {
+    const expectedState = this.localStorageService.getItem(AUTH_STATE);
+    const codeVerifier = this.localStorageService.getItem(AUTH_CODE_VERIFIER) as string;
 
-    const codeVerifier = this.localStorageService.getItem('codeVerifier') as string;
+    this.localStorageService.removeItem(AUTH_STATE);
+    this.localStorageService.removeItem(AUTH_CODE_VERIFIER);
+
+    if (!expectedState || state !== expectedState) {
+      throw new Error('The authorization response state did not match the request.');
+    }
 
     const payload = new HttpParams()
       .append('grant_type', 'authorization_code')
@@ -50,7 +59,7 @@ export class DropboxAuthService {
       .append('redirect_uri', oAuthConfiguration.redirectUri!)
       .append('client_id', oAuthConfiguration.clientId!);
 
-    return this.httpClient.post<DropboxAuthTokenResponse>(oAuthConfiguration.tokenUrl!, payload, {
+    return this.httpClient.post<OAuthTokenResponse>(oAuthConfiguration.tokenUrl!, payload, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },

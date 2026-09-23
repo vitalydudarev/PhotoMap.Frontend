@@ -1,0 +1,74 @@
+<div class="app-page app-page--narrow app-stack">
+  <header>
+    <h1 class="app-page-title">{{ config()?.title }}</h1>
+    <p class="app-page-subtitle">{{ config()?.description }}</p>
+  </header>
+
+  @if (isLoading()) {
+    <app-card>
+      <p class="loading">Loading…</p>
+    </app-card>
+  } @else {
+    @if (isAuthorized()) {
+      <app-alert tone="success" heading="Connected">
+        @if (tokenExpires()) {
+          Access token valid until {{ tokenExpires() }}.
+        } @else {
+          This account is connected.
+        }
+      </app-alert>
+    } @else {
+      <app-alert tone="warning" heading="Not connected">
+        Authorize Photo Map to read your {{ config()?.title }} account to start importing.
+      </app-alert>
+    }
+
+    @if (hasError()) {
+      <app-alert tone="danger" heading="Processing failed">{{ error() }}</app-alert>
+    }
+
+    <app-card heading="Processing">
+      <dl class="app-detail-list">
+        <div class="app-detail-row">
+          <dt class="app-detail-term">Status</dt>
+          <dd class="app-detail-value">
+            <span class="app-badge" [class.app-badge--accent]="isRunning()">{{ statusLabel() }}</span>
+          </dd>
+        </div>
+
+        @if (total() > 0) {
+          <div class="app-detail-row">
+            <dt class="app-detail-term">Processed</dt>
+            <dd class="app-detail-value">{{ progressLabel() }}</dd>
+          </div>
+        }
+      </dl>
+
+      @if (isRunning()) {
+        <div class="progress">
+          <app-progress-bar [mode]="total() > 0 ? 'determinate' : 'indeterminate'" [value]="progressPercent()" />
+          @if (total() > 0) {
+            <span class="progress-value">{{ progressPercent().toFixed(1) }}%</span>
+          }
+        </div>
+      }
+    </app-card>
+
+    <div class="app-actions">
+      <button appButton="filled" type="button" [disabled]="!isAuthorized()" (click)="startStopProcessing()">
+        <app-icon [name]="isRunning() ? 'pause' : 'play'" [size]="16" />
+        {{ action() }} processing
+      </button>
+      <button appButton="outline" type="button" (click)="authorize()">
+        <app-icon name="shield-check" [size]="16" />
+        {{ isAuthorized() ? 'Reauthorize' : 'Authorize' }}
+      </button>
+      @if (config()?.canDeleteAllData) {
+        <button class="danger-action" appButton="ghost" type="button" (click)="deleteAllData()">
+          <app-icon name="trash" [size]="16" />
+          Delete all data
+        </button>
+      }
+    </div>
+  }
+</div>

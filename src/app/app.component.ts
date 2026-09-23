@@ -2,7 +2,7 @@ import {Component, DestroyRef, OnInit, inject, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {RouterLink, RouterLinkActive, RouterOutlet} from '@angular/router';
 
-import {UserService} from './core/services/user.service';
+import {UserPhotoSourceDto, UsersPhotoSourcesClient} from './shared/models/photomap-backend.swagger';
 import {IconComponent, IconName} from './shared/ui/icon/icon.component';
 import {ThemeToggleComponent} from './shared/ui/theme-toggle/theme-toggle.component';
 import {ToastHostComponent} from './shared/ui/toast/toast-host.component';
@@ -12,6 +12,9 @@ interface MenuItem {
   route: string;
   icon: IconName;
 }
+
+// TODO: take the user ID from cookies
+const USER_ID = 1;
 
 @Component({
   selector: 'app-root',
@@ -30,32 +33,19 @@ export class AppComponent implements OnInit {
     {title: 'Photo Sources', route: '/photo-sources', icon: 'check-circle'},
   ];
 
-  readonly yandexDiskAuthorized = signal(false);
-  readonly dropboxAuthorized = signal(false);
-
-  userId = 1;
+  /** Connection badges, one per source the backend knows about. */
+  readonly sources = signal<readonly UserPhotoSourceDto[]>([]);
 
   private readonly destroyRef = inject(DestroyRef);
-  private readonly userService = inject(UserService);
+  private readonly usersPhotoSourcesClient = inject(UsersPhotoSourcesClient);
 
   ngOnInit(): void {
-    this.getUserData();
-  }
-
-  private getUserData(): void {
-    this.userService
-      .getUser(this.userId)
+    this.usersPhotoSourcesClient
+      .getUserPhotoSources(USER_ID)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (user) => {
-          this.yandexDiskAuthorized.set(this.isTokenValid(user.yandexDiskTokenExpiresOn));
-          this.dropboxAuthorized.set(this.isTokenValid(user.dropboxTokenExpiresOn));
-        },
-        error: () => console.error('An error has occurred while getting user data.'),
+        next: (sources) => this.sources.set(sources),
+        error: () => console.error('An error has occurred while getting the photo sources.'),
       });
-  }
-
-  private isTokenValid(expiresOn: Date | undefined): boolean {
-    return !!expiresOn && Date.now() < new Date(expiresOn).getTime();
   }
 }

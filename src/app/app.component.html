@@ -15,12 +15,11 @@
     </nav>
 
     <div class="header-end">
-      <span class="app-badge" [class.app-badge--success]="yandexDiskAuthorized()">
-        Yandex.Disk {{ yandexDiskAuthorized() ? 'connected' : 'not connected' }}
-      </span>
-      <span class="app-badge" [class.app-badge--success]="dropboxAuthorized()">
-        Dropbox {{ dropboxAuthorized() ? 'connected' : 'not connected' }}
-      </span>
+      @for (source of sources(); track source.photoSourceId) {
+        <span class="app-badge" [class.app-badge--success]="source.isUserAuthorized">
+          {{ source.photoSourceName }} {{ source.isUserAuthorized ? 'connected' : 'not connected' }}
+        </span>
+      }
       <app-theme-toggle />
     </div>
   </div>

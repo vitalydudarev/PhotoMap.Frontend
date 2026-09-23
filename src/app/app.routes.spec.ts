@@ -2,6 +2,8 @@ import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
 import {Type} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
+import {ActivatedRoute, Route, convertToParamMap} from '@angular/router';
+import {of} from 'rxjs';
 import {beforeEach, describe, expect, it} from 'vitest';
 
 import {appConfig} from './app.config';
@@ -13,18 +15,27 @@ import {routes} from './app.routes';
  * `app.config.ts` supplies.
  */
 describe('routed components', () => {
+  const routedComponents = routes.filter((route): route is Route & {component: Type<unknown>} => !!route.component);
+
   beforeEach(() => {
     TestBed.configureTestingModule({
       providers: [...appConfig.providers, provideHttpClient(), provideHttpClientTesting()],
     });
   });
 
-  const routedComponents = routes
-    .filter((route) => route.component)
-    .map((route) => [route.path, route.component as Type<unknown>] as const);
+  it.each(routedComponents.map((route) => [route.path, route] as const))('creates the component for /%s', (_path, route) => {
+    // The photo source pages read their configuration from the route's `data`, and the gallery
+    // reads its paging from `queryParams`.
+    TestBed.overrideProvider(ActivatedRoute, {
+      useValue: {
+        data: of(route.data ?? {}),
+        queryParams: of({}),
+        fragment: of(null),
+        snapshot: {queryParamMap: convertToParamMap({}), fragment: null},
+      },
+    });
 
-  it.each(routedComponents)('creates the component for /%s', (_path, component) => {
-    const fixture = TestBed.createComponent(component);
+    const fixture = TestBed.createComponent(route.component);
 
     expect(() => fixture.detectChanges()).not.toThrow();
     expect(fixture.componentInstance).toBeTruthy();

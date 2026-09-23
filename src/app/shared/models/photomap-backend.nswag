@@ -1,5 +1,5 @@
 {
-  "runtime": "Net60",
+  "runtime": "Net80",
   "defaultVariables": null,
   "documentGenerator": {
     "fromDocument": {
@@ -13,7 +13,7 @@
       "className": "{controller}Client",
       "moduleName": "",
       "namespace": "",
-      "typeScriptVersion": 4.7,
+      "typeScriptVersion": 5.4,
       "template": "Angular",
       "promiseType": "Promise",
       "httpClass": "HttpClient",
