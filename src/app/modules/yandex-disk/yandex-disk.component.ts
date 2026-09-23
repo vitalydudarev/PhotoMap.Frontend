@@ -1,14 +1,14 @@
-import {Component, DestroyRef, OnDestroy, OnInit, inject} from '@angular/core';
+import {Component, DestroyRef, OnDestroy, OnInit, computed, inject, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
-import {MatButtonModule} from '@angular/material/button';
-import {MatDividerModule} from '@angular/material/divider';
-import {MatIconModule} from '@angular/material/icon';
-import {MatListModule} from '@angular/material/list';
-import {MatProgressBarModule, ProgressBarMode} from '@angular/material/progress-bar';
 import {ActivatedRoute, Router} from '@angular/router';
 import {from, of} from 'rxjs';
 import {switchMap} from 'rxjs/operators';
 import {ToastService} from 'src/app/core/services/toast.service';
+import {AlertComponent} from 'src/app/shared/ui/alert/alert.component';
+import {ButtonDirective} from 'src/app/shared/ui/button/button.directive';
+import {CardComponent} from 'src/app/shared/ui/card/card.component';
+import {IconComponent} from 'src/app/shared/ui/icon/icon.component';
+import {ProgressBarComponent, ProgressBarMode} from 'src/app/shared/ui/progress-bar/progress-bar.component';
 
 import {environment} from '../../../environments/environment';
 import {OAuthConfiguration} from '../../core/models/oauth-configuration.model';
@@ -24,22 +24,20 @@ import {YandexDiskService} from '../../core/services/yandex-disk.service';
   selector: 'app-yandex-disk',
   templateUrl: './yandex-disk.component.html',
   styleUrls: ['./yandex-disk.component.scss'],
-  imports: [MatButtonModule, MatDividerModule, MatIconModule, MatListModule, MatProgressBarModule],
+  imports: [AlertComponent, ButtonDirective, CardComponent, IconComponent, ProgressBarComponent],
 })
 export class YandexDiskComponent implements OnInit, OnDestroy {
-  needsAuthorization = true;
-  tokenExpires?: string;
-  status = '';
-  hasError = false;
-  error = '';
-  isRunning = false;
-  progressString = '';
-  progressBarValue = 0;
-  progressBarMode: ProgressBarMode = 'indeterminate';
+  readonly needsAuthorization = signal(true);
+  readonly tokenExpires = signal<string | undefined>(undefined);
+  readonly status = signal('Unknown');
+  readonly error = signal('');
+  readonly isRunning = signal(false);
+  readonly progressString = signal('');
+  readonly progressBarValue = signal(0);
+  readonly progressBarMode = signal<ProgressBarMode>('indeterminate');
 
-  get action(): string {
-    return this.isRunning ? 'Stop' : 'Start';
-  }
+  readonly hasError = computed(() => this.error().length > 0);
+  readonly action = computed(() => (this.isRunning() ? 'Stop' : 'Start'));
 
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
@@ -71,8 +69,7 @@ export class YandexDiskComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     from(this.yandexDiskHubService.stopHubConnection()).subscribe({
-      next: () => this.toastService.information('Disconnected from SignalR hub.'),
-      error: () => this.toastService.information('An error has occurred while disconnecting to SignalR hub.'),
+      error: () => this.toastService.error('An error has occurred while disconnecting from the SignalR hub.'),
     });
   }
 
@@ -81,18 +78,18 @@ export class YandexDiskComponent implements OnInit, OnDestroy {
   }
 
   startStopProcessing() {
-    if (!this.isRunning) {
-      this.progressBarMode = 'buffer';
+    if (!this.isRunning()) {
+      this.progressBarMode.set('buffer');
 
       this.yandexDiskService
         .startProcessing(this.userId)
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
           next: () => {
-            this.setState(true, false, '');
-            this.toastService.information('Started processing.');
+            this.setState(true, '');
+            this.toastService.success('Started processing.');
           },
-          error: () => this.toastService.information('Failed to start processing.'),
+          error: () => this.toastService.error('Failed to start processing.'),
         });
     } else {
       this.yandexDiskService
@@ -100,10 +97,10 @@ export class YandexDiskComponent implements OnInit, OnDestroy {
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
           next: () => {
-            this.setState(false, false);
-            this.toastService.information('Stopped processing');
+            this.setState(false, '');
+            this.toastService.success('Stopped processing.');
           },
-          error: () => this.toastService.information('Failed to stop processing.'),
+          error: () => this.toastService.error('Failed to stop processing.'),
         });
     }
   }
@@ -113,7 +110,8 @@ export class YandexDiskComponent implements OnInit, OnDestroy {
       .deleteAllData()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => this.toastService.information('Data deleted.'),
+        next: () => this.toastService.success('Data deleted.'),
+        error: () => this.toastService.error('Failed to delete data.'),
       });
   }
 
@@ -125,14 +123,14 @@ export class YandexDiskComponent implements OnInit, OnDestroy {
         next: (user) => {
           this.onGetUser(user);
 
-          if (this.user?.yandexDiskTokenExpiresOn) {
-            if (Date.now() < new Date(this.user.yandexDiskTokenExpiresOn).getTime()) {
-              this.needsAuthorization = false;
-              this.tokenExpires = new Date(this.user.yandexDiskTokenExpiresOn).toLocaleString();
-            }
+          const expiresOn = this.user?.yandexDiskTokenExpiresOn;
+
+          if (expiresOn && Date.now() < new Date(expiresOn).getTime()) {
+            this.needsAuthorization.set(false);
+            this.tokenExpires.set(new Date(expiresOn).toLocaleString());
           }
         },
-        error: () => this.toastService.information('An error has occurred while getting user data.'),
+        error: () => this.toastService.error('An error has occurred while getting user data.'),
       });
   }
 
@@ -159,7 +157,7 @@ export class YandexDiskComponent implements OnInit, OnDestroy {
       )
       .subscribe({
         next: () => this.router.navigate(['/yandex-disk']),
-        error: () => this.toastService.information('An error has occurred while parsing URL.'),
+        error: () => this.toastService.error('An error has occurred while parsing the URL.'),
       });
   }
 
@@ -168,14 +166,11 @@ export class YandexDiskComponent implements OnInit, OnDestroy {
 
     from(this.yandexDiskHubService.startHubConnection())
       .pipe(
-        switchMap(() => {
-          return this.yandexDiskHubService.registerClient(this.userId);
-        }),
+        switchMap(() => this.yandexDiskHubService.registerClient(this.userId)),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: () => this.toastService.information('Connected to SignalR hub. Client registered.'),
-        error: () => this.toastService.information('An error has occurred while connecting to SignalR hub.'),
+        error: () => this.toastService.error('An error has occurred while connecting to the SignalR hub.'),
       });
   }
 
@@ -184,7 +179,7 @@ export class YandexDiskComponent implements OnInit, OnDestroy {
       .yandexDiskError()
       .pipe(
         switchMap((error) => {
-          this.setState(false, true, error);
+          this.setState(false, error);
 
           return this.userService.getUser(this.userId);
         }),
@@ -192,7 +187,7 @@ export class YandexDiskComponent implements OnInit, OnDestroy {
       )
       .subscribe({
         next: (user) => this.onGetUser(user),
-        error: () => this.toastService.information('error occurred'),
+        error: () => this.toastService.error('An error has occurred.'),
       });
   }
 
@@ -202,12 +197,12 @@ export class YandexDiskComponent implements OnInit, OnDestroy {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (progress) => {
-          this.progressBarMode = 'determinate';
-          this.progressString = `Processed ${progress.processed} of ${progress.total}`;
-          this.progressBarValue = (progress.processed / progress.total) * 100;
+          this.progressBarMode.set('determinate');
+          this.progressString.set(`${progress.processed} of ${progress.total}`);
+          this.progressBarValue.set((progress.processed / progress.total) * 100);
 
           if (progress.processed === progress.total) {
-            this.isRunning = false;
+            this.isRunning.set(false);
           }
         },
       });
@@ -217,14 +212,13 @@ export class YandexDiskComponent implements OnInit, OnDestroy {
     this.user = user;
 
     if (user.yandexDiskStatus) {
-      this.status = ProcessingStatus[user.yandexDiskStatus];
-      this.isRunning = user.yandexDiskStatus === ProcessingStatus.Running;
+      this.status.set(ProcessingStatus[user.yandexDiskStatus]);
+      this.isRunning.set(user.yandexDiskStatus === ProcessingStatus.Running);
     }
   }
 
-  private setState(isRunning: boolean, hasError: boolean, error?: string): void {
-    this.hasError = hasError;
-    this.error = error ? error : '';
-    this.isRunning = isRunning;
+  private setState(isRunning: boolean, error: string): void {
+    this.error.set(error);
+    this.isRunning.set(isRunning);
   }
 }

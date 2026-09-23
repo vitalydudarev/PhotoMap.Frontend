@@ -1,0 +1,5 @@
+@if (mode() === 'determinate') {
+  <span class="progress-fill" [style.width.%]="clampedValue()"></span>
+} @else {
+  <span class="progress-fill progress-fill--animated"></span>
+}

@@ -1,0 +1,244 @@
+/* Styles for elements that carry a directive rather than living in a component template
+   (directives have no view encapsulation, so their styles have to be global), plus the
+   handful of shared layout primitives used across screens. */
+
+/* ---------------------------------------------------------------- buttons */
+
+.app-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--app-space-2);
+  padding: 0 var(--app-space-4);
+  height: 36px;
+  border: 1px solid transparent;
+  border-radius: var(--app-radius-sm);
+  background: transparent;
+  font-size: var(--app-text-base);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background var(--app-transition),
+    border-color var(--app-transition),
+    color var(--app-transition),
+    box-shadow var(--app-transition);
+}
+
+.app-button:disabled,
+.app-button[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.app-button--sm {
+  height: 30px;
+  padding: 0 var(--app-space-3);
+  font-size: var(--app-text-sm);
+}
+
+.app-button--icon {
+  width: 36px;
+  padding: 0;
+}
+
+.app-button--icon.app-button--sm {
+  width: 30px;
+}
+
+.app-button--filled {
+  background: var(--app-accent);
+  color: var(--app-accent-fg);
+  box-shadow: var(--app-shadow-sm);
+}
+
+.app-button--filled:hover:not(:disabled) {
+  background: var(--app-accent-hover);
+}
+
+.app-button--filled:active:not(:disabled) {
+  background: var(--app-accent-active);
+}
+
+.app-button--tonal {
+  background: var(--app-accent-soft);
+  color: var(--app-accent-soft-fg);
+}
+
+.app-button--tonal:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--app-accent-soft) 80%, var(--app-accent));
+}
+
+.app-button--outline {
+  border-color: var(--app-border-strong);
+  background: var(--app-surface);
+  color: var(--app-fg);
+}
+
+.app-button--outline:hover:not(:disabled) {
+  background: var(--app-surface-hover);
+  border-color: var(--app-fg-subtle);
+}
+
+.app-button--ghost {
+  color: var(--app-fg-muted);
+}
+
+.app-button--ghost:hover:not(:disabled) {
+  background: var(--app-surface-hover);
+  color: var(--app-fg);
+}
+
+.app-button--danger {
+  background: var(--app-danger);
+  color: var(--app-danger-fg);
+}
+
+.app-button--danger:hover:not(:disabled) {
+  background: var(--app-danger-hover);
+}
+
+/* ----------------------------------------------------------------- tables */
+
+.app-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--app-text-base);
+}
+
+.app-table th,
+.app-table td {
+  padding: var(--app-space-3) var(--app-space-4);
+  border-bottom: 1px solid var(--app-border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+/* Column headers only; a `th` used as a row header keeps body-cell styling. */
+.app-table thead th {
+  color: var(--app-fg-subtle);
+  font-size: var(--app-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.app-table tbody tr:last-child th,
+.app-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.app-table tbody tr:hover th,
+.app-table tbody tr:hover td {
+  background: var(--app-surface-hover);
+}
+
+/* ------------------------------------------------------------- primitives */
+
+.app-page {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: var(--app-space-5) var(--app-space-5) var(--app-space-7);
+}
+
+.app-page--narrow {
+  max-width: 760px;
+}
+
+.app-page-title {
+  font-size: var(--app-text-xl);
+}
+
+.app-page-subtitle {
+  margin-top: var(--app-space-1);
+  color: var(--app-fg-muted);
+}
+
+.app-divider {
+  height: 1px;
+  border: 0;
+  background: var(--app-border);
+}
+
+.app-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--app-space-1);
+  padding: 2px var(--app-space-2);
+  border-radius: var(--app-radius-pill);
+  background: var(--app-surface-sunken);
+  color: var(--app-fg-muted);
+  font-size: var(--app-text-xs);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.app-badge--success {
+  background: var(--app-success-soft);
+  color: var(--app-success);
+}
+
+.app-badge--danger {
+  background: var(--app-danger-soft);
+  color: var(--app-danger);
+}
+
+.app-badge--warning {
+  background: var(--app-warning-soft);
+  color: var(--app-warning);
+}
+
+.app-badge--accent {
+  background: var(--app-accent-soft);
+  color: var(--app-accent-soft-fg);
+}
+
+.app-empty {
+  padding: var(--app-space-7) var(--app-space-5);
+  color: var(--app-fg-muted);
+  text-align: center;
+}
+
+/* --------------------------------------------------------- detail rows */
+
+.app-detail-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+
+.app-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-4);
+  padding: var(--app-space-3) 0;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.app-detail-row:last-child {
+  border-bottom: none;
+}
+
+.app-detail-term {
+  color: var(--app-fg-muted);
+}
+
+.app-detail-value {
+  font-weight: 500;
+  text-align: right;
+}
+
+.app-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-2);
+}
+
+.app-stack {
+  display: grid;
+  gap: var(--app-space-4);
+}

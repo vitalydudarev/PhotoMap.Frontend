@@ -1,14 +1,11 @@
-import {AsyncPipe, DatePipe} from '@angular/common';
-import {ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject} from '@angular/core';
+import {DatePipe} from '@angular/common';
+import {ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
-import {MatButtonModule} from '@angular/material/button';
-import {MatTableDataSource, MatTableModule} from '@angular/material/table';
 import {Router} from '@angular/router';
-import {Observable, ReplaySubject} from 'rxjs';
-import {map, switchMap} from 'rxjs/operators';
 import {AUTH_CONFIGURATION, AUTH_FIRST_STEP, AUTH_SOURCE_ID, AUTH_TOKEN_RESPONSE} from 'src/app/core/constants/auth.constants';
 import {OAuthToken} from 'src/app/core/models/oauth-token.model';
 import {LocalStorageService} from 'src/app/core/services/local-storage.service';
+import {ToastService} from 'src/app/core/services/toast.service';
 import {
   AuthResultInputDto,
   AuthSettingsDto,
@@ -17,49 +14,45 @@ import {
   UserPhotoSourceDto,
   UsersPhotoSourcesClient,
 } from 'src/app/shared/models/photomap-backend.swagger';
+import {ButtonDirective} from 'src/app/shared/ui/button/button.directive';
+import {CardComponent} from 'src/app/shared/ui/card/card.component';
+import {IconComponent} from 'src/app/shared/ui/icon/icon.component';
+import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
 
 @Component({
   selector: 'app-photo-source-list',
   templateUrl: './photo-source-list.component.html',
   styleUrls: ['./photo-source-list.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AsyncPipe, DatePipe, MatButtonModule, MatTableModule],
+  imports: [ButtonDirective, CardComponent, DatePipe, IconComponent, SpinnerComponent],
 })
 export class PhotoSourceListComponent implements OnInit {
-  displayedColumns = ['id', 'name', 'isUserAuthorized', 'expiresOn', 'action'];
-
-  dataSource$!: Observable<MatTableDataSource<UserPhotoSourceDto>>;
+  readonly sources = signal<readonly UserPhotoSourceDto[]>([]);
+  readonly isLoading = signal(true);
 
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
   private readonly localStorageService = inject(LocalStorageService);
+  private readonly toastService = inject(ToastService);
   private readonly usersPhotoSourcesClient = inject(UsersPhotoSourcesClient);
   private readonly photoSourcesClient = inject(PhotoSourcesClient);
 
-  private refreshDataSubject = new ReplaySubject<void>();
   private isProcessingRunning = false;
 
   // TODO: take user ID from cookies
   private userId = 1;
 
   ngOnInit(): void {
-    this.dataSource$ = this.refreshDataSubject.pipe(
-      switchMap(() => this.usersPhotoSourcesClient.getUserPhotoSources(this.userId)),
-      map((results) => {
-        const dataSource = new MatTableDataSource<UserPhotoSourceDto>();
-        dataSource.data = results;
-
-        return dataSource;
-      }),
-      takeUntilDestroyed(this.destroyRef),
-    );
-
-    this.refreshDataSubject.next();
+    this.refresh();
 
     this.updateTokenIfRelevant(this.userId);
   }
 
-  authorize(sourceId: number) {
+  authorize(sourceId: number | undefined) {
+    if (sourceId === undefined) {
+      return;
+    }
+
     this.photoSourcesClient
       .getSourceAuthSettings(sourceId)
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -73,10 +66,15 @@ export class PhotoSourceListComponent implements OnInit {
             this.router.navigate([authSettings.relativeAuthUrl]);
           }
         },
+        error: () => this.toastService.error('Could not load the authorization settings for this source.'),
       });
   }
 
-  sendProcessingCommand(sourceId: number) {
+  sendProcessingCommand(sourceId: number | undefined) {
+    if (sourceId === undefined) {
+      return;
+    }
+
     this.usersPhotoSourcesClient
       .sourceProcessing(
         this.userId,
@@ -84,9 +82,29 @@ export class PhotoSourceListComponent implements OnInit {
         this.isProcessingRunning ? PhotoSourceProcessingCommands._1 : PhotoSourceProcessingCommands._0,
       )
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe();
+      .subscribe({
+        error: () => this.toastService.error('Could not send the processing command.'),
+      });
 
     this.isProcessingRunning = !this.isProcessingRunning;
+  }
+
+  private refresh(): void {
+    this.isLoading.set(true);
+
+    this.usersPhotoSourcesClient
+      .getUserPhotoSources(this.userId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (sources) => {
+          this.sources.set(sources);
+          this.isLoading.set(false);
+        },
+        error: () => {
+          this.isLoading.set(false);
+          this.toastService.error('Could not load photo sources.');
+        },
+      });
   }
 
   private updateTokenIfRelevant(userId: number): void {
@@ -110,7 +128,8 @@ export class PhotoSourceListComponent implements OnInit {
         .updateUserPhotoSource(userId, sourceId, authResult)
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
-          next: () => this.refreshDataSubject.next(),
+          next: () => this.refresh(),
+          error: () => this.toastService.error('Could not save the new access token.'),
         });
     }
   }

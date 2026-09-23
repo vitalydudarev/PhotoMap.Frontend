@@ -1,43 +1,63 @@
-<table mat-table [dataSource]="(dataSource$ | async)!" class="mat-elevation-z8">
-  <ng-container matColumnDef="id">
-    <th mat-header-cell *matHeaderCellDef>ID</th>
-    <td mat-cell *matCellDef="let element">{{ element.photoSourceId }}</td>
-  </ng-container>
+<div class="app-page app-stack">
+  <header>
+    <h1 class="app-page-title">Photo sources</h1>
+    <p class="app-page-subtitle">Connect an account, then start processing to import its photos.</p>
+  </header>
 
-  <ng-container matColumnDef="name">
-    <th mat-header-cell *matHeaderCellDef>Source Name</th>
-    <td mat-cell *matCellDef="let element">{{ element.photoSourceName }}</td>
-  </ng-container>
-
-  <ng-container matColumnDef="isUserAuthorized">
-    <th mat-header-cell *matHeaderCellDef>Is Authorized</th>
-    <td mat-cell *matCellDef="let element">
-      @if (!element.isUserAuthorized) {
-        <button mat-button color="primary" (click)="authorize(element.photoSourceId)">Authorize</button>
-      } @else {
-        <p>{{ element.isUserAuthorized }}</p>
-      }
-    </td>
-  </ng-container>
-
-  <ng-container matColumnDef="expiresOn">
-    <th mat-header-cell *matHeaderCellDef>Token Expires On</th>
-    <td mat-cell *matCellDef="let element">
-      @if (element.tokenExpiresOn) {
-        <p>{{ element.tokenExpiresOn | date: 'medium' }}</p>
-      }
-    </td>
-  </ng-container>
-
-  <ng-container matColumnDef="action">
-    <th mat-header-cell *matHeaderCellDef>Action</th>
-    <td mat-cell *matCellDef="let element">
-      <button mat-button [disabled]="!element.isUserAuthorized" color="primary" (click)="sendProcessingCommand(element.photoSourceId)">
-        Start/Stop Processing
-      </button>
-    </td>
-  </ng-container>
-
-  <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-  <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
-</table>
+  <app-card flush>
+    @if (isLoading()) {
+      <div class="loading">
+        <app-spinner [size]="24" label="Loading photo sources" />
+      </div>
+    } @else if (sources().length === 0) {
+      <p class="app-empty">No photo sources are configured on the backend.</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="app-table">
+          <thead>
+            <tr>
+              <th scope="col">Source</th>
+              <th scope="col">Connection</th>
+              <th scope="col">Token expires</th>
+              <th scope="col" aria-label="Actions"></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (source of sources(); track source.photoSourceId) {
+              <tr>
+                <th scope="row" class="source">
+                  <span class="source-name">{{ source.photoSourceName }}</span>
+                  <span class="source-id">#{{ source.photoSourceId }}</span>
+                </th>
+                <td>
+                  @if (source.isUserAuthorized) {
+                    <span class="app-badge app-badge--success">
+                      <app-icon name="check" [size]="13" />
+                      Connected
+                    </span>
+                  } @else {
+                    <span class="app-badge">Not connected</span>
+                  }
+                </td>
+                <td class="expires">
+                  {{ source.tokenExpiresOn ? (source.tokenExpiresOn | date: 'medium') : '—' }}
+                </td>
+                <td>
+                  <div class="row-actions">
+                    @if (!source.isUserAuthorized) {
+                      <button appButton="filled" size="sm" type="button" (click)="authorize(source.photoSourceId)">Authorize</button>
+                    } @else {
+                      <button appButton="outline" size="sm" type="button" (click)="sendProcessingCommand(source.photoSourceId)">
+                        Start / stop
+                      </button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </app-card>
+</div>

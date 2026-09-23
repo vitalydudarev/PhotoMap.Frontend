@@ -1,22 +1,33 @@
-<div style="height: 100%">
-  <div style="height: 64px">
-    <mat-toolbar color="primary">
-      <span>Photo Map</span>
+<header class="header">
+  <div class="header-inner">
+    <a class="brand" routerLink="/gallery">
+      <app-icon class="brand-mark" name="map-pin" [size]="18" />
+      <span class="brand-name">Photo Map</span>
+    </a>
+
+    <nav class="nav" aria-label="Main">
       @for (item of menuItems; track item.route) {
-        <a mat-button [routerLink]="item.route"> {{ item.title }} </a>
+        <a class="nav-link" [routerLink]="item.route" routerLinkActive="nav-link--active">
+          <app-icon [name]="item.icon" [size]="16" />
+          <span>{{ item.title }}</span>
+        </a>
       }
-      <span class="example-spacer"></span>
-      <a mat-button>Yandex.Disk: {{ yandexDiskAuthorized ? 'Authorized' : 'Not authorized' }}</a>
-      <a mat-button>Dropbox: {{ dropboxAuthorized ? 'Authorized' : 'Not authorized' }}</a>
-      <button mat-icon-button class="example-icon favorite-icon" aria-label="Favorite">
-        <mat-icon>favorite</mat-icon>
-      </button>
-      <button mat-icon-button aria-label="Share">
-        <mat-icon>share</mat-icon>
-      </button>
-    </mat-toolbar>
+    </nav>
+
+    <div class="header-end">
+      <span class="app-badge" [class.app-badge--success]="yandexDiskAuthorized()">
+        Yandex.Disk {{ yandexDiskAuthorized() ? 'connected' : 'not connected' }}
+      </span>
+      <span class="app-badge" [class.app-badge--success]="dropboxAuthorized()">
+        Dropbox {{ dropboxAuthorized() ? 'connected' : 'not connected' }}
+      </span>
+      <app-theme-toggle />
+    </div>
   </div>
-  <div style="height: calc(100% - 64px)">
-    <router-outlet></router-outlet>
-  </div>
-</div>
+</header>
+
+<main class="content">
+  <router-outlet />
+</main>
+
+<app-toast-host />

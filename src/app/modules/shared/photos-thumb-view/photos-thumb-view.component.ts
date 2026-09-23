@@ -33,7 +33,7 @@ export class PhotosThumbViewComponent implements OnChanges {
   plainGalleryConfig: PlainLibConfig = {
     plainGalleryConfig: {
       strategy: PlainGalleryStrategy.GRID,
-      layout: new GridLayout({width: '256px', height: 'auto'}, {length: 20, wrap: true}),
+      layout: new GridLayout({width: '190px', height: '190px'}, {length: 20, wrap: true}),
     },
   };
 

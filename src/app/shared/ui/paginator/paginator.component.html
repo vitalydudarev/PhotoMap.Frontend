@@ -1,0 +1,51 @@
+@if (pageSizeOptions().length > 0) {
+  <label class="page-size">
+    <span class="page-size-label">Per page</span>
+    <select class="page-size-select" [value]="pageSize()" (change)="changePageSize($any($event.target).value)">
+      @for (option of pageSizeOptions(); track option) {
+        <option [value]="option">{{ option }}</option>
+      }
+    </select>
+  </label>
+}
+
+<span class="range" aria-live="polite">{{ rangeLabel() }}</span>
+
+<div class="controls">
+  <button appButton="ghost" size="sm" iconOnly type="button" aria-label="First page" [disabled]="isFirstPage()" (click)="goToPage(0)">
+    <app-icon name="chevrons-left" [size]="16" />
+  </button>
+  <button
+    appButton="ghost"
+    size="sm"
+    iconOnly
+    type="button"
+    aria-label="Previous page"
+    [disabled]="isFirstPage()"
+    (click)="goToPage(pageIndex() - 1)"
+  >
+    <app-icon name="chevron-left" [size]="16" />
+  </button>
+  <button
+    appButton="ghost"
+    size="sm"
+    iconOnly
+    type="button"
+    aria-label="Next page"
+    [disabled]="isLastPage()"
+    (click)="goToPage(pageIndex() + 1)"
+  >
+    <app-icon name="chevron-right" [size]="16" />
+  </button>
+  <button
+    appButton="ghost"
+    size="sm"
+    iconOnly
+    type="button"
+    aria-label="Last page"
+    [disabled]="isLastPage()"
+    (click)="goToPage(lastPageIndex())"
+  >
+    <app-icon name="chevrons-right" [size]="16" />
+  </button>
+</div>

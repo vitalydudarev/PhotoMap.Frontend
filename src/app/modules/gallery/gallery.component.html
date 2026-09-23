@@ -1,43 +1,30 @@
-<div style="height: 100%">
-  <div class="m-2">
-    <mat-card>
-      <div class="d-flex align-items-start justify-content-between">
-        <mat-button-toggle-group #group="matButtonToggleGroup" [(value)]="selectedViewMode" (change)="onViewModeChanged(group.value)">
-          <mat-button-toggle value="{{ thumbViewMode }}">
-            <mat-icon>collections</mat-icon>
-          </mat-button-toggle>
-          <mat-button-toggle value="{{ mapViewMode }}">
-            <mat-icon>map</mat-icon>
-          </mat-button-toggle>
-        </mat-button-toggle-group>
+<div class="gallery">
+  <div class="toolbar">
+    <div class="toolbar-inner">
+      <app-segmented [options]="viewModes" [(value)]="selectedViewMode" [iconsOnly]="true" />
 
-        <mat-paginator
-          [length]="totalCount"
-          [pageIndex]="pageIndex"
-          [pageSize]="pageSize"
-          [pageSizeOptions]="pageSizes"
-          [showFirstLastButtons]="true"
-          (page)="pageUpdated($event)"
-        >
-        </mat-paginator>
-      </div>
-    </mat-card>
+      <app-paginator
+        [length]="totalCount()"
+        [pageIndex]="pageIndex"
+        [pageSize]="pageSize"
+        [pageSizeOptions]="pageSizes"
+        (page)="pageUpdated($event)"
+      />
+    </div>
   </div>
 
-  @if (showSpinner) {
-    <div class="spinner-wrapper" style="height: calc(100% - 64px)">
-      <mat-spinner></mat-spinner>
+  @if (showSpinner()) {
+    <div class="state">
+      <app-spinner [size]="28" label="Loading photos" />
+      <p>Loading photos…</p>
     </div>
-  }
-
-  @if (photos) {
-    <div style="height: calc(100% - 72px)">
-      @if (selectedViewMode === thumbViewMode) {
-        <app-photos-thumb-view [photos]="photos"></app-photos-thumb-view>
-      }
-      @if (selectedViewMode === mapViewMode) {
-        <app-photos-map-view [photos]="photos"></app-photos-map-view>
-      }
+  } @else if (photos().length === 0) {
+    <div class="state">
+      <p>No photos yet. Connect a photo source and start processing to see them here.</p>
     </div>
+  } @else if (selectedViewMode() === 'thumb') {
+    <app-photos-thumb-view [photos]="photos()" />
+  } @else {
+    <app-photos-map-view [photos]="photos()" />
   }
 </div>

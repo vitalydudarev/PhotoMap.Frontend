@@ -1,8 +1,13 @@
-.button-row button,
-.button-row a {
-  margin-right: 8px;
+.progress {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-3);
+  margin-top: var(--app-space-4);
 }
 
-p {
-  margin-bottom: 0px;
+.progress-value {
+  color: var(--app-fg-muted);
+  font-size: var(--app-text-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }

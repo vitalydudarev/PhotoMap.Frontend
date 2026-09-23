@@ -12,6 +12,18 @@ Run `npm start` for a dev server. Navigate to `http://localhost:4200/`. The app 
 
 The app expects the PhotoMap backend on `https://localhost:5001` — see `src/environments/environment.ts`.
 
+## Design system
+
+There is no third-party UI library. The look is defined by CSS custom properties in
+`src/styles/_tokens.scss` (retune the whole app from that one file), a reset in `_base.scss`, and
+styles for directive-driven elements in `_controls.scss`. Light and dark palettes both ship; the app
+follows the OS unless the user picks a theme, which `ThemeService` stores and writes to `data-theme`
+on `<html>`.
+
+The components themselves live in `src/app/shared/ui/`: `app-icon` (inline SVG, no icon font),
+`appButton`, `app-card`, `app-alert`, `app-segmented`, `app-paginator`, `app-progress-bar`,
+`app-spinner`, `app-toast-host` and `app-theme-toggle`.
+
 ## Code scaffolding
 
 Run `ng generate component component-name` to generate a new component. You can also use `ng generate directive|pipe|service|class|guard|interface|enum`.

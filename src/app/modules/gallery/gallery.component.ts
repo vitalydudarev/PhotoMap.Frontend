@@ -1,45 +1,40 @@
 import {Location} from '@angular/common';
 import {HttpParams} from '@angular/common/http';
-import {Component, DestroyRef, OnInit, inject} from '@angular/core';
+import {Component, DestroyRef, OnInit, inject, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
-import {MatButtonToggleModule} from '@angular/material/button-toggle';
-import {MatCardModule} from '@angular/material/card';
-import {MatIconModule} from '@angular/material/icon';
-import {MatPaginatorModule, PageEvent} from '@angular/material/paginator';
-import {MatProgressSpinnerModule} from '@angular/material/progress-spinner';
 import {ActivatedRoute, Router} from '@angular/router';
 import {Photo} from 'src/app/core/models/photo.model';
+import {PageEvent, PaginatorComponent} from 'src/app/shared/ui/paginator/paginator.component';
+import {SegmentedComponent, SegmentedOption} from 'src/app/shared/ui/segmented/segmented.component';
+import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
 
 import {UserPhotosService} from '../../core/services/user-photos.service';
 import {PhotosMapViewComponent} from '../shared/photos-map-view/photos-map-view.component';
 import {PhotosThumbViewComponent} from '../shared/photos-thumb-view/photos-thumb-view.component';
 
+type ViewMode = 'thumb' | 'map';
+
 @Component({
   selector: 'app-gallery-page',
   templateUrl: './gallery.component.html',
   styleUrls: ['./gallery.component.scss'],
-  imports: [
-    MatButtonToggleModule,
-    MatCardModule,
-    MatIconModule,
-    MatPaginatorModule,
-    MatProgressSpinnerModule,
-    PhotosMapViewComponent,
-    PhotosThumbViewComponent,
-  ],
+  imports: [PaginatorComponent, PhotosMapViewComponent, PhotosThumbViewComponent, SegmentedComponent, SpinnerComponent],
 })
 export class GalleryComponent implements OnInit {
-  photos: Photo[] = [];
-  showSpinner = false;
+  readonly photos = signal<Photo[]>([]);
+  readonly showSpinner = signal(false);
+  readonly totalCount = signal(0);
 
-  totalCount = 0;
+  readonly viewModes: readonly SegmentedOption<ViewMode>[] = [
+    {value: 'thumb', label: 'Thumbnails', icon: 'grid'},
+    {value: 'map', label: 'Map', icon: 'map'},
+  ];
+
+  readonly selectedViewMode = signal<ViewMode>('thumb');
+
   pageIndex = 0;
   pageSize = 100;
   pageSizes: number[] = [100, 250, 500, 1000];
-
-  thumbViewMode = 'thumbViewMode';
-  mapViewMode = 'mapViewMode';
-  selectedViewMode: string = this.thumbViewMode;
 
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
@@ -71,10 +66,6 @@ export class GalleryComponent implements OnInit {
     this.addQueryString();
   }
 
-  onViewModeChanged(value: string) {
-    this.selectedViewMode = value;
-  }
-
   pageUpdated(event: PageEvent) {
     this.pageIndex = event.pageIndex;
     this.pageSize = event.pageSize;
@@ -93,17 +84,18 @@ export class GalleryComponent implements OnInit {
   }
 
   private setImages() {
-    this.showSpinner = true;
+    this.showSpinner.set(true);
 
     this.userPhotosService
       .getUserPhotos(this.userId, this.pageSize, this.pageSize * this.pageIndex)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (pagedResponse) => {
-          this.totalCount = pagedResponse.total;
-          this.photos = pagedResponse.values;
-          this.showSpinner = false;
+          this.totalCount.set(pagedResponse.total);
+          this.photos.set(pagedResponse.values);
+          this.showSpinner.set(false);
         },
+        error: () => this.showSpinner.set(false),
       });
   }
 }

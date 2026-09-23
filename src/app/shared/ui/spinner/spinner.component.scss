@@ -1,0 +1,18 @@
+:host {
+  display: inline-flex;
+}
+
+.spinner {
+  width: var(--app-spinner-size, 32px);
+  height: var(--app-spinner-size, 32px);
+  border: 2px solid var(--app-border-strong);
+  border-top-color: var(--app-accent);
+  border-radius: 50%;
+  animation: app-spin 620ms linear infinite;
+}
+
+@keyframes app-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

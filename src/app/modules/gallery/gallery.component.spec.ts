@@ -29,6 +29,6 @@ describe('GalleryComponent', () => {
   });
 
   it('should default to the thumbnail view mode', () => {
-    expect(component.selectedViewMode).toBe(component.thumbViewMode);
+    expect(component.selectedViewMode()).toBe('thumb');
   });
 });

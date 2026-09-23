@@ -1,14 +1,6 @@
-/* You can add global styles to this file, and also import other style files */
+/* Global stylesheet. Component-scoped styles live next to their components; this file holds
+   the design tokens, the document reset and the styles for directive-driven elements. */
 
-html,
-body {
-  height: 100%;
-}
-
-body {
-  margin: 0;
-  font-family: Roboto, 'Helvetica Neue', sans-serif;
-}
-
-/* Importing Bootstrap SCSS file. */
-/*@use 'bootstrap/scss/bootstrap';*/
+@use 'styles/tokens';
+@use 'styles/base';
+@use 'styles/controls';

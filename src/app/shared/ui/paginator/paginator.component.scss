@@ -1,0 +1,50 @@
+:host {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-4);
+  flex-wrap: wrap;
+  font-size: var(--app-text-sm);
+}
+
+.page-size {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--app-space-2);
+  color: var(--app-fg-muted);
+}
+
+.page-size-label {
+  white-space: nowrap;
+}
+
+.page-size-select {
+  height: 30px;
+  padding: 0 calc(var(--app-space-5) + 2px) 0 var(--app-space-2);
+  border: 1px solid var(--app-border-strong);
+  border-radius: var(--app-radius-sm);
+  background-color: var(--app-surface);
+  /* Chevron drawn inline so the control matches app-icon rather than the platform default. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23808690' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--app-space-2) center;
+  background-size: 13px;
+  color: var(--app-fg);
+  font-size: var(--app-text-sm);
+  cursor: pointer;
+  appearance: none;
+}
+
+.page-size-select:hover {
+  border-color: var(--app-fg-subtle);
+}
+
+.range {
+  color: var(--app-fg-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.controls {
+  display: inline-flex;
+  gap: 2px;
+}

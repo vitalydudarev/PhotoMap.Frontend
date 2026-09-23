@@ -1,10 +1,26 @@
-.scroll-control-hidden {
+:host {
   position: fixed;
-  opacity: 0;
-  transition: all 0.2s ease-in-out;
+  inset-block-end: var(--app-space-5);
+  inset-inline-end: var(--app-space-5);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-2);
 }
 
-.scroll-control-shown {
+.control {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(6px);
+  box-shadow: var(--app-shadow);
+  transition:
+    opacity var(--app-transition),
+    transform var(--app-transition),
+    visibility var(--app-transition);
+}
+
+.control--visible {
   opacity: 1;
-  transition: all 0.2s ease-in-out;
+  visibility: visible;
+  transform: none;
 }

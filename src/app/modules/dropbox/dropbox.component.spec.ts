@@ -23,16 +23,16 @@ describe('DropboxComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.componentInstance).toBeTruthy();
-    expect(fixture.componentInstance.needsAuthorization).toBe(true);
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain('You are not authorized.');
+    expect(fixture.componentInstance.needsAuthorization()).toBe(true);
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Not connected');
 
     TestBed.inject(HttpTestingController).match(() => true);
   });
 
   it('should label the processing action based on the running state', () => {
-    expect(fixture.componentInstance.action).toBe('Start');
+    expect(fixture.componentInstance.action()).toBe('Start');
 
-    fixture.componentInstance.isRunning = true;
-    expect(fixture.componentInstance.action).toBe('Pause');
+    fixture.componentInstance.isRunning.set(true);
+    expect(fixture.componentInstance.action()).toBe('Pause');
   });
 });

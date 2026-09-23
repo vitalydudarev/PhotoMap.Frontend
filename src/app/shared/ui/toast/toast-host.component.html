@@ -1,0 +1,9 @@
+@for (toast of toasts(); track toast.id) {
+  <div class="toast" [class]="'toast--' + toast.tone">
+    <app-icon class="toast-icon" [name]="iconFor(toast.tone)" [size]="18" />
+    <span class="toast-message">{{ toast.message }}</span>
+    <button appButton="ghost" size="sm" iconOnly type="button" aria-label="Dismiss" (click)="dismiss(toast.id)">
+      <app-icon name="x" [size]="15" />
+    </button>
+  </div>
+}

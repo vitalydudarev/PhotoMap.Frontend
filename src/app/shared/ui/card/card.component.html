@@ -1,0 +1,12 @@
+@if (heading()) {
+  <header class="card-header">
+    <h2 class="card-heading">{{ heading() }}</h2>
+    @if (description()) {
+      <p class="card-description">{{ description() }}</p>
+    }
+  </header>
+}
+
+<div class="card-body">
+  <ng-content />
+</div>

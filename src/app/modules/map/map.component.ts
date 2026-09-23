@@ -1,4 +1,4 @@
-import {Component, DestroyRef, OnInit, inject} from '@angular/core';
+import {Component, DestroyRef, OnInit, inject, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {Photo} from 'src/app/core/models/photo.model';
 
@@ -11,7 +11,7 @@ import {PhotosMapViewComponent} from '../shared/photos-map-view/photos-map-view.
   imports: [PhotosMapViewComponent],
 })
 export class MapComponent implements OnInit {
-  photos: Photo[] = [];
+  readonly photos = signal<Photo[]>([]);
 
   private readonly destroyRef = inject(DestroyRef);
   private readonly userPhotosService = inject(UserPhotosService);
@@ -28,7 +28,7 @@ export class MapComponent implements OnInit {
       .getUserPhotos(this.userId, this.pageSize, 0)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((pagedResponse) => {
-        this.photos = pagedResponse.values;
+        this.photos.set(pagedResponse.values);
       });
   }
 }

@@ -1,22 +1,25 @@
-<div>
-  <button
-    mat-icon-button
-    color="primary"
-    (click)="scrollToTop()"
-    class="scroll-control-hidden"
-    [ngClass]="{'scroll-control-shown': canScrollUp}"
-    style="bottom: 51px; right: 15px"
-  >
-    <mat-icon>keyboard_arrow_up</mat-icon>
-  </button>
-  <button
-    mat-icon-button
-    color="primary"
-    (click)="scrollToBottom()"
-    class="scroll-control-hidden"
-    [ngClass]="{'scroll-control-shown': canScrollDown}"
-    style="bottom: 15px; right: 15px"
-  >
-    <mat-icon>keyboard_arrow_down</mat-icon>
-  </button>
-</div>
+<button
+  class="control"
+  [class.control--visible]="canScrollUp()"
+  appButton="outline"
+  iconOnly
+  type="button"
+  aria-label="Scroll to top"
+  [attr.tabindex]="canScrollUp() ? null : -1"
+  (click)="scrollTo('top')"
+>
+  <app-icon name="chevron-up" [size]="18" />
+</button>
+
+<button
+  class="control"
+  [class.control--visible]="canScrollDown()"
+  appButton="outline"
+  iconOnly
+  type="button"
+  aria-label="Scroll to bottom"
+  [attr.tabindex]="canScrollDown() ? null : -1"
+  (click)="scrollTo('bottom')"
+>
+  <app-icon name="chevron-down" [size]="18" />
+</button>

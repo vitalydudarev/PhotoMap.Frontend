@@ -1,10 +1,51 @@
-:host ::ng-deep .plain-container {
-  display: table-cell !important;
+:host {
+  /* Same measure as `.app-page`, so the grid lines up with the header and toolbar. */
+  display: block;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: var(--app-space-4) var(--app-space-5) var(--app-space-7);
 }
 
-::ng-deep #current-image {
+/* angular-modal-gallery gives the thumbnail row an inline width of
+   `breakConfig.length * size.width` (~3900px), which overflows the page. Letting it fill the
+   available width instead makes the row wrap to the viewport. */
+:host ::ng-deep .plain-container {
+  width: 100% !important;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: var(--app-space-2);
+}
+
+/* `ksSize` writes the configured 190x190 inline, so the thumbnails are already square;
+   `object-fit` keeps them from being stretched to fit. */
+:host ::ng-deep .plain-container .image {
+  border-radius: var(--app-radius);
+  background: var(--app-surface-sunken);
+  object-fit: cover;
+  cursor: pointer;
+  transition:
+    transform var(--app-transition),
+    box-shadow var(--app-transition);
+}
+
+:host ::ng-deep .plain-container .image:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--app-shadow);
+}
+
+@media (width <= 720px) {
+  :host {
+    padding-inline: var(--app-space-4);
+  }
+}
+
+/* The lightbox renders in a CDK overlay outside this component, so that override cannot be scoped
+   with :host. angular-modal-gallery only constrains the image's width, which lets a tall photo run
+   past the bottom of the viewport; cap both axes instead. */
+::ng-deep .current-image > img {
   max-height: 85vh !important;
   max-width: 85vw !important;
-  height: auto !important;
   width: auto !important;
+  height: auto !important;
 }

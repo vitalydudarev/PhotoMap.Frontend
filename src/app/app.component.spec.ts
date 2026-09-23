@@ -29,12 +29,22 @@ describe('AppComponent', () => {
     expect(fixture.componentInstance.title).toEqual('photo-map-ui');
   });
 
-  it('should render the toolbar navigation', () => {
+  it('should render the header navigation', () => {
     fixture.detectChanges();
     httpMock.expectOne((request) => request.url.endsWith('/users/1')).flush({});
 
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('mat-toolbar span')?.textContent).toContain('Photo Map');
-    expect(compiled.querySelectorAll('a[mat-button]').length).toBe(fixture.componentInstance.menuItems.length + 2);
+    expect(compiled.querySelector('.brand-name')?.textContent).toContain('Photo Map');
+    expect(compiled.querySelectorAll('nav .nav-link').length).toBe(fixture.componentInstance.menuItems.length);
+  });
+
+  it('should mark a source as connected once a valid token comes back', () => {
+    const expiresOn = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+
+    fixture.detectChanges();
+    httpMock.expectOne((request) => request.url.endsWith('/users/1')).flush({dropboxTokenExpiresOn: expiresOn});
+
+    expect(fixture.componentInstance.dropboxAuthorized()).toBe(true);
+    expect(fixture.componentInstance.yandexDiskAuthorized()).toBe(false);
   });
 });

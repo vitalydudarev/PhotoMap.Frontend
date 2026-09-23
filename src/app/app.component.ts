@@ -1,32 +1,39 @@
-import {Component, DestroyRef, OnInit, inject} from '@angular/core';
+import {Component, DestroyRef, OnInit, inject, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
-import {MatButtonModule} from '@angular/material/button';
-import {MatIconModule} from '@angular/material/icon';
-import {MatToolbarModule} from '@angular/material/toolbar';
-import {RouterLink, RouterOutlet} from '@angular/router';
+import {RouterLink, RouterLinkActive, RouterOutlet} from '@angular/router';
 
 import {UserService} from './core/services/user.service';
+import {IconComponent, IconName} from './shared/ui/icon/icon.component';
+import {ThemeToggleComponent} from './shared/ui/theme-toggle/theme-toggle.component';
+import {ToastHostComponent} from './shared/ui/toast/toast-host.component';
+
+interface MenuItem {
+  title: string;
+  route: string;
+  icon: IconName;
+}
 
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss'],
-  imports: [MatToolbarModule, MatButtonModule, MatIconModule, RouterLink, RouterOutlet],
+  imports: [IconComponent, RouterLink, RouterLinkActive, RouterOutlet, ThemeToggleComponent, ToastHostComponent],
 })
 export class AppComponent implements OnInit {
   title = 'photo-map-ui';
 
-  menuItems = [
-    {title: 'Gallery', route: '/gallery'},
-    {title: 'Yandex.Disk', route: '/yandex-disk'},
-    {title: 'Dropbox', route: '/dropbox'},
-    {title: 'Map', route: '/map'},
-    {title: 'Photo Sources', route: '/photo-sources'},
+  readonly menuItems: readonly MenuItem[] = [
+    {title: 'Gallery', route: '/gallery', icon: 'grid'},
+    {title: 'Map', route: '/map', icon: 'map'},
+    {title: 'Yandex.Disk', route: '/yandex-disk', icon: 'shield-check'},
+    {title: 'Dropbox', route: '/dropbox', icon: 'shield-check'},
+    {title: 'Photo Sources', route: '/photo-sources', icon: 'check-circle'},
   ];
 
+  readonly yandexDiskAuthorized = signal(false);
+  readonly dropboxAuthorized = signal(false);
+
   userId = 1;
-  yandexDiskAuthorized = false;
-  dropboxAuthorized = false;
 
   private readonly destroyRef = inject(DestroyRef);
   private readonly userService = inject(UserService);
@@ -41,15 +48,14 @@ export class AppComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (user) => {
-          if (user.yandexDiskTokenExpiresOn && Date.now() < new Date(user.yandexDiskTokenExpiresOn).getTime()) {
-            this.yandexDiskAuthorized = true;
-          }
-
-          if (user.dropboxTokenExpiresOn && Date.now() < new Date(user.dropboxTokenExpiresOn).getTime()) {
-            this.dropboxAuthorized = true;
-          }
+          this.yandexDiskAuthorized.set(this.isTokenValid(user.yandexDiskTokenExpiresOn));
+          this.dropboxAuthorized.set(this.isTokenValid(user.dropboxTokenExpiresOn));
         },
         error: () => console.error('An error has occurred while getting user data.'),
       });
+  }
+
+  private isTokenValid(expiresOn: Date | undefined): boolean {
+    return !!expiresOn && Date.now() < new Date(expiresOn).getTime();
   }
 }
