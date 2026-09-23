@@ -24,6 +24,7 @@ describe('PhotoSourcePageComponent', () => {
   let progress: Subject<HubProgress>;
   let hubErrors: Subject<HubError>;
   let sourceProcessing: ReturnType<typeof vi.fn>;
+  let deleteSourceData: ReturnType<typeof vi.fn>;
   let startAuthorization: ReturnType<typeof vi.fn>;
   let autoStartRequested: boolean;
   let config: PhotoSourcePageConfig;
@@ -44,6 +45,8 @@ describe('PhotoSourcePageComponent', () => {
     progress = new Subject<HubProgress>();
     hubErrors = new Subject<HubError>();
     sourceProcessing = vi.fn(() => of(undefined));
+    deleteSourceData = vi.fn(() => of(undefined));
+    vi.stubGlobal('confirm', () => true);
     startAuthorization = vi.fn(() => of());
     autoStartRequested = false;
     config = dropboxConfig;
@@ -79,7 +82,7 @@ describe('PhotoSourcePageComponent', () => {
             requestAutoStart: () => undefined,
           },
         },
-        {provide: DataService, useValue: {deleteAllData: () => of(undefined)}},
+        {provide: DataService, useValue: {deleteAllData: () => of(undefined), deleteSourceData}},
         {
           provide: NotificationHubService,
           useValue: {
@@ -169,6 +172,40 @@ describe('PhotoSourcePageComponent', () => {
     component.startStopProcessing();
     expect(sourceProcessing).toHaveBeenLastCalledWith(1, 1, 2);
     expect(component.isRunning()).toBe(false);
+  });
+
+  it('should delete the data of its own source and show it as not started', () => {
+    build();
+
+    progress.next({sourceId: 1, status: 'Stopped', processed: 25, failed: 5, total: 100});
+    fixture.detectChanges();
+
+    component.deleteData();
+    fixture.detectChanges();
+
+    expect(deleteSourceData).toHaveBeenCalledWith(1, 1);
+    expect(component.statusLabel()).toBe('Not started');
+    expect(component.progressPercent()).toBe(0);
+  });
+
+  it('should keep the data when the deletion is not confirmed', () => {
+    vi.stubGlobal('confirm', () => false);
+    build();
+
+    component.deleteData();
+
+    expect(deleteSourceData).not.toHaveBeenCalled();
+  });
+
+  it('should not offer to delete the data while the source is being processed', () => {
+    sources = [{photoSourceId: 1, photoSourceName: 'Dropbox', isUserAuthorized: true, status: UserPhotoSourceStatusDto._2}];
+    build();
+
+    const deleteButton = [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('.app-actions button')].find(
+      (button) => button.textContent?.includes('Delete Dropbox data'),
+    );
+
+    expect(deleteButton?.disabled).toBe(true);
   });
 
   it('should track live progress from the notification hub', () => {

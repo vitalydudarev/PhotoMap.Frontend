@@ -63,6 +63,10 @@
         <app-icon name="shield-check" [size]="16" />
         {{ isAuthorized() ? 'Reauthorize' : 'Authorize' }}
       </button>
+      <button class="danger-action" appButton="ghost" type="button" [disabled]="isRunning()" (click)="deleteData()">
+        <app-icon name="trash" [size]="16" />
+        Delete {{ config()?.title }} data
+      </button>
       @if (config()?.canDeleteAllData) {
         <button class="danger-action" appButton="ghost" type="button" (click)="deleteAllData()">
           <app-icon name="trash" [size]="16" />

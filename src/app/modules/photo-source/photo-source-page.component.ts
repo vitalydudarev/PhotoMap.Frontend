@@ -150,6 +150,33 @@ export class PhotoSourcePageComponent implements OnInit {
       });
   }
 
+  /**
+   * Deletes what has been imported from this source so far. The backend keeps the authorization, so the source
+   * can be imported again from the beginning.
+   */
+  deleteData(): void {
+    const sourceId = this.source()?.photoSourceId;
+
+    if (sourceId === undefined || !confirm(`Delete the photos imported from ${this.config()?.title} and start over?`)) {
+      return;
+    }
+
+    this.dataService
+      .deleteSourceData(USER_ID, sourceId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.status.set(PhotoSourceStatus.NotStarted);
+          this.error.set('');
+          this.processed.set(0);
+          this.failed.set(0);
+          this.total.set(0);
+          this.toastService.success('Deleted the data of this photo source.');
+        },
+        error: () => this.toastService.error('Failed to delete the data of this photo source.'),
+      });
+  }
+
   deleteAllData(): void {
     this.dataService
       .deleteAllData()
