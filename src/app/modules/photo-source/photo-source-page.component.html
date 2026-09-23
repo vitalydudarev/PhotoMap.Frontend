@@ -57,7 +57,7 @@
     <div class="app-actions">
       <button appButton="filled" type="button" [disabled]="!isAuthorized()" (click)="startStopProcessing()">
         <app-icon [name]="isRunning() ? 'pause' : 'play'" [size]="16" />
-        {{ action() }} processing
+        {{ action() }}
       </button>
       <button appButton="outline" type="button" (click)="authorize()">
         <app-icon name="shield-check" [size]="16" />

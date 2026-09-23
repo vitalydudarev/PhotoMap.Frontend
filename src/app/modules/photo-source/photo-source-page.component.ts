@@ -11,6 +11,7 @@ import {ProgressBarComponent} from 'src/app/shared/ui/progress-bar/progress-bar.
 
 import {
   PhotoSourceStatus,
+  isPhotoSourceResumable,
   isPhotoSourceRunning,
   parsePhotoSourceStatus,
   photoSourceStatusLabel,
@@ -60,7 +61,19 @@ export class PhotoSourcePageComponent implements OnInit {
   readonly isRunning = computed(() => isPhotoSourceRunning(this.status()));
   readonly statusLabel = computed(() => photoSourceStatusLabel(this.status()));
   readonly hasError = computed(() => this.error().length > 0);
-  readonly action = computed(() => (this.isRunning() ? 'Stop' : 'Start'));
+  readonly canResume = computed(() => isPhotoSourceResumable(this.status()));
+
+  /**
+   * Stopping cancels the run rather than discarding it, and starting again resumes it, so the
+   * button offers Pause and Continue instead of Stop and Start.
+   */
+  readonly action = computed(() => {
+    if (this.isRunning()) {
+      return 'Pause processing';
+    }
+
+    return this.canResume() ? 'Continue processing' : 'Start processing';
+  });
 
   readonly tokenExpires = computed(() => {
     const expiresOn = this.source()?.tokenExpiresOn;
@@ -122,6 +135,7 @@ export class PhotoSourcePageComponent implements OnInit {
     }
 
     const starting = !this.isRunning();
+    const resuming = starting && this.canResume();
 
     this.usersPhotoSourcesClient
       .sourceProcessing(USER_ID, sourceId, starting ? START_PROCESSING : STOP_PROCESSING)
@@ -130,9 +144,9 @@ export class PhotoSourcePageComponent implements OnInit {
         next: () => {
           this.status.set(starting ? PhotoSourceStatus.InProgress : PhotoSourceStatus.Stopped);
           this.error.set('');
-          this.toastService.success(starting ? 'Started processing.' : 'Stopped processing.');
+          this.toastService.success(starting ? (resuming ? 'Resumed processing.' : 'Started processing.') : 'Paused processing.');
         },
-        error: () => this.toastService.error(starting ? 'Failed to start processing.' : 'Failed to stop processing.'),
+        error: () => this.toastService.error(starting ? 'Failed to start processing.' : 'Failed to pause processing.'),
       });
   }
 

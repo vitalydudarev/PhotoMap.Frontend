@@ -123,6 +123,42 @@ describe('PhotoSourcePageComponent', () => {
     expect(startButton?.disabled).toBe(true);
   });
 
+  it.each([
+    [UserPhotoSourceStatusDto._1, 'Start processing'],
+    [UserPhotoSourceStatusDto._2, 'Pause processing'],
+    [UserPhotoSourceStatusDto._3, 'Start processing'],
+    [UserPhotoSourceStatusDto._4, 'Continue processing'],
+    [UserPhotoSourceStatusDto._5, 'Continue processing'],
+  ])('should label the action for status %i as "%s"', (status, label) => {
+    sources = [{photoSourceId: 1, photoSourceName: 'Dropbox', isUserAuthorized: true, status}];
+    build();
+
+    expect(component.action()).toBe(label);
+    expect(text()).toContain(label);
+  });
+
+  it('should offer to continue after the run is paused, and to pause once it is going again', () => {
+    build();
+    expect(component.action()).toBe('Start processing');
+
+    component.startStopProcessing();
+    fixture.detectChanges();
+    expect(component.action()).toBe('Pause processing');
+
+    component.startStopProcessing();
+    fixture.detectChanges();
+    expect(component.action()).toBe('Continue processing');
+  });
+
+  it('should offer to continue when a run fails', () => {
+    build();
+
+    hubErrors.next({sourceId: 1, error: 'Token expired.'});
+    fixture.detectChanges();
+
+    expect(component.action()).toBe('Continue processing');
+  });
+
   it('should send Start then Stop, using the backend command values', () => {
     build();
 

@@ -40,3 +40,12 @@ export function photoSourceStatusLabel(status: PhotoSourceStatus | undefined): s
 export function isPhotoSourceRunning(status: PhotoSourceStatus | undefined): boolean {
   return status === PhotoSourceStatus.InProgress;
 }
+
+/**
+ * True when a run was interrupted partway. Starting again picks up where it left off rather than
+ * beginning from scratch: the backend keeps the source's download cursor and carries the counters
+ * over (`PhotoSourceProcessingService.CreateProgressAsync`).
+ */
+export function isPhotoSourceResumable(status: PhotoSourceStatus | undefined): boolean {
+  return status === PhotoSourceStatus.Stopped || status === PhotoSourceStatus.Failed;
+}
