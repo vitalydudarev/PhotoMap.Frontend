@@ -6,6 +6,17 @@
   padding: var(--app-space-4) var(--app-space-5) var(--app-space-7);
 }
 
+/* Full-width mode: fit as many thumbnails per row as the viewport allows. The thumbnails are a
+   fixed size, so whatever width is left over after the last column is split evenly on both sides
+   rather than all trailing off the right edge. */
+:host(.thumb-view--full) {
+  max-width: none;
+}
+
+:host(.thumb-view--full) ::ng-deep .plain-container {
+  justify-content: center;
+}
+
 /* angular-modal-gallery gives the thumbnail row an inline width of
    `breakConfig.length * size.width` (~3900px), which overflows the page. Letting it fill the
    available width instead makes the row wrap to the viewport. */

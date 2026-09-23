@@ -13,7 +13,14 @@
   backdrop-filter: saturate(180%) blur(12px);
 }
 
-/* Matches the `.app-page` measure so the toolbar lines up with the header and page content. */
+.view-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-2);
+}
+
+/* Matches the `.app-page` measure so the toolbar lines up with the header and page content. It
+   keeps that measure in full-width mode too, so toggling the grid does not move the controls. */
 .toolbar-inner {
   display: flex;
   align-items: center;

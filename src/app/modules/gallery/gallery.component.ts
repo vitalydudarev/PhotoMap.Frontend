@@ -1,6 +1,6 @@
 import {Location} from '@angular/common';
 import {HttpParams} from '@angular/common/http';
-import {Component, DestroyRef, OnInit, inject, signal} from '@angular/core';
+import {Component, DestroyRef, OnInit, computed, effect, inject, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {ActivatedRoute, Router} from '@angular/router';
 import {Photo} from 'src/app/core/models/photo.model';
@@ -13,6 +13,9 @@ import {PhotosMapViewComponent} from '../shared/photos-map-view/photos-map-view.
 import {PhotosThumbViewComponent} from '../shared/photos-thumb-view/photos-thumb-view.component';
 
 type ViewMode = 'thumb' | 'map';
+type GalleryWidth = 'contained' | 'full';
+
+const WIDTH_STORAGE_KEY = 'gallery-width';
 
 @Component({
   selector: 'app-gallery-page',
@@ -32,6 +35,14 @@ export class GalleryComponent implements OnInit {
 
   readonly selectedViewMode = signal<ViewMode>('thumb');
 
+  readonly widthModes: readonly SegmentedOption<GalleryWidth>[] = [
+    {value: 'contained', label: 'Fit to page', icon: 'fit-width'},
+    {value: 'full', label: 'Use the full width', icon: 'full-width'},
+  ];
+
+  readonly selectedWidth = signal<GalleryWidth>(this.readWidthPreference());
+  readonly isFullWidth = computed(() => this.selectedWidth() === 'full');
+
   pageIndex = 0;
   pageSize = 100;
   pageSizes: number[] = [100, 250, 500, 1000];
@@ -45,6 +56,10 @@ export class GalleryComponent implements OnInit {
   private userId = 1;
   private pageConst = 'page';
   private pageSizeConst = 'pageSize';
+
+  constructor() {
+    effect(() => this.writeWidthPreference(this.selectedWidth()));
+  }
 
   ngOnInit(): void {
     this.activatedRoute.queryParams.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
@@ -97,5 +112,22 @@ export class GalleryComponent implements OnInit {
         },
         error: () => this.showSpinner.set(false),
       });
+  }
+
+  private readWidthPreference(): GalleryWidth {
+    try {
+      return localStorage.getItem(WIDTH_STORAGE_KEY) === 'full' ? 'full' : 'contained';
+    } catch {
+      // Storage can be unavailable (private mode, blocked cookies); the default is fine.
+      return 'contained';
+    }
+  }
+
+  private writeWidthPreference(width: GalleryWidth): void {
+    try {
+      localStorage.setItem(WIDTH_STORAGE_KEY, width);
+    } catch {
+      // Ignore: the preference just will not survive a reload.
+    }
   }
 }

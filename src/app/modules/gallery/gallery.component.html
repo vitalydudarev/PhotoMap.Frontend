@@ -1,7 +1,13 @@
 <div class="gallery">
   <div class="toolbar">
     <div class="toolbar-inner">
-      <app-segmented [options]="viewModes" [(value)]="selectedViewMode" [iconsOnly]="true" />
+      <div class="view-controls">
+        <app-segmented aria-label="View mode" [options]="viewModes" [(value)]="selectedViewMode" [iconsOnly]="true" />
+
+        @if (selectedViewMode() === 'thumb') {
+          <app-segmented aria-label="Grid width" [options]="widthModes" [(value)]="selectedWidth" [iconsOnly]="true" />
+        }
+      </div>
 
       <app-paginator
         [length]="totalCount()"
@@ -23,7 +29,7 @@
       <p>No photos yet. Connect a photo source and start processing to see them here.</p>
     </div>
   } @else if (selectedViewMode() === 'thumb') {
-    <app-photos-thumb-view [photos]="photos()" />
+    <app-photos-thumb-view [photos]="photos()" [fullWidth]="isFullWidth()" />
   } @else {
     <app-photos-map-view [photos]="photos()" />
   }

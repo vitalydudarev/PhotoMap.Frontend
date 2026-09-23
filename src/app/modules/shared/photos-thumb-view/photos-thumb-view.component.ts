@@ -1,4 +1,4 @@
-import {Component, Input, OnChanges, inject} from '@angular/core';
+import {Component, Input, OnChanges, booleanAttribute, inject, input} from '@angular/core';
 import {
   ButtonsConfig,
   ButtonsStrategy,
@@ -20,9 +20,15 @@ const GALLERY_ID = 1;
   templateUrl: './photos-thumb-view.component.html',
   styleUrls: ['./photos-thumb-view.component.scss'],
   imports: [PlainGalleryComponent, ScrollControlComponent],
+  host: {
+    '[class.thumb-view--full]': 'fullWidth()',
+  },
 })
 export class PhotosThumbViewComponent implements OnChanges {
   @Input() photos: Photo[] = [];
+
+  /** Lets the grid span the whole viewport instead of the page's reading measure. */
+  readonly fullWidth = input(false, {transform: booleanAttribute});
 
   readonly galleryId = GALLERY_ID;
 
