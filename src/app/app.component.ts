@@ -2,6 +2,7 @@ import {Component, DestroyRef, OnInit, inject, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {RouterLink, RouterLinkActive, RouterOutlet} from '@angular/router';
 
+import {ToastService} from './core/services/toast.service';
 import {UserPhotoSourceDto, UsersPhotoSourcesClient} from './shared/models/photomap-backend.swagger';
 import {IconComponent, IconName} from './shared/ui/icon/icon.component';
 import {ThemeToggleComponent} from './shared/ui/theme-toggle/theme-toggle.component';
@@ -36,6 +37,7 @@ export class AppComponent implements OnInit {
 
   private readonly destroyRef = inject(DestroyRef);
   private readonly usersPhotoSourcesClient = inject(UsersPhotoSourcesClient);
+  private readonly toastService = inject(ToastService);
 
   ngOnInit(): void {
     this.usersPhotoSourcesClient
@@ -43,7 +45,7 @@ export class AppComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (sources) => this.sources.set(sources),
-        error: () => console.error('An error has occurred while getting the photo sources.'),
+        error: (error) => this.toastService.error('Could not load the connection status of the photo sources.', error),
       });
   }
 }

@@ -4,6 +4,7 @@ import {EMPTY, expand, reduce, tap} from 'rxjs';
 import {Photo} from 'src/app/core/models/photo.model';
 import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
 
+import {ToastService} from '../../core/services/toast.service';
 import {UserPhotosService} from '../../core/services/user-photos.service';
 import {PhotosMapViewComponent} from '../shared/photos-map-view/photos-map-view.component';
 
@@ -26,6 +27,7 @@ export class MapComponent implements OnInit {
 
   private readonly destroyRef = inject(DestroyRef);
   private readonly userPhotosService = inject(UserPhotosService);
+  private readonly toastService = inject(ToastService);
 
   private userId = 1;
 
@@ -55,9 +57,10 @@ export class MapComponent implements OnInit {
           this.photos.set(photos);
           this.loading.set(false);
         },
-        error: () => {
+        error: (error) => {
           this.failed.set(true);
           this.loading.set(false);
+          this.toastService.error('Could not load the photos.', error);
         },
       });
   }

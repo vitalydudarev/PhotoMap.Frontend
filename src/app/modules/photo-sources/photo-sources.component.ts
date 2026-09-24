@@ -109,7 +109,7 @@ export class PhotoSourcesComponent implements OnInit {
       .startAuthorization(sourceId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        error: () => this.toastService.error('Could not start authorization for this photo source.'),
+        error: (error) => this.toastService.error('Could not start authorization for this photo source.', error),
       });
   }
 
@@ -125,7 +125,7 @@ export class PhotoSourcesComponent implements OnInit {
           this.patch(source.id, {status: starting ? PhotoSourceStatus.InProgress : PhotoSourceStatus.Stopped, error: ''});
           this.toastService.success(`${starting ? (resuming ? 'Resumed' : 'Started') : 'Paused'} processing ${source.name}.`);
         },
-        error: () => this.toastService.error(`Failed to ${starting ? 'start' : 'pause'} processing ${source.name}.`),
+        error: (error) => this.toastService.error(`Failed to ${starting ? 'start' : 'pause'} processing ${source.name}.`, error),
       });
   }
 
@@ -153,7 +153,7 @@ export class PhotoSourcesComponent implements OnInit {
           });
           this.toastService.success(`Deleted the data of ${source.name}.`);
         },
-        error: () => this.toastService.error(`Failed to delete the data of ${source.name}.`),
+        error: (error) => this.toastService.error(`Failed to delete the data of ${source.name}.`, error),
       });
   }
 
@@ -170,7 +170,7 @@ export class PhotoSourcesComponent implements OnInit {
           this.toastService.success('Data deleted.');
           this.load();
         },
-        error: () => this.toastService.error('Failed to delete data.'),
+        error: (error) => this.toastService.error('Failed to delete data.', error),
       });
   }
 
@@ -193,9 +193,9 @@ export class PhotoSourcesComponent implements OnInit {
           this.isLoading.set(false);
           this.listenForNotifications();
         },
-        error: () => {
+        error: (error) => {
           this.isLoading.set(false);
-          this.toastService.error('Could not load the photo sources.');
+          this.toastService.error('Could not load the photo sources.', error);
         },
       });
   }
@@ -207,8 +207,8 @@ export class PhotoSourcesComponent implements OnInit {
   private loadProgress(sourceId: number): Observable<void> {
     return this.dataService.getSourceStatus(USER_ID, sourceId).pipe(
       map((progress) => this.applyProgress(sourceId, progress)),
-      catchError(() => {
-        this.toastService.error('Could not load the processing status of a photo source.');
+      catchError((error) => {
+        this.toastService.error('Could not load the processing status of a photo source.', error);
 
         return of(undefined);
       }),
@@ -251,8 +251,8 @@ export class PhotoSourcesComponent implements OnInit {
 
           this.showList();
         },
-        error: () => {
-          this.toastService.error(`Authorization of ${sourceName} failed.`);
+        error: (error) => {
+          this.toastService.error(`Authorization of ${sourceName} failed.`, error);
           this.showList();
         },
       });

@@ -9,6 +9,7 @@ import {PageEvent, PaginatorComponent} from 'src/app/shared/ui/paginator/paginat
 import {SegmentedComponent, SegmentedOption} from 'src/app/shared/ui/segmented/segmented.component';
 import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
 
+import {ToastService} from '../../core/services/toast.service';
 import {UserPhotosService} from '../../core/services/user-photos.service';
 import {PhotosMapViewComponent} from '../shared/photos-map-view/photos-map-view.component';
 import {PhotosThumbViewComponent} from '../shared/photos-thumb-view/photos-thumb-view.component';
@@ -27,6 +28,7 @@ const WIDTH_STORAGE_KEY = 'gallery-width';
 export class GalleryComponent implements OnInit {
   readonly photos = signal<Photo[]>([]);
   readonly showSpinner = signal(false);
+  readonly failed = signal(false);
   readonly totalCount = signal(0);
 
   readonly viewModes: readonly SegmentedOption<ViewMode>[] = [
@@ -60,6 +62,7 @@ export class GalleryComponent implements OnInit {
   private readonly location = inject(Location);
   private readonly activatedRoute = inject(ActivatedRoute);
   private readonly userPhotosService = inject(UserPhotosService);
+  private readonly toastService = inject(ToastService);
 
   private userId = 1;
   private pageConst = 'page';
@@ -126,6 +129,7 @@ export class GalleryComponent implements OnInit {
 
   private setImages() {
     this.showSpinner.set(true);
+    this.failed.set(false);
 
     this.userPhotosService
       .getUserPhotos(this.userId, this.pageSize, this.pageSize * this.pageIndex, this.selectedSortOrder())
@@ -136,7 +140,12 @@ export class GalleryComponent implements OnInit {
           this.photos.set(pagedResponse.values);
           this.showSpinner.set(false);
         },
-        error: () => this.showSpinner.set(false),
+        error: (error) => {
+          this.photos.set([]);
+          this.failed.set(true);
+          this.showSpinner.set(false);
+          this.toastService.error('Could not load the photos.', error);
+        },
       });
   }
 
