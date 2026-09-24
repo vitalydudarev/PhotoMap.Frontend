@@ -1,15 +1,7 @@
 import {Component, Input, OnChanges, booleanAttribute, inject, input} from '@angular/core';
-import {
-  ButtonsConfig,
-  ButtonsStrategy,
-  GridLayout,
-  Image,
-  ModalGalleryService,
-  PlainGalleryComponent,
-  PlainGalleryStrategy,
-  PlainLibConfig,
-} from '@ks89/angular-modal-gallery';
+import {GridLayout, Image, PlainGalleryComponent, PlainGalleryStrategy, PlainLibConfig} from '@ks89/angular-modal-gallery';
 import {Photo} from 'src/app/core/models/photo.model';
+import {PhotoViewerService, toImages} from 'src/app/core/services/photo-viewer.service';
 
 import {ScrollControlComponent} from '../scroll-control/scroll-control.component';
 
@@ -35,7 +27,7 @@ export class PhotosThumbViewComponent implements OnChanges {
   images: Image[] = [];
 
   // `ks-plain-gallery` renders the thumbnail grid; the modal viewer is opened imperatively
-  // through `ModalGalleryService` (angular-modal-gallery 8+ dropped the `ks-modal-gallery` binding API).
+  // through `PhotoViewerService` (angular-modal-gallery 8+ dropped the `ks-modal-gallery` binding API).
   plainGalleryConfig: PlainLibConfig = {
     plainGalleryConfig: {
       strategy: PlainGalleryStrategy.GRID,
@@ -43,50 +35,17 @@ export class PhotosThumbViewComponent implements OnChanges {
     },
   };
 
-  private readonly buttonsConfig: ButtonsConfig = {
-    visible: true,
-    strategy: ButtonsStrategy.SIMPLE,
-  };
-
-  private readonly modalGalleryService = inject(ModalGalleryService);
+  private readonly photoViewerService = inject(PhotoViewerService);
 
   ngOnChanges(): void {
     this.setImages();
   }
 
   onImageClicked(index: number): void {
-    const currentImage = this.images[index];
-
-    if (!currentImage) {
-      return;
-    }
-
-    this.modalGalleryService.open({
-      id: this.galleryId,
-      images: this.images,
-      currentImage,
-      libConfig: {
-        buttonsConfig: this.buttonsConfig,
-        previewConfig: {visible: false},
-        dotsConfig: {visible: false},
-      },
-    });
+    this.photoViewerService.open(this.galleryId, this.photos, index, this.images);
   }
 
   private setImages() {
-    this.images = this.photos.map(
-      (photo, index) =>
-        new Image(
-          index,
-          {
-            img: photo.photoUrl,
-            description: photo.fileName,
-          },
-          {
-            img: photo.thumbnailLargeUrl,
-            description: photo.fileName,
-          },
-        ),
-    );
+    this.images = toImages(this.photos);
   }
 }

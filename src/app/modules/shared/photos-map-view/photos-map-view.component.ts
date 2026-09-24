@@ -1,6 +1,6 @@
 import {ChangeDetectionStrategy, Component, computed, effect, inject, input, signal} from '@angular/core';
-import {ButtonsStrategy, Image, ModalGalleryService} from '@ks89/angular-modal-gallery';
 import {Photo} from 'src/app/core/models/photo.model';
+import {PhotoViewerService} from 'src/app/core/services/photo-viewer.service';
 import {SegmentedComponent, SegmentedOption} from 'src/app/shared/ui/segmented/segmented.component';
 
 import {GooglePhotoMapComponent} from './google-photo-map.component';
@@ -33,28 +33,14 @@ export class PhotosMapViewComponent {
 
   readonly provider = signal<MapProvider>(this.readProviderPreference());
 
-  private readonly modalGalleryService = inject(ModalGalleryService);
+  private readonly photoViewerService = inject(PhotoViewerService);
 
   constructor() {
     effect(() => this.writeProviderPreference(this.provider()));
   }
 
   openPhotos(selection: PhotoSelection): void {
-    const images = selection.photos.map(
-      (photo, index) =>
-        new Image(index, {img: photo.photoUrl, description: photo.fileName}, {img: photo.thumbnailLargeUrl, description: photo.fileName}),
-    );
-
-    this.modalGalleryService.open({
-      id: GALLERY_ID,
-      images,
-      currentImage: images[selection.index],
-      libConfig: {
-        buttonsConfig: {visible: true, strategy: ButtonsStrategy.SIMPLE},
-        previewConfig: {visible: false},
-        dotsConfig: {visible: false},
-      },
-    });
+    this.photoViewerService.open(GALLERY_ID, selection.photos, selection.index);
   }
 
   private readProviderPreference(): MapProvider {
