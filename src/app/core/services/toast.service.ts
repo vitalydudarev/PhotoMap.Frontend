@@ -10,9 +10,9 @@ export interface Toast {
   readonly tone: ToastTone;
 }
 
-const DISMISS_AFTER_MS = 4000;
+const DISMISS_AFTER_MS = 2500;
 // Errors carry the reason too, and are worth the time to read it.
-const ERROR_DISMISS_AFTER_MS = 8000;
+const ERROR_DISMISS_AFTER_MS = 3000;
 
 /**
  * Holds the transient messages shown by `<app-toast-host />`, which AppComponent renders once
