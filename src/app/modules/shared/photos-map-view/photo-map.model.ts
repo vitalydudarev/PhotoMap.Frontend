@@ -25,6 +25,10 @@ export const CLUSTER_RADIUS = 72;
 const PHOTO_MARKER_SIZE = 52;
 const CLUSTER_MARKER_SIZE = 60;
 
+/** The most tiles a spread cluster shows; past that, the last tile stands for the photos that did not fit. */
+const MAX_SPREAD_TILES = 16;
+const SPREAD_GAP = 6;
+
 /** The viewer is not meant for thousands of images, so a selection is cut to a window around the clicked photo. */
 const MAX_SELECTION = 500;
 
@@ -62,6 +66,61 @@ export function selectAround(photos: readonly Photo[], photo: Photo): PhotoSelec
   }
 
   return {photos: sorted, index};
+}
+
+/** A marker element together with its size in pixels, which the map libraries need to place it. */
+export interface SizedElement {
+  element: HTMLElement;
+  width: number;
+  height: number;
+}
+
+/**
+ * The marker drawn for a cluster the map cannot zoom into any further: its photos side by side in a grid, so each one
+ * can be clicked. Photos past the grid are behind a last tile that counts them. `onClick` gets the photo of the tile
+ * clicked, the first hidden one for that last tile, and the click goes no further, so the map does not see it as a
+ * click on the cluster.
+ */
+export function createPhotoSpreadElement(photos: readonly GeotaggedPhoto[], onClick: (photo: GeotaggedPhoto) => void): SizedElement {
+  const sorted = [...photos].sort((a, b) => new Date(a.dateTimeTaken).getTime() - new Date(b.dateTimeTaken).getTime());
+  const shown = sorted.length > MAX_SPREAD_TILES ? MAX_SPREAD_TILES - 1 : sorted.length;
+  const tiles = sorted.length > shown ? shown + 1 : shown;
+  const columns = Math.ceil(Math.sqrt(tiles));
+  const rows = Math.ceil(tiles / columns);
+  const size = markerSize();
+
+  const spread = document.createElement('div');
+  spread.className = 'photo-spread';
+  spread.style.gridTemplateColumns = `repeat(${columns}, ${size}px)`;
+  spread.style.gap = `${SPREAD_GAP}px`;
+
+  const addTile = (tile: HTMLElement, photo: GeotaggedPhoto) => {
+    tile.addEventListener('click', (event) => {
+      event.stopPropagation();
+      onClick(photo);
+    });
+    spread.appendChild(tile);
+  };
+
+  sorted.slice(0, shown).forEach((photo) => addTile(createPhotoMarkerElement(photo), photo));
+
+  if (tiles > shown) {
+    const hidden = sorted.length - shown;
+    const more = document.createElement('div');
+
+    more.className = 'photo-marker photo-marker--more';
+    more.style.width = `${size}px`;
+    more.style.height = `${size}px`;
+    more.textContent = `+${hidden}`;
+    more.title = `${hidden} more photos`;
+    addTile(more, sorted[shown]);
+  }
+
+  return {
+    element: spread,
+    width: columns * size + (columns - 1) * SPREAD_GAP,
+    height: rows * size + (rows - 1) * SPREAD_GAP,
+  };
 }
 
 /**

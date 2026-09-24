@@ -58,6 +58,32 @@
   text-align: center;
 }
 
+/* A cluster at the deepest zoom: its photos side by side, each with its own click. The gaps
+   between them are not part of the marker, and neither is the div Leaflet wraps it in. */
+.photo-marker-host:has(> .photo-spread) {
+  pointer-events: none;
+}
+
+.photo-spread {
+  display: grid;
+  pointer-events: none;
+}
+
+.photo-spread > * {
+  pointer-events: auto;
+}
+
+/* The last tile of a spread, standing for the photos that did not fit. */
+.photo-marker--more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--app-accent);
+  color: var(--app-accent-fg);
+  font-size: var(--app-text-sm);
+  font-weight: 600;
+}
+
 /* Leaflet's controls in the app's palette. */
 .leaflet-container {
   font-family: var(--app-font-sans);

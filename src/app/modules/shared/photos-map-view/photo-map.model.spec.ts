@@ -1,6 +1,6 @@
 import {Photo} from 'src/app/core/models/photo.model';
 
-import {GeotaggedPhoto, isGeotagged, isSinglePoint, selectAround} from './photo-map.model';
+import {GeotaggedPhoto, createPhotoSpreadElement, isGeotagged, isSinglePoint, selectAround} from './photo-map.model';
 
 function photo(id: number, taken: string, latitude?: number, longitude?: number): Photo {
   return {
@@ -46,5 +46,35 @@ describe('photo map helpers', () => {
 
     expect(selection.photos.length).toBe(500);
     expect(selection.photos[selection.index].id).toBe('1500');
+  });
+
+  it('spreads a cluster into a grid of its photos, each opening its own photo', () => {
+    const photos = [3, 1, 2, 4, 5].map((i) => photo(i, `2020-01-0${i}`, 53.9, 27.5) as GeotaggedPhoto);
+    const clicked: string[] = [];
+
+    const spread = createPhotoSpreadElement(photos, (p) => clicked.push(p.id));
+    const tiles = Array.from(spread.element.children) as HTMLElement[];
+
+    expect(tiles.map((tile) => tile.title)).toEqual(['1.jpg', '2.jpg', '3.jpg', '4.jpg', '5.jpg']);
+    expect([spread.width, spread.height]).toEqual([3 * 52 + 2 * 6, 2 * 52 + 6]);
+
+    tiles[2].click();
+
+    expect(clicked).toEqual(['3']);
+  });
+
+  it('puts the photos that do not fit a spread behind its last tile', () => {
+    const photos = Array.from({length: 40}, (_, i) => photo(i, new Date(2020, 0, 1, 0, i).toISOString(), 0, 0));
+    const clicked: string[] = [];
+
+    const spread = createPhotoSpreadElement(photos as GeotaggedPhoto[], (p) => clicked.push(p.id));
+    const tiles = Array.from(spread.element.children) as HTMLElement[];
+
+    expect(tiles.length).toBe(16);
+    expect(tiles[15].textContent).toBe('+25');
+
+    tiles[15].click();
+
+    expect(clicked).toEqual(['15']);
   });
 });

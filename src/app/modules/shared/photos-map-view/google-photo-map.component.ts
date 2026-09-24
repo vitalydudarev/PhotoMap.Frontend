@@ -23,11 +23,13 @@ import {
   GeotaggedPhoto,
   PhotoSelection,
   createPhotoMarkerElement,
+  createPhotoSpreadElement,
   isSinglePoint,
   selectAround,
 } from './photo-map.model';
 
-// Keeps clusters together up to the deepest zoom, so photos taken on the same spot never end up stacked.
+// Keeps clusters together up to the deepest zoom, where they are spread, so photos taken on the same spot never end
+// up stacked. The map zooms no deeper than this.
 const CLUSTER_MAX_ZOOM = 22;
 
 interface GoogleMaps {
@@ -120,6 +122,7 @@ export class GooglePhotoMapComponent {
     const map = new lib.Map(this.container().nativeElement, {
       center: {lat: 20, lng: 0},
       zoom: 2,
+      maxZoom: CLUSTER_MAX_ZOOM,
       mapId: environment.googleMapsMapId,
       clickableIcons: false,
       streetViewControl: false,
@@ -133,7 +136,9 @@ export class GooglePhotoMapComponent {
         render: (cluster) =>
           new lib.AdvancedMarkerElement({
             position: cluster.position,
-            content: createPhotoMarkerElement(this.photoOf(cluster.markers[0] as Marker), cluster.count),
+            content: this.isDeepest(map)
+              ? this.createSpread(map, cluster)
+              : createPhotoMarkerElement(this.photoOf(cluster.markers[0] as Marker), cluster.count),
             zIndex: 1000 + cluster.count,
           }),
       },
@@ -177,12 +182,30 @@ export class GooglePhotoMapComponent {
     });
   }
 
-  /** Zooms into a cluster, or opens its photos once zooming cannot split it any further. */
+  private isDeepest(map: google.maps.Map): boolean {
+    return Math.round(map.getZoom() ?? 0) >= CLUSTER_MAX_ZOOM;
+  }
+
+  private createSpread(map: google.maps.Map, cluster: Cluster): HTMLElement {
+    const photos = cluster.markers.map((marker) => this.photoOf(marker as Marker));
+
+    return createPhotoSpreadElement(photos, (photo) => this.onPhotoClick(map, photo)).element;
+  }
+
+  /**
+   * Zooms into a cluster, straight to the deepest zoom when its photos all sit on one spot. There the cluster is a
+   * spread whose photos take their own clicks, and a click between them does nothing.
+   */
   private onClusterClick(map: google.maps.Map, cluster: Cluster): void {
     const photos = cluster.markers.map((marker) => this.photoOf(marker as Marker));
 
-    if ((map.getZoom() ?? 0) >= CLUSTER_MAX_ZOOM || isSinglePoint(photos)) {
-      this.select(selectAround(photos, photos[0]));
+    if (this.isDeepest(map)) {
+      return;
+    }
+
+    if (isSinglePoint(photos)) {
+      map.setCenter(cluster.position);
+      map.setZoom(CLUSTER_MAX_ZOOM);
     } else if (cluster.bounds) {
       map.fitBounds(cluster.bounds, FIT_PADDING);
     }

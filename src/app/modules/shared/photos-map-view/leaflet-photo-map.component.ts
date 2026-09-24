@@ -24,6 +24,7 @@ import {
   GeotaggedPhoto,
   PhotoSelection,
   createPhotoMarkerElement,
+  createPhotoSpreadElement,
   isSinglePoint,
   markerSize,
   selectAround,
@@ -95,6 +96,11 @@ export class LeafletPhotoMapComponent {
       spiderfyOnMaxZoom: false,
       zoomToBoundsOnClick: false,
       iconCreateFunction: (cluster) => {
+        // markercluster keeps clustering at the deepest zoom, so a cluster there is drawn as its photos side by side
+        if (map.getZoom() >= map.getMaxZoom()) {
+          return this.createSpreadIcon(map, cluster);
+        }
+
         const count = cluster.getChildCount();
         const size = markerSize(count);
 
@@ -145,12 +151,32 @@ export class LeafletPhotoMapComponent {
     }
   }
 
-  /** Zooms into a cluster, or opens its photos once zooming cannot split it any further. */
+  private createSpreadIcon(map: L.Map, cluster: L.MarkerCluster): L.DivIcon {
+    const photos = cluster.getAllChildMarkers().map((marker) => this.photoOf(marker));
+    const spread = createPhotoSpreadElement(photos, (photo) => {
+      // the tiles take their clicks before Leaflet can tell a click from the end of a drag; `moved` is in Leaflet's
+      // drag handler but not in its typings
+      if (!(map.dragging as L.Handler & {moved(): boolean}).moved()) {
+        this.onPhotoClick(map, photo);
+      }
+    });
+
+    return L.divIcon({html: spread.element, className: 'photo-marker-host', iconSize: [spread.width, spread.height]});
+  }
+
+  /**
+   * Zooms into a cluster, straight to the deepest zoom when its photos all sit on one spot. There the cluster is a
+   * spread whose photos take their own clicks, and a click between them does nothing.
+   */
   private onClusterClick(map: L.Map, cluster: L.MarkerCluster): void {
     const photos = cluster.getAllChildMarkers().map((marker) => this.photoOf(marker));
 
-    if (map.getZoom() >= map.getMaxZoom() || isSinglePoint(photos)) {
-      this.select(selectAround(photos, photos[0]));
+    if (map.getZoom() >= map.getMaxZoom()) {
+      return;
+    }
+
+    if (isSinglePoint(photos)) {
+      map.setView(cluster.getLatLng(), map.getMaxZoom());
     } else {
       cluster.zoomToBounds({padding: [FIT_PADDING, FIT_PADDING]});
     }
