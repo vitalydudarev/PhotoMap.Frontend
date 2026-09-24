@@ -1,0 +1,82 @@
+/* Photo markers on the maps. The map libraries put markers in their own panes, outside any
+   component's view, so these styles cannot be scoped to the map components. The markers are
+   built by `createPhotoMarkerElement` in `photos-map-view/photo-map.model.ts`, which also sets
+   their size. */
+
+/* Leaflet wraps each marker in a div of its own; the default div icon draws a white box. */
+.photo-marker-host {
+  background: none;
+  border: 0;
+}
+
+.photo-marker {
+  position: relative;
+  box-sizing: border-box;
+  padding: 3px;
+  border-radius: var(--app-radius-sm);
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgb(16 24 40 / 35%);
+  cursor: pointer;
+  transition: transform var(--app-transition);
+}
+
+.photo-marker:hover {
+  z-index: 1;
+  transform: scale(1.12);
+}
+
+.photo-marker__image {
+  width: 100%;
+  height: 100%;
+  border-radius: 3px;
+  background: #d3d8de center / cover no-repeat;
+}
+
+/* A cluster reads as a small stack of prints. */
+.photo-marker--cluster {
+  box-shadow:
+    3px 3px 0 -1px #ffffff,
+    3px 3px 3px -1px rgb(16 24 40 / 35%),
+    6px 6px 0 -2px #ffffff,
+    6px 6px 4px -2px rgb(16 24 40 / 35%);
+}
+
+.photo-marker__count {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border: 2px solid #ffffff;
+  border-radius: var(--app-radius-pill);
+  background: var(--app-accent);
+  color: var(--app-accent-fg);
+  font-size: var(--app-text-xs);
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+}
+
+/* Leaflet's controls in the app's palette. */
+.leaflet-container {
+  font-family: var(--app-font-sans);
+}
+
+/* OpenStreetMap has no dark tiles; inverting the light ones gives a dark map that keeps its
+   hues. Only the tiles are filtered, so the photos keep their colours. */
+@mixin dark-tiles {
+  .photo-map--leaflet .leaflet-tile-pane {
+    filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    @include dark-tiles;
+  }
+}
+
+:root[data-theme='dark'] {
+  @include dark-tiles;
+}

@@ -39,6 +39,6 @@
   } @else if (selectedViewMode() === 'thumb') {
     <app-photos-thumb-view [photos]="photos()" [fullWidth]="isFullWidth()" />
   } @else {
-    <app-photos-map-view [photos]="photos()" />
+    <app-photos-map-view class="map" [photos]="photos()" />
   }
 </div>

@@ -1,0 +1,44 @@
+/* The view takes whatever size its parent gives it; the map inside fills it. `isolation` keeps the
+   z-indexes Leaflet gives its panes (up to 1000) from lifting the map over the sticky toolbar and
+   the photo viewer. */
+:host {
+  position: relative;
+  display: block;
+  min-height: 420px;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* Centred at the top, clear of the zoom buttons on the left and Google's map type control on the right. */
+.provider-switch,
+.notice {
+  position: absolute;
+  left: 50%;
+  z-index: 1000;
+  transform: translateX(-50%);
+  box-shadow: var(--app-shadow);
+}
+
+.provider-switch {
+  top: var(--app-space-3);
+  background: var(--app-surface);
+  white-space: nowrap;
+}
+
+.notice {
+  bottom: var(--app-space-5);
+  max-width: calc(100% - 2 * var(--app-space-4));
+  padding: var(--app-space-2) var(--app-space-4);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-pill);
+  background: var(--app-surface);
+  color: var(--app-fg-muted);
+  white-space: nowrap;
+}
+
+@media (width <= 720px) {
+  .notice {
+    white-space: normal;
+    text-align: center;
+  }
+}

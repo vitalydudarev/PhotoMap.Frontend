@@ -1,5 +1,21 @@
-@if (photos().length > 0) {
-  <app-photos-map-view [photos]="photos()" />
+@if (loading()) {
+  <div class="state">
+    <app-spinner [size]="28" label="Loading photos" />
+    <p>
+      Loading photos…
+      @if (total() > 0) {
+        {{ loaded() }} of {{ total() }}
+      }
+    </p>
+  </div>
+} @else if (failed()) {
+  <div class="state">
+    <p>The photos could not be loaded. Check that the backend is running and reload the page.</p>
+  </div>
+} @else if (photos().length === 0) {
+  <div class="state">
+    <p>No photos yet. Connect a photo source and start processing to see them here.</p>
+  </div>
 } @else {
-  <p class="app-empty">No geotagged photos to show yet.</p>
+  <app-photos-map-view class="map" [photos]="photos()" />
 }

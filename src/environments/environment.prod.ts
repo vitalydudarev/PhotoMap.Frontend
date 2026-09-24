@@ -5,4 +5,6 @@ export const environment = {
   backendUrl: 'https://localhost:5001',
   photoMapApiUrl: 'https://localhost:5001/api',
   notificationHub: 'https://localhost:5001/notifications',
+  googleMapsApiKey: '',
+  googleMapsMapId: 'DEMO_MAP_ID',
 };

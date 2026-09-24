@@ -32,6 +32,11 @@
   padding: var(--app-space-3) var(--app-space-5);
 }
 
+/* Fills the height left under the toolbar. */
+.map {
+  flex: 1;
+}
+
 .state {
   display: flex;
   flex: 1;

@@ -4,3 +4,6 @@
 @use 'styles/tokens';
 @use 'styles/base';
 @use 'styles/controls';
+@use 'leaflet/dist/leaflet';
+@use 'leaflet.markercluster/dist/MarkerCluster';
+@use 'styles/map';
