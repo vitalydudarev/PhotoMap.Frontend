@@ -4,6 +4,7 @@ import {Observable} from 'rxjs';
 import {environment} from 'src/environments/environment';
 
 import {PagedResponse} from '../models/paged-response.model';
+import {PhotoSortOrder} from '../models/photo-sort-order.model';
 import {Photo} from '../models/photo.model';
 
 @Injectable()
@@ -12,7 +13,7 @@ export class UserPhotosService {
 
   private url = `${environment.photoMapApiUrl}/users`;
 
-  public getUserPhotos(userId: number, top: number, skip: number): Observable<PagedResponse<Photo>> {
-    return this._httpClient.get<PagedResponse<Photo>>(`${this.url}/${userId}/photos?top=${top}&skip=${skip}`);
+  public getUserPhotos(userId: number, top: number, skip: number, sort: PhotoSortOrder): Observable<PagedResponse<Photo>> {
+    return this._httpClient.get<PagedResponse<Photo>>(`${this.url}/${userId}/photos?top=${top}&skip=${skip}&sort=${sort}`);
   }
 }

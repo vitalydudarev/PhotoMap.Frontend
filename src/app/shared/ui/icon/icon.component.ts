@@ -23,6 +23,8 @@ export type IconName =
   | 'play'
   | 'share'
   | 'shield-check'
+  | 'sort-asc'
+  | 'sort-desc'
   | 'sun'
   | 'trash'
   | 'x';

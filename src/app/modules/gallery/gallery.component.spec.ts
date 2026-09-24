@@ -12,10 +12,15 @@ describe('GalleryComponent', () => {
   let component: GalleryComponent;
   let fixture: ComponentFixture<GalleryComponent>;
 
-  const widthButtons = () =>
+  const segmentedButtons = (label: string) =>
     Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('.view-controls app-segmented:nth-of-type(2) button'),
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
+        `.view-controls app-segmented[aria-label="${label}"] button`,
+      ),
     );
+
+  const widthButtons = () => segmentedButtons('Grid width');
+  const sortButtons = () => segmentedButtons('Sort order');
 
   /** The thumbnail grid only renders once there are photos to show. */
   const flushPhotos = (count = 3) => {
@@ -101,6 +106,31 @@ describe('GalleryComponent', () => {
     fixture.detectChanges();
 
     expect(toolbar.className).toBe(before);
+  });
+
+  it('should ask for the oldest photos first by default', () => {
+    const request = TestBed.inject(HttpTestingController).expectOne((candidate) => candidate.url.includes('/photos'));
+
+    expect(component.selectedSortOrder()).toBe('asc');
+    expect(request.request.urlWithParams).toContain('sort=asc');
+  });
+
+  it('should offer both sort orders', () => {
+    expect(sortButtons().map((button) => button.title)).toEqual(['Oldest first', 'Newest first']);
+  });
+
+  it('should reload the first page when the sort order is switched', () => {
+    flushPhotos();
+
+    component.pageIndex = 3;
+    component.sortOrderUpdated('desc');
+
+    const request = TestBed.inject(HttpTestingController).expectOne((candidate) => candidate.url.includes('/photos'));
+
+    expect(request.request.urlWithParams).toContain('sort=desc');
+    // the same photo is on another page in the other order, so paging starts over
+    expect(request.request.urlWithParams).toContain('skip=0');
+    expect(component.pageIndex).toBe(0);
   });
 
   it('should remember the choice across reloads', () => {

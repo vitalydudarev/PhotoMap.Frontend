@@ -3,6 +3,7 @@ import {HttpParams} from '@angular/common/http';
 import {Component, DestroyRef, OnInit, computed, effect, inject, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {ActivatedRoute, Router} from '@angular/router';
+import {PhotoSortOrder} from 'src/app/core/models/photo-sort-order.model';
 import {Photo} from 'src/app/core/models/photo.model';
 import {PageEvent, PaginatorComponent} from 'src/app/shared/ui/paginator/paginator.component';
 import {SegmentedComponent, SegmentedOption} from 'src/app/shared/ui/segmented/segmented.component';
@@ -43,6 +44,13 @@ export class GalleryComponent implements OnInit {
   readonly selectedWidth = signal<GalleryWidth>(this.readWidthPreference());
   readonly isFullWidth = computed(() => this.selectedWidth() === 'full');
 
+  readonly sortOrders: readonly SegmentedOption<PhotoSortOrder>[] = [
+    {value: 'asc', label: 'Oldest first', icon: 'sort-asc'},
+    {value: 'desc', label: 'Newest first', icon: 'sort-desc'},
+  ];
+
+  readonly selectedSortOrder = signal<PhotoSortOrder>('asc');
+
   pageIndex = 0;
   pageSize = 100;
   pageSizes: number[] = [100, 250, 500, 1000];
@@ -56,6 +64,7 @@ export class GalleryComponent implements OnInit {
   private userId = 1;
   private pageConst = 'page';
   private pageSizeConst = 'pageSize';
+  private sortConst = 'sort';
 
   constructor() {
     effect(() => this.writeWidthPreference(this.selectedWidth()));
@@ -74,6 +83,12 @@ export class GalleryComponent implements OnInit {
         if (pageSize) {
           this.pageSize = parseInt(pageSize);
         }
+
+        const sort = params[this.sortConst];
+
+        if (sort === 'asc' || sort === 'desc') {
+          this.selectedSortOrder.set(sort);
+        }
       },
     });
 
@@ -90,10 +105,21 @@ export class GalleryComponent implements OnInit {
     this.setImages();
   }
 
+  sortOrderUpdated(sortOrder: PhotoSortOrder): void {
+    this.selectedSortOrder.set(sortOrder);
+
+    // a photo sits on a different page in the other order, so the first page is the only one worth keeping
+    this.pageIndex = 0;
+
+    this.addQueryString();
+    this.setImages();
+  }
+
   private addQueryString() {
     const params = new HttpParams()
       .append(this.pageConst, (this.pageIndex + 1).toString())
-      .append(this.pageSizeConst, this.pageSize.toString());
+      .append(this.pageSizeConst, this.pageSize.toString())
+      .append(this.sortConst, this.selectedSortOrder());
 
     this.location.go(this.router.url.split('?')[0], params.toString());
   }
@@ -102,7 +128,7 @@ export class GalleryComponent implements OnInit {
     this.showSpinner.set(true);
 
     this.userPhotosService
-      .getUserPhotos(this.userId, this.pageSize, this.pageSize * this.pageIndex)
+      .getUserPhotos(this.userId, this.pageSize, this.pageSize * this.pageIndex, this.selectedSortOrder())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (pagedResponse) => {

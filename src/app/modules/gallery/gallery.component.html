@@ -7,6 +7,14 @@
         @if (selectedViewMode() === 'thumb') {
           <app-segmented aria-label="Grid width" [options]="widthModes" [(value)]="selectedWidth" [iconsOnly]="true" />
         }
+
+        <app-segmented
+          aria-label="Sort order"
+          [options]="sortOrders"
+          [value]="selectedSortOrder()"
+          (valueChange)="sortOrderUpdated($event)"
+          [iconsOnly]="true"
+        />
       </div>
 
       <app-paginator

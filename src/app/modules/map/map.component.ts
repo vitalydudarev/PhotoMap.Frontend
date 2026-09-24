@@ -25,7 +25,7 @@ export class MapComponent implements OnInit {
 
   private setMarkers() {
     this.userPhotosService
-      .getUserPhotos(this.userId, this.pageSize, 0)
+      .getUserPhotos(this.userId, this.pageSize, 0, 'asc')
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((pagedResponse) => {
         this.photos.set(pagedResponse.values);
