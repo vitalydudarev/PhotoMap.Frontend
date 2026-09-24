@@ -24,14 +24,14 @@ describe('routed components', () => {
   });
 
   it.each(routedComponents.map((route) => [route.path, route] as const))('creates the component for /%s', (_path, route) => {
-    // The photo source pages read their configuration from the route's `data`, and the gallery
+    // The photo sources page reads its OAuth redirect configuration from the route's `data`, and the gallery
     // reads its paging from `queryParams`.
     TestBed.overrideProvider(ActivatedRoute, {
       useValue: {
         data: of(route.data ?? {}),
         queryParams: of({}),
         fragment: of(null),
-        snapshot: {queryParamMap: convertToParamMap({}), fragment: null},
+        snapshot: {data: route.data ?? {}, queryParamMap: convertToParamMap({}), fragment: null},
       },
     });
 

@@ -28,9 +28,7 @@ export class AppComponent implements OnInit {
   readonly menuItems: readonly MenuItem[] = [
     {title: 'Gallery', route: '/gallery', icon: 'grid'},
     {title: 'Map', route: '/map', icon: 'map'},
-    {title: 'Yandex.Disk', route: '/yandex-disk', icon: 'shield-check'},
-    {title: 'Dropbox', route: '/dropbox', icon: 'shield-check'},
-    {title: 'Photo Sources', route: '/photo-sources', icon: 'check-circle'},
+    {title: 'Photo Sources', route: '/photo-sources', icon: 'shield-check'},
   ];
 
   /** Connection badges, one per source the backend knows about. */

@@ -1,0 +1,101 @@
+<div class="app-page app-page--narrow app-stack">
+  <header>
+    <h1 class="app-page-title">Photo sources</h1>
+    <p class="app-page-subtitle">Connect an account, then start processing to import its photos and keep their locations in sync.</p>
+  </header>
+
+  @if (isLoading()) {
+    <app-card>
+      <div class="loading">
+        <app-spinner [size]="24" label="Loading photo sources" />
+      </div>
+    </app-card>
+  } @else if (sources().length === 0) {
+    <app-card>
+      <p class="app-empty">No photo sources are configured on the backend.</p>
+    </app-card>
+  } @else {
+    @for (source of sources(); track source.id) {
+      <app-card class="source">
+        <div class="source-header">
+          <h2 class="source-name">{{ source.name }}</h2>
+          @if (source.isAuthorized) {
+            <span class="app-badge app-badge--success">
+              <app-icon name="check" [size]="13" />
+              Connected
+            </span>
+          } @else {
+            <span class="app-badge">Not connected</span>
+          }
+        </div>
+
+        @if (source.error) {
+          <app-alert tone="danger" heading="Processing failed">{{ source.error }}</app-alert>
+        }
+
+        <dl class="app-detail-list">
+          <div class="app-detail-row">
+            <dt class="app-detail-term">Status</dt>
+            <dd class="app-detail-value">
+              <span class="app-badge" [class.app-badge--accent]="source.isRunning">{{ source.statusLabel }}</span>
+            </dd>
+          </div>
+
+          @if (source.total > 0) {
+            <div class="app-detail-row">
+              <dt class="app-detail-term">Processed</dt>
+              <dd class="app-detail-value">{{ source.progressLabel }}</dd>
+            </div>
+          }
+
+          @if (source.lastUpdated && !source.isRunning) {
+            <div class="app-detail-row">
+              <dt class="app-detail-term">Last updated</dt>
+              <dd class="app-detail-value">{{ source.lastUpdated }}</dd>
+            </div>
+          }
+
+          @if (source.tokenExpires) {
+            <div class="app-detail-row">
+              <dt class="app-detail-term">Token expires</dt>
+              <dd class="app-detail-value">{{ source.tokenExpires }}</dd>
+            </div>
+          }
+        </dl>
+
+        @if (source.isRunning) {
+          <div class="progress">
+            <app-progress-bar [mode]="source.total > 0 ? 'determinate' : 'indeterminate'" [value]="source.progressPercent" />
+            @if (source.total > 0) {
+              <span class="progress-value">{{ source.progressPercent.toFixed(1) }}%</span>
+            }
+          </div>
+        }
+
+        <div class="app-actions source-actions">
+          @if (source.isAuthorized) {
+            <button appButton="filled" type="button" (click)="startStopProcessing(source)">
+              <app-icon [name]="source.isRunning ? 'pause' : 'play'" [size]="16" />
+              {{ source.action }}
+            </button>
+          }
+          <button [appButton]="source.isAuthorized ? 'outline' : 'filled'" type="button" (click)="authorize(source.id)">
+            <app-icon name="shield-check" [size]="16" />
+            {{ source.isAuthorized ? 'Reauthorize' : 'Authorize' }}
+          </button>
+          <button class="danger-action" appButton="ghost" type="button" [disabled]="source.isRunning" (click)="deleteData(source)">
+            <app-icon name="trash" [size]="16" />
+            Delete data
+          </button>
+        </div>
+      </app-card>
+    }
+
+    <div class="app-actions">
+      <button class="danger-action" appButton="ghost" type="button" [disabled]="isAnyRunning()" (click)="deleteAllData()">
+        <app-icon name="trash" [size]="16" />
+        Delete all data
+      </button>
+    </div>
+  }
+</div>

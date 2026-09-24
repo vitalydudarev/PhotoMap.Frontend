@@ -1,6 +1,3 @@
-/** Set before leaving for a photo source page so that page starts authorization on arrival. */
-export const AUTH_FIRST_STEP = 'auth-first-step';
-
 /** The provider's OAuth configuration, kept across the redirect to exchange the code on return. */
 export const AUTH_CONFIGURATION = 'auth-configuration';
 

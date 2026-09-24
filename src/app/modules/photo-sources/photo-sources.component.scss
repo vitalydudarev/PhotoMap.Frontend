@@ -1,5 +1,25 @@
 .loading {
-  color: var(--app-fg-muted);
+  display: flex;
+  justify-content: center;
+  padding: var(--app-space-5);
+}
+
+.source-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-3);
+  margin-bottom: var(--app-space-4);
+}
+
+.source-name {
+  margin: 0;
+  font-size: var(--app-text-lg);
+  font-weight: 600;
+}
+
+.source app-alert {
+  margin-bottom: var(--app-space-4);
 }
 
 .progress {
@@ -14,6 +34,10 @@
   font-size: var(--app-text-sm);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.source-actions {
+  margin-top: var(--app-space-5);
 }
 
 .danger-action {

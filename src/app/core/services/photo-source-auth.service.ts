@@ -3,7 +3,7 @@ import {Observable, of, throwError} from 'rxjs';
 import {map, switchMap} from 'rxjs/operators';
 import {AuthResultInputDto, PhotoSourcesClient, UsersPhotoSourcesClient} from 'src/app/shared/models/photomap-backend.swagger';
 
-import {AUTH_CONFIGURATION, AUTH_FIRST_STEP} from '../constants/auth.constants';
+import {AUTH_CONFIGURATION} from '../constants/auth.constants';
 import {SnakeCaseHelper} from '../helpers/snake-case.helper';
 import {OAuthTokenResponse} from '../models/oauth-token-response.model';
 import {LocalStorageService} from './local-storage.service';
@@ -13,7 +13,7 @@ import {PkceAuthService} from './pkce-auth.service';
 /**
  * Drives a photo source through OAuth. Which flow is used comes from the backend's
  * `responseType` for that source: `code` means PKCE (Dropbox), `token` means implicit
- * (Yandex.Disk). Both send the browser to the provider and come back to the source's own page.
+ * (Yandex.Disk). Both send the browser to the provider and come back to the source's redirect route.
  */
 @Injectable({providedIn: 'root'})
 export class PhotoSourceAuthService {
@@ -66,21 +66,6 @@ export class PhotoSourceAuthService {
     }
 
     return of(false);
-  }
-
-  /** True when the user arrived from the photo sources page asking to authorize straight away. */
-  consumeAutoStartRequest(): boolean {
-    const requested = this.localStorageService.getItem(AUTH_FIRST_STEP) === true;
-
-    if (requested) {
-      this.localStorageService.removeItem(AUTH_FIRST_STEP);
-    }
-
-    return requested;
-  }
-
-  requestAutoStart(): void {
-    this.localStorageService.setItem(AUTH_FIRST_STEP, true);
   }
 
   private exchangeCode(userId: number, sourceId: number, code: string): Observable<boolean> {
