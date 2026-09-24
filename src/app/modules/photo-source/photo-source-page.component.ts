@@ -1,7 +1,7 @@
 import {Component, DestroyRef, OnInit, computed, inject, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {ActivatedRoute, Router} from '@angular/router';
-import {EMPTY, catchError, from, of, switchMap} from 'rxjs';
+import {EMPTY, catchError, from, map, of, switchMap} from 'rxjs';
 import {PhotoSourceProcessingCommands, UserPhotoSourceDto, UsersPhotoSourcesClient} from 'src/app/shared/models/photomap-backend.swagger';
 import {AlertComponent} from 'src/app/shared/ui/alert/alert.component';
 import {ButtonDirective} from 'src/app/shared/ui/button/button.directive';
@@ -16,6 +16,7 @@ import {
   parsePhotoSourceStatus,
   photoSourceStatusLabel,
 } from '../../core/models/photo-source-status.model';
+import {PhotoSourceProgress} from '../../core/models/photo-source-progress.model';
 import {DataService} from '../../core/services/data.service';
 import {NotificationHubService} from '../../core/services/notification-hub.service';
 import {PhotoSourceAuthService} from '../../core/services/photo-source-auth.service';
@@ -56,6 +57,7 @@ export class PhotoSourcePageComponent implements OnInit {
   readonly processed = signal(0);
   readonly failed = signal(0);
   readonly total = signal(0);
+  readonly lastUpdatedAt = signal<string | undefined>(undefined);
 
   readonly isAuthorized = computed(() => this.source()?.isUserAuthorized === true);
   readonly isRunning = computed(() => isPhotoSourceRunning(this.status()));
@@ -79,6 +81,12 @@ export class PhotoSourcePageComponent implements OnInit {
     const expiresOn = this.source()?.tokenExpiresOn;
 
     return expiresOn ? new Date(expiresOn).toLocaleString() : undefined;
+  });
+
+  readonly lastUpdated = computed(() => {
+    const lastUpdatedAt = this.lastUpdatedAt();
+
+    return lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleString() : undefined;
   });
 
   readonly progressPercent = computed(() => {
@@ -171,6 +179,7 @@ export class PhotoSourcePageComponent implements OnInit {
           this.processed.set(0);
           this.failed.set(0);
           this.total.set(0);
+          this.lastUpdatedAt.set(undefined);
           this.toastService.success('Deleted the data of this photo source.');
         },
         error: () => this.toastService.error('Failed to delete the data of this photo source.'),
@@ -195,6 +204,7 @@ export class PhotoSourcePageComponent implements OnInit {
     this.processed.set(0);
     this.failed.set(0);
     this.total.set(0);
+    this.lastUpdatedAt.set(undefined);
   }
 
   private load(): void {
@@ -212,9 +222,10 @@ export class PhotoSourcePageComponent implements OnInit {
 
           this.apply(source);
 
-          // An OAuth redirect lands back on this page; finish the flow before anything else.
-          return this.completeAuthorizationIfRelevant(source.photoSourceId);
+          return this.loadProgress(source.photoSourceId).pipe(map(() => source.photoSourceId!));
         }),
+        // An OAuth redirect lands back on this page; finish the flow before anything else.
+        switchMap((sourceId) => this.completeAuthorizationIfRelevant(sourceId)),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
@@ -233,6 +244,29 @@ export class PhotoSourcePageComponent implements OnInit {
   private apply(source: UserPhotoSourceDto): void {
     this.source.set(source);
     this.status.set(parsePhotoSourceStatus(source.status));
+  }
+
+  /**
+   * The counters of the last run, which the notification hub only sends while a run is going. A failure leaves
+   * the page usable, just without them.
+   */
+  private loadProgress(sourceId: number) {
+    return this.dataService.getSourceStatus(USER_ID, sourceId).pipe(
+      map((progress) => this.applyProgress(progress)),
+      catchError(() => {
+        this.toastService.error('Could not load the processing status of this photo source.');
+
+        return of(undefined);
+      }),
+    );
+  }
+
+  private applyProgress(progress: PhotoSourceProgress): void {
+    this.status.set(parsePhotoSourceStatus(progress.status) ?? this.status());
+    this.processed.set(progress.processedCount);
+    this.failed.set(progress.failedCount);
+    this.total.set(progress.totalCount);
+    this.lastUpdatedAt.set(progress.lastUpdatedAt);
   }
 
   private completeAuthorizationIfRelevant(sourceId: number) {
@@ -307,6 +341,7 @@ export class PhotoSourcePageComponent implements OnInit {
         this.processed.set(progress.processed);
         this.failed.set(progress.failed);
         this.total.set(progress.total);
+        this.lastUpdatedAt.set(new Date().toISOString());
       });
 
     this.hubService

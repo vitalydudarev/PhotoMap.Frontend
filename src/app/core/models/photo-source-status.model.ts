@@ -5,6 +5,8 @@ export enum PhotoSourceStatus {
   Done = 3,
   Stopped = 4,
   Failed = 5,
+  /** The run was interrupted by the backend stopping. */
+  Paused = 6,
 }
 
 const LABELS: Record<PhotoSourceStatus, string> = {
@@ -13,6 +15,7 @@ const LABELS: Record<PhotoSourceStatus, string> = {
   [PhotoSourceStatus.Done]: 'Done',
   [PhotoSourceStatus.Stopped]: 'Stopped',
   [PhotoSourceStatus.Failed]: 'Failed',
+  [PhotoSourceStatus.Paused]: 'Paused',
 };
 
 /**
@@ -47,5 +50,5 @@ export function isPhotoSourceRunning(status: PhotoSourceStatus | undefined): boo
  * over (`PhotoSourceProcessingService.CreateProgressAsync`).
  */
 export function isPhotoSourceResumable(status: PhotoSourceStatus | undefined): boolean {
-  return status === PhotoSourceStatus.Stopped || status === PhotoSourceStatus.Failed;
+  return status === PhotoSourceStatus.Stopped || status === PhotoSourceStatus.Failed || status === PhotoSourceStatus.Paused;
 }

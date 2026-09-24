@@ -42,6 +42,13 @@
             <dd class="app-detail-value">{{ progressLabel() }}</dd>
           </div>
         }
+
+        @if (lastUpdated() && !isRunning()) {
+          <div class="app-detail-row">
+            <dt class="app-detail-term">Last updated</dt>
+            <dd class="app-detail-value">{{ lastUpdated() }}</dd>
+          </div>
+        }
       </dl>
 
       @if (isRunning()) {

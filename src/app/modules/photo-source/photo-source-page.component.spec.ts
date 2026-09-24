@@ -4,6 +4,7 @@ import {Observable, Subject, of} from 'rxjs';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {HubError, HubProgress} from '../../core/models/hub-notification.model';
+import {PhotoSourceProgress} from '../../core/models/photo-source-progress.model';
 import {DataService} from '../../core/services/data.service';
 import {NotificationHubService} from '../../core/services/notification-hub.service';
 import {PhotoSourceAuthService} from '../../core/services/photo-source-auth.service';
@@ -25,6 +26,8 @@ describe('PhotoSourcePageComponent', () => {
   let hubErrors: Subject<HubError>;
   let sourceProcessing: ReturnType<typeof vi.fn>;
   let deleteSourceData: ReturnType<typeof vi.fn>;
+  let getSourceStatus: ReturnType<typeof vi.fn>;
+  let sourceProgress: PhotoSourceProgress | undefined;
   let startAuthorization: ReturnType<typeof vi.fn>;
   let autoStartRequested: boolean;
   let config: PhotoSourcePageConfig;
@@ -46,6 +49,12 @@ describe('PhotoSourcePageComponent', () => {
     hubErrors = new Subject<HubError>();
     sourceProcessing = vi.fn(() => of(undefined));
     deleteSourceData = vi.fn(() => of(undefined));
+    sourceProgress = undefined;
+    getSourceStatus = vi.fn((_userId: number, sourceId: number) => {
+      const source = sources.find((candidate) => candidate.photoSourceId === sourceId);
+
+      return of(sourceProgress ?? {status: source?.status ?? 1, totalCount: 0, processedCount: 0, failedCount: 0});
+    });
     vi.stubGlobal('confirm', () => true);
     startAuthorization = vi.fn(() => of());
     autoStartRequested = false;
@@ -82,7 +91,7 @@ describe('PhotoSourcePageComponent', () => {
             requestAutoStart: () => undefined,
           },
         },
-        {provide: DataService, useValue: {deleteAllData: () => of(undefined), deleteSourceData}},
+        {provide: DataService, useValue: {deleteAllData: () => of(undefined), deleteSourceData, getSourceStatus}},
         {
           provide: NotificationHubService,
           useValue: {
@@ -108,6 +117,25 @@ describe('PhotoSourcePageComponent', () => {
 
     expect(component.statusLabel()).toBe('Not started');
     expect(component.isRunning()).toBe(false);
+  });
+
+  it('should show the counters of the last run when it opens', () => {
+    sourceProgress = {status: 4, totalCount: 200, processedCount: 150, failedCount: 3, lastUpdatedAt: '2026-09-24T10:00:00Z'};
+    build();
+
+    expect(getSourceStatus).toHaveBeenCalledWith(1, 1);
+    expect(component.statusLabel()).toBe('Stopped');
+    expect(component.progressLabel()).toBe('150 of 200 · 3 failed');
+    expect(component.action()).toBe('Continue processing');
+    expect(text()).toContain('Last updated');
+  });
+
+  it('should offer to continue a run the backend paused when it stopped', () => {
+    sourceProgress = {status: 6, totalCount: 200, processedCount: 50, failedCount: 0};
+    build();
+
+    expect(component.statusLabel()).toBe('Paused');
+    expect(component.action()).toBe('Continue processing');
   });
 
   it('should prompt to connect when the source is not authorized', () => {
