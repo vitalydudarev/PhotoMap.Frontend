@@ -10,6 +10,7 @@ export type IconName =
   | 'chevron-up'
   | 'chevrons-left'
   | 'chevrons-right'
+  | 'external-link'
   | 'fit-width'
   | 'full-width'
   | 'grid'

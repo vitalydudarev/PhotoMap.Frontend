@@ -1,0 +1,143 @@
+/* The viewer is dark in both themes, so a photo is always seen against black. */
+.viewer {
+  position: fixed;
+  inset: 0;
+  /* Above the page and its floating controls, below the toasts that report a failed photo. */
+  z-index: 55;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--app-space-2);
+  padding: var(--app-space-3);
+  background: rgb(0 0 0 / 92%);
+  color: #ffffff;
+  outline: none;
+  animation: viewer-in 150ms ease-out;
+}
+
+.bar {
+  grid-column: 1 / -1;
+  display: grid;
+  /* Equal outer columns keep the name centred whatever the counter's width. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 3fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--app-space-4);
+}
+
+.bar .control {
+  justify-self: end;
+}
+
+.counter {
+  color: rgb(255 255 255 / 70%);
+  font-variant-numeric: tabular-nums;
+}
+
+.name {
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.control {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 10%);
+  color: inherit;
+  cursor: pointer;
+  transition: background var(--app-transition);
+}
+
+.control:hover:not(:disabled) {
+  background: rgb(255 255 255 / 22%);
+}
+
+.control:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.nav {
+  width: 48px;
+  height: 48px;
+}
+
+/* The photo and the spinner share one cell, so the spinner sits where the photo will appear. */
+.stage {
+  grid-area: 2 / 2;
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  place-items: center;
+  height: 100%;
+  min-height: 0;
+  /* The photo is limited to the stage's size in container units, as its frame, sized to the
+     photo, gives percentages nothing to resolve against. */
+  container-type: size;
+}
+
+.frame,
+.spinner {
+  grid-area: 1 / 1;
+}
+
+/* Wraps the photo exactly, so the button sits on the photo's corner. */
+.frame {
+  position: relative;
+}
+
+.photo {
+  max-width: 100cqw;
+  max-height: 100cqh;
+  object-fit: contain;
+  animation: viewer-in 200ms ease-out;
+}
+
+/* Hidden, alt text included, until the photo has loaded; it keeps loading meanwhile. */
+.photo--loading {
+  visibility: hidden;
+  animation: none;
+}
+
+.original {
+  position: absolute;
+  inset-block-start: var(--app-space-2);
+  inset-inline-end: var(--app-space-2);
+  width: 36px;
+  height: 36px;
+  /* Darker than the other controls, to stand out against a bright photo. */
+  background: rgb(0 0 0 / 55%);
+}
+
+.control.original:hover {
+  background: rgb(0 0 0 / 75%);
+}
+
+@keyframes viewer-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (width <= 720px) {
+  .viewer {
+    padding: var(--app-space-2);
+  }
+
+  /* Swiping changes the photo on a phone, so the arrows would only take room from it. */
+  .nav {
+    display: none;
+  }
+
+  .stage {
+    grid-column: 1 / -1;
+  }
+}

@@ -1,5 +1,16 @@
-<section>
-  <ks-plain-gallery [id]="galleryId" [images]="images" [config]="plainGalleryConfig" (clickImage)="onImageClicked($event)" />
+<section class="grid">
+  @for (photo of photos; track photo.id; let index = $index) {
+    <button class="thumb" type="button" [title]="photo.fileName" (click)="open(index)">
+      <img
+        [src]="photo.thumbnailLargeUrl"
+        [alt]="photo.fileName"
+        width="190"
+        height="190"
+        loading="lazy"
+        (error)="onThumbnailError($event)"
+      />
+    </button>
+  }
 </section>
 
 <app-scroll-control></app-scroll-control>

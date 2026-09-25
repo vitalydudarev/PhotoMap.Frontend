@@ -7,7 +7,6 @@ import {GooglePhotoMapComponent} from './google-photo-map.component';
 import {LeafletPhotoMapComponent} from './leaflet-photo-map.component';
 import {MapProvider, PhotoSelection, isGeotagged} from './photo-map.model';
 
-const GALLERY_ID = 2;
 const PROVIDER_STORAGE_KEY = 'map-provider';
 
 /**
@@ -40,7 +39,7 @@ export class PhotosMapViewComponent {
   }
 
   openPhotos(selection: PhotoSelection): void {
-    this.photoViewerService.open(GALLERY_ID, selection.photos, selection.index);
+    this.photoViewerService.open(selection.photos, selection.index);
   }
 
   private readProviderPreference(): MapProvider {

@@ -2,7 +2,6 @@ import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {provideRouter} from '@angular/router';
-import {GalleryModule} from '@ks89/angular-modal-gallery';
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 
 import {UserPhotosService} from '../../core/services/user-photos.service';
@@ -50,8 +49,7 @@ describe('GalleryComponent', () => {
     localStorage.clear();
 
     await TestBed.configureTestingModule({
-      // GalleryModule carries the MODAL_GALLERY_COMPONENT provider ModalGalleryService depends on.
-      imports: [GalleryComponent, GalleryModule],
+      imports: [GalleryComponent],
       providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), UserPhotosService],
     }).compileComponents();
 

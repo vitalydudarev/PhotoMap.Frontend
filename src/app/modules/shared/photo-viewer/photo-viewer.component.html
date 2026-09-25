@@ -1,0 +1,64 @@
+@if (photo(); as photo) {
+  <div
+    #dialog
+    class="viewer"
+    role="dialog"
+    aria-modal="true"
+    tabindex="-1"
+    [attr.aria-label]="photo.fileName"
+    (click)="onBackdropClick($event)"
+    (keydown)="onKeydown($event)"
+    (touchstart)="onTouchStart($event)"
+    (touchend)="onTouchEnd($event)"
+  >
+    <header class="bar">
+      <span class="counter">{{ index() + 1 }} / {{ photos().length }}</span>
+      <span class="name" [title]="photo.fileName">{{ photo.fileName }}</span>
+      <button class="control" type="button" aria-label="Close" (click)="close()">
+        <app-icon name="x" />
+      </button>
+    </header>
+
+    <button class="control nav" type="button" aria-label="Previous photo" [disabled]="index() === 0" (click)="move(-1)">
+      <app-icon name="chevron-left" [size]="24" />
+    </button>
+
+    <figure class="stage">
+      <div class="frame">
+        @if (status() === 'failed') {
+          <img class="photo" [src]="unavailableImage" [alt]="'Could not load ' + photo.fileName" />
+        } @else {
+          <img
+            class="photo"
+            [class.photo--loading]="status() === 'loading'"
+            [src]="photo.photoUrl"
+            [alt]="photo.fileName"
+            (load)="onLoad()"
+            (error)="onError(photo)"
+          />
+        }
+
+        @if (status() === 'loaded') {
+          <a
+            class="control original"
+            [href]="photo.photoUrl"
+            target="_blank"
+            rel="noopener"
+            title="Open the original in a new tab"
+            aria-label="Open the original in a new tab"
+          >
+            <app-icon name="external-link" [size]="18" />
+          </a>
+        }
+      </div>
+
+      @if (status() === 'loading') {
+        <app-spinner class="spinner" [size]="40" label="Loading the photo" />
+      }
+    </figure>
+
+    <button class="control nav" type="button" aria-label="Next photo" [disabled]="index() === photos().length - 1" (click)="move(1)">
+      <app-icon name="chevron-right" [size]="24" />
+    </button>
+  </div>
+}

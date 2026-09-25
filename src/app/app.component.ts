@@ -3,6 +3,7 @@ import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {RouterLink, RouterLinkActive, RouterOutlet} from '@angular/router';
 
 import {ToastService} from './core/services/toast.service';
+import {PhotoViewerComponent} from './modules/shared/photo-viewer/photo-viewer.component';
 import {UserPhotoSourceDto, UsersPhotoSourcesClient} from './shared/models/photomap-backend.swagger';
 import {IconComponent, IconName} from './shared/ui/icon/icon.component';
 import {ThemeToggleComponent} from './shared/ui/theme-toggle/theme-toggle.component';
@@ -21,7 +22,7 @@ const USER_ID = 1;
   selector: 'app-root',
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss'],
-  imports: [IconComponent, RouterLink, RouterLinkActive, RouterOutlet, ThemeToggleComponent, ToastHostComponent],
+  imports: [IconComponent, PhotoViewerComponent, RouterLink, RouterLinkActive, RouterOutlet, ThemeToggleComponent, ToastHostComponent],
 })
 export class AppComponent implements OnInit {
   title = 'photo-map-ui';

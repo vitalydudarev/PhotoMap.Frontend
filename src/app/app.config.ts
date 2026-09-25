@@ -1,7 +1,6 @@
 import {provideHttpClient, withInterceptorsFromDi} from '@angular/common/http';
-import {ApplicationConfig, importProvidersFrom, provideBrowserGlobalErrorListeners, provideZoneChangeDetection} from '@angular/core';
+import {ApplicationConfig, provideBrowserGlobalErrorListeners, provideZoneChangeDetection} from '@angular/core';
 import {provideRouter, withComponentInputBinding} from '@angular/router';
-import {GalleryModule} from '@ks89/angular-modal-gallery';
 
 import {environment} from '../environments/environment';
 import {DataService} from './core/services/data.service';
@@ -15,9 +14,6 @@ export const appConfig: ApplicationConfig = {
     provideZoneChangeDetection({eventCoalescing: true}),
     provideRouter(routes, withComponentInputBinding()),
     provideHttpClient(withInterceptorsFromDi()),
-    // GalleryModule only carries the MODAL_GALLERY_COMPONENT provider that ModalGalleryService needs;
-    // the gallery components themselves are imported as standalone where they are used.
-    importProvidersFrom(GalleryModule),
     UserPhotosService,
     DataService,
     {
