@@ -15,6 +15,24 @@
           (valueChange)="sortOrderUpdated($event)"
           [iconsOnly]="true"
         />
+
+        @if (sourceFilter.options().length > 0) {
+          <app-multiselect
+            label="Sources"
+            [options]="sourceFilter.options()"
+            [value]="sourceFilter.selected()"
+            (valueChange)="filterUpdated(sourceFilter, $event)"
+          />
+        }
+
+        @if (yearFilter.options().length > 0) {
+          <app-multiselect
+            label="Years"
+            [options]="yearFilter.options()"
+            [value]="yearFilter.selected()"
+            (valueChange)="filterUpdated(yearFilter, $event)"
+          />
+        }
       </div>
 
       <app-paginator
@@ -35,6 +53,18 @@
   } @else if (failed()) {
     <div class="state">
       <p>The photos could not be loaded.</p>
+    </div>
+  } @else if (sourceFilter.noneSelected()) {
+    <div class="state">
+      <p>No photo sources are selected. Pick one to see its photos.</p>
+    </div>
+  } @else if (yearFilter.noneSelected()) {
+    <div class="state">
+      <p>No years are selected. Pick one to see its photos.</p>
+    </div>
+  } @else if (photos().length === 0 && isFiltered()) {
+    <div class="state">
+      <p>No photos match the selected filters.</p>
     </div>
   } @else if (photos().length === 0) {
     <div class="state">
