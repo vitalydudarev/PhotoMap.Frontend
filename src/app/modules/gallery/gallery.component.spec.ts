@@ -3,7 +3,7 @@ import {HttpTestingController, provideHttpClientTesting} from '@angular/common/h
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {provideRouter} from '@angular/router';
 import {of} from 'rxjs';
-import {afterEach, beforeEach, describe, expect, it} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {UserPhotosService} from '../../core/services/user-photos.service';
 import {UsersPhotoSourcesClient} from '../../shared/models/photomap-backend.swagger';
@@ -217,6 +217,15 @@ describe('GalleryComponent', () => {
 
       expect(multiselects()).toHaveLength(1);
     });
+  });
+
+  it('should scroll back to the top on another page', () => {
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+
+    component.pageUpdated({pageIndex: 1, pageSize: 100});
+
+    expect(scrollTo).toHaveBeenCalledWith({top: 0});
+    scrollTo.mockRestore();
   });
 
   it('should remember the choice across reloads', () => {

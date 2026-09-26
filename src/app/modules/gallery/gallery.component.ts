@@ -1,4 +1,4 @@
-import {Location} from '@angular/common';
+import {DOCUMENT, Location} from '@angular/common';
 import {HttpParams} from '@angular/common/http';
 import {Component, DestroyRef, OnInit, computed, effect, inject, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
@@ -76,6 +76,7 @@ export class GalleryComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
   private readonly location = inject(Location);
+  private readonly document = inject(DOCUMENT);
   private readonly activatedRoute = inject(ActivatedRoute);
   private readonly userPhotosService = inject(UserPhotosService);
   private readonly usersPhotoSourcesClient = inject(UsersPhotoSourcesClient);
@@ -132,6 +133,9 @@ export class GalleryComponent implements OnInit {
     this.addQueryString();
 
     this.setImages();
+
+    // the toolbar stays in view, but the photos of the new page start at the top
+    this.document.defaultView?.scrollTo({top: 0});
   }
 
   sortOrderUpdated(sortOrder: PhotoSortOrder): void {
