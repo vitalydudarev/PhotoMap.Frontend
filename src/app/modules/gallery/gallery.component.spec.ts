@@ -160,18 +160,51 @@ describe('GalleryComponent', () => {
       fixture.detectChanges();
     };
 
-    it('should select all the sources and years by default and ask for every photo', () => {
+    it('should select all the sources, years and categories by default and ask for every photo', () => {
       const [request] = photosRequests();
       flushYears();
 
       expect(component.sourceFilter.selected()).toEqual([1, 2]);
       expect(component.yearFilter.selected()).toEqual([2016, 2019]);
+      expect(component.categoryFilter.selected()).toEqual([1, 2, 0]);
       expect(request.request.params.getAll('source')).toBeNull();
       expect(request.request.params.getAll('year')).toBeNull();
+      expect(request.request.params.getAll('category')).toBeNull();
       expect(multiselects().map((multiselect) => multiselect.textContent)).toEqual([
         expect.stringContaining('All'),
         expect.stringContaining('All'),
+        expect.stringContaining('All'),
       ]);
+    });
+
+    it('should offer the screenshots, the drone footage and the other photos as categories', () => {
+      photosRequests();
+      flushYears();
+
+      expect(component.categoryFilter.options().map((option) => option.label)).toEqual(['Screenshots', 'Drone footage', 'Other photos']);
+    });
+
+    it('should ask for the photos of the selected categories from the first page', () => {
+      photosRequests();
+      flushYears();
+      component.pageIndex = 2;
+
+      component.filterUpdated(component.categoryFilter, [1]);
+
+      const [request] = photosRequests();
+      expect(request.request.params.getAll('category')).toEqual(['1']);
+      expect(request.request.params.get('skip')).toBe('0');
+    });
+
+    it('should not ask for photos when no category is selected', () => {
+      photosRequests();
+      flushYears();
+
+      component.filterUpdated(component.categoryFilter, []);
+      fixture.detectChanges();
+
+      expect(photosRequests()).toHaveLength(0);
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('No categories are selected');
     });
 
     it('should ask for the photos of the selected sources and years from the first page', () => {
@@ -215,7 +248,10 @@ describe('GalleryComponent', () => {
       photosRequests();
       flushYears([]);
 
-      expect(multiselects()).toHaveLength(1);
+      expect(multiselects().map((multiselect) => multiselect.textContent)).toEqual([
+        expect.stringContaining('Sources'),
+        expect.stringContaining('Category'),
+      ]);
     });
   });
 

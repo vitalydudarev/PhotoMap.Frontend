@@ -19,7 +19,7 @@ export class UserPhotosService {
     top: number,
     skip: number,
     sort: PhotoSortOrder,
-    filter: PhotoFilter = {sourceIds: [], years: []},
+    filter: PhotoFilter = {sourceIds: [], years: [], categories: []},
   ): Observable<PagedResponse<Photo>> {
     let params = new HttpParams().set('top', top).set('skip', skip).set('sort', sort);
 
@@ -29,6 +29,10 @@ export class UserPhotosService {
 
     for (const year of filter.years) {
       params = params.append('year', year);
+    }
+
+    for (const category of filter.categories) {
+      params = params.append('category', category);
     }
 
     return this._httpClient.get<PagedResponse<Photo>>(`${this.url}/${userId}/photos`, {params});

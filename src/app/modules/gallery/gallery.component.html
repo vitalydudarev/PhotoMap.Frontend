@@ -33,6 +33,13 @@
             (valueChange)="filterUpdated(yearFilter, $event)"
           />
         }
+
+        <app-multiselect
+          label="Category"
+          [options]="categoryFilter.options()"
+          [value]="categoryFilter.selected()"
+          (valueChange)="filterUpdated(categoryFilter, $event)"
+        />
       </div>
 
       <app-paginator
@@ -61,6 +68,10 @@
   } @else if (yearFilter.noneSelected()) {
     <div class="state">
       <p>No years are selected. Pick one to see its photos.</p>
+    </div>
+  } @else if (categoryFilter.noneSelected()) {
+    <div class="state">
+      <p>No categories are selected. Pick one to see its photos.</p>
     </div>
   } @else if (photos().length === 0 && isFiltered()) {
     <div class="state">

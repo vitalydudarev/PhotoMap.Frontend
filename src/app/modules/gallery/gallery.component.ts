@@ -4,10 +4,11 @@ import {Component, DestroyRef, OnInit, computed, effect, inject, signal} from '@
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {ActivatedRoute, Router} from '@angular/router';
 import {Subscription} from 'rxjs';
+import {PhotoCategory} from 'src/app/core/models/photo-category.model';
 import {PhotoSortOrder} from 'src/app/core/models/photo-sort-order.model';
 import {Photo} from 'src/app/core/models/photo.model';
 import {UsersPhotoSourcesClient} from 'src/app/shared/models/photomap-backend.swagger';
-import {MultiselectComponent} from 'src/app/shared/ui/multiselect/multiselect.component';
+import {MultiselectComponent, MultiselectOption} from 'src/app/shared/ui/multiselect/multiselect.component';
 import {PageEvent, PaginatorComponent} from 'src/app/shared/ui/paginator/paginator.component';
 import {SegmentedComponent, SegmentedOption} from 'src/app/shared/ui/segmented/segmented.component';
 import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
@@ -22,6 +23,13 @@ type ViewMode = 'thumb' | 'map';
 type GalleryWidth = 'contained' | 'full';
 
 const WIDTH_STORAGE_KEY = 'gallery-width';
+
+/** Other photos are an option too, so that picking every category still leaves no photo out. */
+const CATEGORY_OPTIONS: readonly MultiselectOption<number>[] = [
+  {value: PhotoCategory.Screenshot, label: 'Screenshots'},
+  {value: PhotoCategory.DroneFootage, label: 'Drone footage'},
+  {value: PhotoCategory.Other, label: 'Other photos'},
+];
 
 @Component({
   selector: 'app-gallery-page',
@@ -64,10 +72,16 @@ export class GalleryComponent implements OnInit {
 
   readonly selectedSortOrder = signal<PhotoSortOrder>('asc');
 
-  /** The photo sources of the user, and the years their photos were taken in, to narrow the photos down to. */
+  /**
+   * The photo sources of the user, the years their photos were taken in, and the categories of the photos, to narrow
+   * the photos down to.
+   */
   readonly sourceFilter = new GalleryFilter();
   readonly yearFilter = new GalleryFilter();
-  readonly nothingSelected = computed(() => this.sourceFilter.noneSelected() || this.yearFilter.noneSelected());
+  readonly categoryFilter = new GalleryFilter();
+  readonly nothingSelected = computed(
+    () => this.sourceFilter.noneSelected() || this.yearFilter.noneSelected() || this.categoryFilter.noneSelected(),
+  );
 
   pageIndex = 0;
   pageSize = 100;
@@ -88,6 +102,7 @@ export class GalleryComponent implements OnInit {
   private sortConst = 'sort';
   private sourceConst = 'source';
   private yearConst = 'year';
+  private categoryConst = 'category';
 
   private photosRequest?: Subscription;
 
@@ -117,8 +132,12 @@ export class GalleryComponent implements OnInit {
 
         this.sourceFilter.request(params[this.sourceConst]);
         this.yearFilter.request(params[this.yearConst]);
+        this.categoryFilter.request(params[this.categoryConst]);
       },
     });
+
+    // the categories are known up front, so a category the address asks for that is not one is dropped before asking
+    this.categoryFilter.setOptions(CATEGORY_OPTIONS);
 
     this.setImages();
     this.addQueryString();
@@ -160,7 +179,7 @@ export class GalleryComponent implements OnInit {
 
   /** Whether the photos are narrowed down by any of the filters. */
   isFiltered(): boolean {
-    return this.sourceFilter.values().length > 0 || this.yearFilter.values().length > 0;
+    return this.sourceFilter.values().length > 0 || this.yearFilter.values().length > 0 || this.categoryFilter.values().length > 0;
   }
 
   private loadSources(): void {
@@ -220,6 +239,10 @@ export class GalleryComponent implements OnInit {
       params = params.append(this.yearConst, year.toString());
     }
 
+    for (const category of this.categoryFilter.values()) {
+      params = params.append(this.categoryConst, category.toString());
+    }
+
     this.location.go(this.router.url.split('?')[0], params.toString());
   }
 
@@ -243,6 +266,7 @@ export class GalleryComponent implements OnInit {
       .getUserPhotos(this.userId, this.pageSize, this.pageSize * this.pageIndex, this.selectedSortOrder(), {
         sourceIds: this.sourceFilter.values(),
         years: this.yearFilter.values(),
+        categories: this.categoryFilter.values() as PhotoCategory[],
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
