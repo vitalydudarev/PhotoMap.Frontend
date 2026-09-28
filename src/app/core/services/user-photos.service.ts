@@ -35,6 +35,10 @@ export class UserPhotosService {
       params = params.append('category', category);
     }
 
+    if (filter.hasGps !== undefined) {
+      params = params.set('gps', filter.hasGps);
+    }
+
     return this._httpClient.get<PagedResponse<Photo>>(`${this.url}/${userId}/photos`, {params});
   }
 

@@ -40,6 +40,13 @@
           [value]="categoryFilter.selected()"
           (valueChange)="filterUpdated(categoryFilter, $event)"
         />
+
+        <app-multiselect
+          label="GPS"
+          [options]="gpsFilter.options()"
+          [value]="gpsFilter.selected()"
+          (valueChange)="filterUpdated(gpsFilter, $event)"
+        />
       </div>
 
       <app-paginator
@@ -72,6 +79,10 @@
   } @else if (categoryFilter.noneSelected()) {
     <div class="state">
       <p>No categories are selected. Pick one to see its photos.</p>
+    </div>
+  } @else if (gpsFilter.noneSelected()) {
+    <div class="state">
+      <p>Neither photos with GPS nor without are selected. Pick one to see its photos.</p>
     </div>
   } @else if (photos().length === 0 && isFiltered()) {
     <div class="state">

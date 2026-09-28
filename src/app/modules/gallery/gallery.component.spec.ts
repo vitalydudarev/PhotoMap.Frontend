@@ -167,10 +167,13 @@ describe('GalleryComponent', () => {
       expect(component.sourceFilter.selected()).toEqual([1, 2]);
       expect(component.yearFilter.selected()).toEqual([2016, 2019]);
       expect(component.categoryFilter.selected()).toEqual([1, 2, 0]);
+      expect(component.gpsFilter.selected()).toEqual([1, 0]);
       expect(request.request.params.getAll('source')).toBeNull();
       expect(request.request.params.getAll('year')).toBeNull();
       expect(request.request.params.getAll('category')).toBeNull();
+      expect(request.request.params.get('gps')).toBeNull();
       expect(multiselects().map((multiselect) => multiselect.textContent)).toEqual([
+        expect.stringContaining('All'),
         expect.stringContaining('All'),
         expect.stringContaining('All'),
         expect.stringContaining('All'),
@@ -244,6 +247,32 @@ describe('GalleryComponent', () => {
       expect((fixture.nativeElement as HTMLElement).textContent).toContain('No years are selected');
     });
 
+    it('should ask for the photos with or without GPS from the first page', () => {
+      photosRequests();
+      flushYears();
+      component.pageIndex = 2;
+
+      component.filterUpdated(component.gpsFilter, [1]);
+      const [withGps] = photosRequests();
+      component.filterUpdated(component.gpsFilter, [0]);
+      const [withoutGps] = photosRequests();
+
+      expect(withGps.request.params.get('gps')).toBe('true');
+      expect(withoutGps.request.params.get('gps')).toBe('false');
+      expect(withoutGps.request.params.get('skip')).toBe('0');
+    });
+
+    it('should not ask for photos when neither photos with GPS nor without are selected', () => {
+      photosRequests();
+      flushYears();
+
+      component.filterUpdated(component.gpsFilter, []);
+      fixture.detectChanges();
+
+      expect(photosRequests()).toHaveLength(0);
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('Neither photos with GPS nor without');
+    });
+
     it('should hide the year filter while there are no photos to take years from', () => {
       photosRequests();
       flushYears([]);
@@ -251,6 +280,7 @@ describe('GalleryComponent', () => {
       expect(multiselects().map((multiselect) => multiselect.textContent)).toEqual([
         expect.stringContaining('Sources'),
         expect.stringContaining('Category'),
+        expect.stringContaining('GPS'),
       ]);
     });
   });

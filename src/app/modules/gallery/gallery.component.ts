@@ -31,6 +31,14 @@ const CATEGORY_OPTIONS: readonly MultiselectOption<number>[] = [
   {value: PhotoCategory.Other, label: 'Other photos'},
 ];
 
+const WITH_GPS = 1;
+const WITHOUT_GPS = 0;
+
+const GPS_OPTIONS: readonly MultiselectOption<number>[] = [
+  {value: WITH_GPS, label: 'With GPS'},
+  {value: WITHOUT_GPS, label: 'Without GPS'},
+];
+
 @Component({
   selector: 'app-gallery-page',
   templateUrl: './gallery.component.html',
@@ -73,14 +81,19 @@ export class GalleryComponent implements OnInit {
   readonly selectedSortOrder = signal<PhotoSortOrder>('asc');
 
   /**
-   * The photo sources of the user, the years their photos were taken in, and the categories of the photos, to narrow
-   * the photos down to.
+   * The photo sources of the user, the years their photos were taken in, the categories of the photos, and whether
+   * they have a GPS location, to narrow the photos down to.
    */
   readonly sourceFilter = new GalleryFilter();
   readonly yearFilter = new GalleryFilter();
   readonly categoryFilter = new GalleryFilter();
+  readonly gpsFilter = new GalleryFilter();
   readonly nothingSelected = computed(
-    () => this.sourceFilter.noneSelected() || this.yearFilter.noneSelected() || this.categoryFilter.noneSelected(),
+    () =>
+      this.sourceFilter.noneSelected() ||
+      this.yearFilter.noneSelected() ||
+      this.categoryFilter.noneSelected() ||
+      this.gpsFilter.noneSelected(),
   );
 
   pageIndex = 0;
@@ -103,6 +116,7 @@ export class GalleryComponent implements OnInit {
   private sourceConst = 'source';
   private yearConst = 'year';
   private categoryConst = 'category';
+  private gpsConst = 'gps';
 
   private photosRequest?: Subscription;
 
@@ -133,11 +147,13 @@ export class GalleryComponent implements OnInit {
         this.sourceFilter.request(params[this.sourceConst]);
         this.yearFilter.request(params[this.yearConst]);
         this.categoryFilter.request(params[this.categoryConst]);
+        this.gpsFilter.request(params[this.gpsConst]);
       },
     });
 
-    // the categories are known up front, so a category the address asks for that is not one is dropped before asking
+    // these options are known up front, so a value the address asks for that is not one is dropped before asking
     this.categoryFilter.setOptions(CATEGORY_OPTIONS);
+    this.gpsFilter.setOptions(GPS_OPTIONS);
 
     this.setImages();
     this.addQueryString();
@@ -243,6 +259,10 @@ export class GalleryComponent implements OnInit {
       params = params.append(this.categoryConst, category.toString());
     }
 
+    for (const gps of this.gpsFilter.values()) {
+      params = params.append(this.gpsConst, gps.toString());
+    }
+
     this.location.go(this.router.url.split('?')[0], params.toString());
   }
 
@@ -267,6 +287,7 @@ export class GalleryComponent implements OnInit {
         sourceIds: this.sourceFilter.values(),
         years: this.yearFilter.values(),
         categories: this.categoryFilter.values() as PhotoCategory[],
+        hasGps: this.hasGps(),
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -282,6 +303,13 @@ export class GalleryComponent implements OnInit {
           this.toastService.error('Could not load the photos.', error);
         },
       });
+  }
+
+  /** Whether the photos to take have a GPS location, undefined when both kinds are picked and nothing is narrowed. */
+  private hasGps(): boolean | undefined {
+    const values = this.gpsFilter.values();
+
+    return values.length === 1 ? values[0] === WITH_GPS : undefined;
   }
 
   private readWidthPreference(): GalleryWidth {

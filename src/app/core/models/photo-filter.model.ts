@@ -10,4 +10,6 @@ export interface PhotoFilter {
   years: readonly number[];
   /** The categories the photos are in, any of them. */
   categories: readonly PhotoCategory[];
+  /** Whether the photos have a GPS location; the photos with and without one when not given. */
+  hasGps?: boolean;
 }
