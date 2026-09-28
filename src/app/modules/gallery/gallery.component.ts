@@ -8,6 +8,7 @@ import {PhotoCategory} from 'src/app/core/models/photo-category.model';
 import {PhotoSortOrder} from 'src/app/core/models/photo-sort-order.model';
 import {Photo} from 'src/app/core/models/photo.model';
 import {UsersPhotoSourcesClient} from 'src/app/shared/models/photomap-backend.swagger';
+import {IconComponent} from 'src/app/shared/ui/icon/icon.component';
 import {MultiselectComponent, MultiselectOption} from 'src/app/shared/ui/multiselect/multiselect.component';
 import {PageEvent, PaginatorComponent} from 'src/app/shared/ui/paginator/paginator.component';
 import {SegmentedComponent, SegmentedOption} from 'src/app/shared/ui/segmented/segmented.component';
@@ -23,6 +24,7 @@ type ViewMode = 'thumb' | 'map';
 type GalleryWidth = 'contained' | 'full';
 
 const WIDTH_STORAGE_KEY = 'gallery-width';
+const FILTERS_OPEN_STORAGE_KEY = 'gallery-filters-open';
 
 /** Other photos are an option too, so that picking every category still leaves no photo out. */
 const CATEGORY_OPTIONS: readonly MultiselectOption<number>[] = [
@@ -44,6 +46,7 @@ const GPS_OPTIONS: readonly MultiselectOption<number>[] = [
   templateUrl: './gallery.component.html',
   styleUrls: ['./gallery.component.scss'],
   imports: [
+    IconComponent,
     MultiselectComponent,
     PaginatorComponent,
     PhotosMapViewComponent,
@@ -96,6 +99,17 @@ export class GalleryComponent implements OnInit {
       this.gpsFilter.noneSelected(),
   );
 
+  /** The filters sit in a row of their own under the toolbar, shown on demand. */
+  readonly filtersOpen = signal(this.readFiltersOpenPreference());
+
+  /** How many filters narrow the photos down, so that a filter hidden with the row is not forgotten. */
+  readonly activeFilterCount = computed(
+    () =>
+      [this.sourceFilter, this.yearFilter, this.categoryFilter, this.gpsFilter].filter(
+        (filter) => filter.values().length > 0 || filter.noneSelected(),
+      ).length,
+  );
+
   pageIndex = 0;
   pageSize = 100;
   pageSizes: number[] = [100, 250, 500, 1000];
@@ -122,6 +136,7 @@ export class GalleryComponent implements OnInit {
 
   constructor() {
     effect(() => this.writeWidthPreference(this.selectedWidth()));
+    effect(() => this.writeFiltersOpenPreference(this.filtersOpen()));
   }
 
   ngOnInit(): void {
@@ -326,6 +341,23 @@ export class GalleryComponent implements OnInit {
       localStorage.setItem(WIDTH_STORAGE_KEY, width);
     } catch {
       // Ignore: the preference just will not survive a reload.
+    }
+  }
+
+  private readFiltersOpenPreference(): boolean {
+    try {
+      return localStorage.getItem(FILTERS_OPEN_STORAGE_KEY) === 'true';
+    } catch {
+      // Storage can be unavailable (private mode, blocked cookies); closed is fine.
+      return false;
+    }
+  }
+
+  private writeFiltersOpenPreference(open: boolean): void {
+    try {
+      localStorage.setItem(FILTERS_OPEN_STORAGE_KEY, String(open));
+    } catch {
+      // Ignore: the row just will not stay open across reloads.
     }
   }
 }

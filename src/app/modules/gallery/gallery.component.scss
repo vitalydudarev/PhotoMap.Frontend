@@ -33,6 +33,63 @@
   padding: var(--app-space-3) var(--app-space-5);
 }
 
+/* The frame and height of `app-multiselect`'s trigger, so it lines up with the segmented controls. */
+.filters-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--app-space-2);
+  height: 38px;
+  padding: 0 var(--app-space-2) 0 var(--app-space-3);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-sunken);
+  color: var(--app-fg);
+  font-size: var(--app-text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color var(--app-transition);
+}
+
+.filters-toggle:hover,
+.filters-toggle[aria-expanded='true'] {
+  border-color: var(--app-border-strong);
+}
+
+.filters-count {
+  min-width: 20px;
+  padding: 0 var(--app-space-1);
+  border-radius: var(--app-radius-pill);
+  background: var(--app-accent);
+  color: var(--app-accent-fg);
+  font-size: var(--app-text-xs);
+  line-height: 20px;
+  text-align: center;
+}
+
+.chevron {
+  color: var(--app-fg-muted);
+  transition: transform var(--app-transition);
+}
+
+.chevron--open {
+  transform: rotate(180deg);
+}
+
+.filters {
+  border-top: 1px solid var(--app-border);
+}
+
+/* The measure of `.toolbar-inner`, so the filters line up under the controls. */
+.filters-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-2);
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: var(--app-space-3) var(--app-space-5);
+}
+
 /* Fills the height left under the toolbar. */
 .map {
   flex: 1;
@@ -55,7 +112,8 @@
 }
 
 @media (width <= 720px) {
-  .toolbar-inner {
+  .toolbar-inner,
+  .filters-inner {
     padding: var(--app-space-3) var(--app-space-4);
   }
 }

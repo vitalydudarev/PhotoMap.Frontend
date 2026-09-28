@@ -11,6 +11,7 @@ export type IconName =
   | 'chevrons-left'
   | 'chevrons-right'
   | 'external-link'
+  | 'filter'
   | 'fit-width'
   | 'full-width'
   | 'grid'

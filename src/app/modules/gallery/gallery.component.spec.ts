@@ -152,6 +152,52 @@ describe('GalleryComponent', () => {
     const http = () => TestBed.inject(HttpTestingController);
     const photosRequests = () => http().match((request) => request.url.endsWith('/photos'));
     const multiselects = () => [...(fixture.nativeElement as HTMLElement).querySelectorAll('app-multiselect')];
+    const toggle = () => (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.filters-toggle')!;
+
+    const openFilters = () => {
+      toggle().click();
+      fixture.detectChanges();
+    };
+
+    it('should hide the filters behind a button until it is clicked', () => {
+      photosRequests();
+      flushYears();
+
+      expect(multiselects()).toHaveLength(0);
+      expect(toggle().getAttribute('aria-expanded')).toBe('false');
+
+      openFilters();
+
+      expect(multiselects()).toHaveLength(4);
+      expect(toggle().getAttribute('aria-expanded')).toBe('true');
+
+      openFilters();
+
+      expect(multiselects()).toHaveLength(0);
+    });
+
+    it('should count on the button the filters that narrow the photos down', () => {
+      photosRequests();
+      flushYears();
+
+      expect(toggle().querySelector('.filters-count')).toBeNull();
+
+      component.filterUpdated(component.yearFilter, [2019]);
+      component.filterUpdated(component.gpsFilter, []);
+      fixture.detectChanges();
+
+      expect(toggle().querySelector('.filters-count')?.textContent).toContain('2');
+    });
+
+    it('should keep the filters open across reloads', () => {
+      photosRequests();
+      flushYears();
+      openFilters();
+
+      build();
+
+      expect(component.filtersOpen()).toBe(true);
+    });
 
     const flushYears = (years = [2016, 2019]) => {
       http()
@@ -163,6 +209,7 @@ describe('GalleryComponent', () => {
     it('should select all the sources, years and categories by default and ask for every photo', () => {
       const [request] = photosRequests();
       flushYears();
+      openFilters();
 
       expect(component.sourceFilter.selected()).toEqual([1, 2]);
       expect(component.yearFilter.selected()).toEqual([2016, 2019]);
@@ -276,6 +323,7 @@ describe('GalleryComponent', () => {
     it('should hide the year filter while there are no photos to take years from', () => {
       photosRequests();
       flushYears([]);
+      openFilters();
 
       expect(multiselects().map((multiselect) => multiselect.textContent)).toEqual([
         expect.stringContaining('Sources'),
