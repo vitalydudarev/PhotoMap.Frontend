@@ -18,6 +18,7 @@ export type IconName =
   | 'info'
   | 'map'
   | 'map-pin'
+  | 'map-pin-off'
   | 'monitor'
   | 'moon'
   | 'pause'

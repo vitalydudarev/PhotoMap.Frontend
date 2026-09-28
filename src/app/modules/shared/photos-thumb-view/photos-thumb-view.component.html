@@ -9,6 +9,17 @@
         loading="lazy"
         (error)="onThumbnailError($event)"
       />
+
+      @let gps = hasGps(photo);
+      <span
+        class="gps"
+        [class.gps--off]="!gps"
+        role="img"
+        [attr.aria-label]="gps ? 'Has GPS location' : 'No GPS location'"
+        [title]="gps ? 'Has GPS location' : 'No GPS location'"
+      >
+        <app-icon [name]="gps ? 'map-pin' : 'map-pin-off'" [size]="14" />
+      </span>
     </button>
   }
 </section>

@@ -28,6 +28,7 @@
 }
 
 .thumb {
+  position: relative;
   display: block;
   padding: 0;
   border: 0;
@@ -51,6 +52,27 @@
   object-fit: cover;
   /* Hides the alt text while the thumbnail loads; the file name is in the button's title. */
   color: transparent;
+}
+
+/* Sits on the photo itself, so it keeps its own dark backing whatever the theme: a light one
+   would vanish on bright photos. */
+.gps {
+  position: absolute;
+  top: var(--app-space-2);
+  right: var(--app-space-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 55%);
+  color: #fff;
+}
+
+/* No location is the less interesting case, so it steps back a little. */
+.gps--off {
+  color: rgb(255 255 255 / 70%);
 }
 
 @media (width <= 720px) {
