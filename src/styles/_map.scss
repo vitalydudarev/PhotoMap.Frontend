@@ -84,6 +84,25 @@
   font-weight: 600;
 }
 
+/* The spot whose photos are open in the panel: a ring in the accent colour that pulses gently,
+   around the cluster's marker or around the whole spread. */
+.photo-map-highlight {
+  outline: 3px solid var(--app-accent);
+  outline-offset: 4px;
+  animation: photo-map-highlight-pulse 1.6s ease-in-out infinite;
+}
+
+.photo-spread.photo-map-highlight {
+  border-radius: var(--app-radius);
+  outline-offset: 8px;
+}
+
+@keyframes photo-map-highlight-pulse {
+  50% {
+    outline-color: color-mix(in srgb, var(--app-accent) 35%, transparent);
+  }
+}
+
 /* Leaflet's controls in the app's palette. */
 .leaflet-container {
   font-family: var(--app-font-sans);

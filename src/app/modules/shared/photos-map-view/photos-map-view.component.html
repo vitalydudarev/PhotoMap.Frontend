@@ -1,7 +1,21 @@
 @if (provider() === 'google') {
-  <app-google-photo-map [photos]="geotaggedPhotos()" (photosSelected)="openPhotos($event)" />
+  <app-google-photo-map
+    [photos]="geotaggedPhotos()"
+    [highlighted]="group()"
+    (photosSelected)="openPhotos($event)"
+    (groupOpened)="group.set($event)"
+  />
 } @else {
-  <app-leaflet-photo-map [photos]="geotaggedPhotos()" (photosSelected)="openPhotos($event)" />
+  <app-leaflet-photo-map
+    [photos]="geotaggedPhotos()"
+    [highlighted]="group()"
+    (photosSelected)="openPhotos($event)"
+    (groupOpened)="group.set($event)"
+  />
+}
+
+@if (group(); as groupPhotos) {
+  <app-photo-group-panel [photos]="groupPhotos" (photosSelected)="openPhotos($event)" (closed)="group.set(undefined)" />
 }
 
 <app-segmented class="provider-switch" aria-label="Map provider" [options]="providers" [(value)]="provider" />

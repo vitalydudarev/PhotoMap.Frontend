@@ -25,6 +25,7 @@ import {
   createPhotoMarkerElement,
   createPhotoSpreadElement,
   isSinglePoint,
+  markHighlighted,
   selectAround,
 } from './photo-map.model';
 
@@ -71,6 +72,10 @@ type Marker = google.maps.marker.AdvancedMarkerElement;
 export class GooglePhotoMapComponent {
   readonly photos = input.required<readonly GeotaggedPhoto[]>();
   readonly photosSelected = output<PhotoSelection>();
+  /** Photos on one spot, too many to spread on the map, to show all together. */
+  readonly groupOpened = output<readonly GeotaggedPhoto[]>();
+  /** Photos whose spot stands out on the map, for as long as they are shown together. */
+  readonly highlighted = input<readonly GeotaggedPhoto[] | undefined>(undefined);
 
   readonly error = signal<string | undefined>(undefined);
 
@@ -79,6 +84,9 @@ export class GooglePhotoMapComponent {
   private readonly zone = inject(NgZone);
   private readonly photoByMarker = new WeakMap<Marker, GeotaggedPhoto>();
   private clusterer?: MarkerClusterer;
+  private highlightedIds: ReadonlySet<string> = new Set();
+  /** The markers the clusterer has drawn for clusters, with their photos, to mark when the highlight changes. */
+  private readonly clusterMarkers = new Map<HTMLElement, readonly GeotaggedPhoto[]>();
 
   constructor() {
     afterNextRender(() => this.zone.runOutsideAngular(() => this.createMap()));
@@ -90,6 +98,19 @@ export class GooglePhotoMapComponent {
       if (ready) {
         this.zone.runOutsideAngular(() => this.showPhotos(ready.map, ready.lib, photos));
       }
+    });
+
+    // The clusterer draws its clusters again only when they change, so the ones on the map are marked in place.
+    effect(() => {
+      this.highlightedIds = new Set(this.highlighted()?.map((photo) => photo.id));
+
+      this.clusterMarkers.forEach((photos, element) => {
+        if (element.isConnected) {
+          markHighlighted(element, photos, this.highlightedIds);
+        } else {
+          this.clusterMarkers.delete(element);
+        }
+      });
     });
 
     inject(DestroyRef).onDestroy(() => {
@@ -133,14 +154,15 @@ export class GooglePhotoMapComponent {
       map,
       algorithm: new SuperClusterAlgorithm({radius: CLUSTER_RADIUS, maxZoom: CLUSTER_MAX_ZOOM}),
       renderer: {
-        render: (cluster) =>
-          new lib.AdvancedMarkerElement({
-            position: cluster.position,
-            content: this.isDeepest(map)
-              ? this.createSpread(map, cluster)
-              : createPhotoMarkerElement(this.photoOf(cluster.markers[0] as Marker), cluster.count),
-            zIndex: 1000 + cluster.count,
-          }),
+        render: (cluster) => {
+          const photos = cluster.markers.map((marker) => this.photoOf(marker as Marker));
+          const content = this.isDeepest(map) ? this.createSpread(map, photos) : createPhotoMarkerElement(photos[0], cluster.count);
+
+          markHighlighted(content, photos, this.highlightedIds);
+          this.clusterMarkers.set(content, photos);
+
+          return new lib.AdvancedMarkerElement({position: cluster.position, content, zIndex: 1000 + cluster.count});
+        },
       },
       onClusterClick: (_event, cluster) => this.onClusterClick(map, cluster),
     });
@@ -163,6 +185,7 @@ export class GooglePhotoMapComponent {
     });
 
     this.clusterer!.clearMarkers(true);
+    this.clusterMarkers.clear();
     this.clusterer!.addMarkers(markers);
 
     if (photos.length === 0) {
@@ -186,10 +209,12 @@ export class GooglePhotoMapComponent {
     return Math.round(map.getZoom() ?? 0) >= CLUSTER_MAX_ZOOM;
   }
 
-  private createSpread(map: google.maps.Map, cluster: Cluster): HTMLElement {
-    const photos = cluster.markers.map((marker) => this.photoOf(marker as Marker));
-
-    return createPhotoSpreadElement(photos, (photo) => this.onPhotoClick(map, photo)).element;
+  private createSpread(map: google.maps.Map, photos: readonly GeotaggedPhoto[]): HTMLElement {
+    return createPhotoSpreadElement(
+      photos,
+      (photo) => this.onPhotoClick(map, photo),
+      () => this.zone.run(() => this.groupOpened.emit(photos)),
+    ).element;
   }
 
   /**

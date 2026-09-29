@@ -26,6 +26,7 @@ import {
   createPhotoMarkerElement,
   createPhotoSpreadElement,
   isSinglePoint,
+  markHighlighted,
   markerSize,
   selectAround,
 } from './photo-map.model';
@@ -60,12 +61,17 @@ class LazyDivIcon extends L.DivIcon {
 export class LeafletPhotoMapComponent {
   readonly photos = input.required<readonly GeotaggedPhoto[]>();
   readonly photosSelected = output<PhotoSelection>();
+  /** Photos on one spot, too many to spread on the map, to show all together. */
+  readonly groupOpened = output<readonly GeotaggedPhoto[]>();
+  /** Photos whose spot stands out on the map, for as long as they are shown together. */
+  readonly highlighted = input<readonly GeotaggedPhoto[] | undefined>(undefined);
 
   private readonly container = viewChild.required<ElementRef<HTMLElement>>('map');
   private readonly map = signal<L.Map | undefined>(undefined);
   private readonly zone = inject(NgZone);
   private readonly photoByMarker = new WeakMap<L.Layer, GeotaggedPhoto>();
   private clusterGroup?: L.MarkerClusterGroup;
+  private highlightedIds: ReadonlySet<string> = new Set();
 
   constructor() {
     // Leaflet fires a stream of DOM events while the map is dragged; none of them need change detection.
@@ -77,6 +83,15 @@ export class LeafletPhotoMapComponent {
 
       if (map) {
         this.zone.runOutsideAngular(() => this.showPhotos(map, photos));
+      }
+    });
+
+    effect(() => {
+      this.highlightedIds = new Set(this.highlighted()?.map((photo) => photo.id));
+
+      // draws the clusters again, cached icons included, so they pick up the new highlight
+      if (this.map()) {
+        this.zone.runOutsideAngular(() => this.clusterGroup!.refreshClusters());
       }
     });
 
@@ -103,10 +118,14 @@ export class LeafletPhotoMapComponent {
 
         const count = cluster.getChildCount();
         const size = markerSize(count);
+        const photos = cluster.getAllChildMarkers().map((marker) => this.photoOf(marker));
+        const element = createPhotoMarkerElement(photos[0], count);
+
+        markHighlighted(element, photos, this.highlightedIds);
 
         // markercluster asks for the icon only when the cluster comes into view
         return L.divIcon({
-          html: createPhotoMarkerElement(this.photoOf(cluster.getAllChildMarkers()[0]), count),
+          html: element,
           className: 'photo-marker-host',
           iconSize: [size, size],
         });
@@ -153,13 +172,20 @@ export class LeafletPhotoMapComponent {
 
   private createSpreadIcon(map: L.Map, cluster: L.MarkerCluster): L.DivIcon {
     const photos = cluster.getAllChildMarkers().map((marker) => this.photoOf(marker));
-    const spread = createPhotoSpreadElement(photos, (photo) => {
-      // the tiles take their clicks before Leaflet can tell a click from the end of a drag; `moved` is in Leaflet's
-      // drag handler but not in its typings
+    // the tiles take their clicks before Leaflet can tell a click from the end of a drag; `moved` is in Leaflet's
+    // drag handler but not in its typings
+    const unlessDragged = (click: () => void) => {
       if (!(map.dragging as L.Handler & {moved(): boolean}).moved()) {
-        this.onPhotoClick(map, photo);
+        click();
       }
-    });
+    };
+    const spread = createPhotoSpreadElement(
+      photos,
+      (photo) => unlessDragged(() => this.onPhotoClick(map, photo)),
+      () => unlessDragged(() => this.zone.run(() => this.groupOpened.emit(photos))),
+    );
+
+    markHighlighted(spread.element, photos, this.highlightedIds);
 
     return L.divIcon({html: spread.element, className: 'photo-marker-host', iconSize: [spread.width, spread.height]});
   }

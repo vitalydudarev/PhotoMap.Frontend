@@ -75,13 +75,44 @@ export interface SizedElement {
   height: number;
 }
 
+/** Photos taken on one calendar day, in local time. */
+export interface PhotoDay {
+  /** Midnight of the day. */
+  date: Date;
+  photos: readonly GeotaggedPhoto[];
+}
+
+/** The photos split by the day they were taken, the days and the photos within each in the order they were taken. */
+export function groupByDay(photos: readonly GeotaggedPhoto[]): PhotoDay[] {
+  const sorted = [...photos].sort((a, b) => new Date(a.dateTimeTaken).getTime() - new Date(b.dateTimeTaken).getTime());
+  const days: {date: Date; photos: GeotaggedPhoto[]}[] = [];
+
+  for (const photo of sorted) {
+    const taken = new Date(photo.dateTimeTaken);
+    const date = new Date(taken.getFullYear(), taken.getMonth(), taken.getDate());
+    const last = days.at(-1);
+
+    if (last?.date.getTime() === date.getTime()) {
+      last.photos.push(photo);
+    } else {
+      days.push({date, photos: [photo]});
+    }
+  }
+
+  return days;
+}
+
 /**
  * The marker drawn for a cluster the map cannot zoom into any further: its photos side by side in a grid, so each one
  * can be clicked. Photos past the grid are behind a last tile that counts them. `onClick` gets the photo of the tile
- * clicked, the first hidden one for that last tile, and the click goes no further, so the map does not see it as a
- * click on the cluster.
+ * clicked and `onMore` is called for that last tile, which stands for all of the cluster's photos. The clicks go no
+ * further, so the map does not see them as a click on the cluster.
  */
-export function createPhotoSpreadElement(photos: readonly GeotaggedPhoto[], onClick: (photo: GeotaggedPhoto) => void): SizedElement {
+export function createPhotoSpreadElement(
+  photos: readonly GeotaggedPhoto[],
+  onClick: (photo: GeotaggedPhoto) => void,
+  onMore: () => void,
+): SizedElement {
   const sorted = [...photos].sort((a, b) => new Date(a.dateTimeTaken).getTime() - new Date(b.dateTimeTaken).getTime());
   const shown = sorted.length > MAX_SPREAD_TILES ? MAX_SPREAD_TILES - 1 : sorted.length;
   const tiles = sorted.length > shown ? shown + 1 : shown;
@@ -94,15 +125,15 @@ export function createPhotoSpreadElement(photos: readonly GeotaggedPhoto[], onCl
   spread.style.gridTemplateColumns = `repeat(${columns}, ${size}px)`;
   spread.style.gap = `${SPREAD_GAP}px`;
 
-  const addTile = (tile: HTMLElement, photo: GeotaggedPhoto) => {
+  const addTile = (tile: HTMLElement, click: () => void) => {
     tile.addEventListener('click', (event) => {
       event.stopPropagation();
-      onClick(photo);
+      click();
     });
     spread.appendChild(tile);
   };
 
-  sorted.slice(0, shown).forEach((photo) => addTile(createPhotoMarkerElement(photo), photo));
+  sorted.slice(0, shown).forEach((photo) => addTile(createPhotoMarkerElement(photo), () => onClick(photo)));
 
   if (tiles > shown) {
     const hidden = sorted.length - shown;
@@ -112,8 +143,8 @@ export function createPhotoSpreadElement(photos: readonly GeotaggedPhoto[], onCl
     more.style.width = `${size}px`;
     more.style.height = `${size}px`;
     more.textContent = `+${hidden}`;
-    more.title = `${hidden} more photos`;
-    addTile(more, sorted[shown]);
+    more.title = `Show all ${sorted.length} photos`;
+    addTile(more, onMore);
   }
 
   return {
@@ -121,6 +152,14 @@ export function createPhotoSpreadElement(photos: readonly GeotaggedPhoto[], onCl
     width: columns * size + (columns - 1) * SPREAD_GAP,
     height: rows * size + (rows - 1) * SPREAD_GAP,
   };
+}
+
+/**
+ * Marks the marker of a cluster as the spot of the photos in `highlighted`, a set of photo ids, when it holds any of
+ * them, and unmarks it otherwise.
+ */
+export function markHighlighted(element: HTMLElement, photos: readonly GeotaggedPhoto[], highlighted: ReadonlySet<string>): void {
+  element.classList.toggle('photo-map-highlight', highlighted.size > 0 && photos.some((photo) => highlighted.has(photo.id)));
 }
 
 /**

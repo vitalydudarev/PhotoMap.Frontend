@@ -1,0 +1,25 @@
+<header class="header">
+  <h2 id="photo-group-title" class="title">{{ photos().length }} photos here</h2>
+  <button appButton="ghost" size="sm" iconOnly type="button" aria-label="Close" (click)="closed.emit()">
+    <app-icon name="x" [size]="18" />
+  </button>
+</header>
+
+<div class="days">
+  @for (day of days(); track day.date.getTime()) {
+    <section class="day">
+      <h3 class="day-title">
+        {{ day.date | date: 'fullDate' }}
+        <span class="day-count">{{ day.photos.length }}</span>
+      </h3>
+
+      <div class="grid">
+        @for (photo of day.photos; track photo.id) {
+          <button class="thumb" type="button" [title]="photo.fileName" (click)="open(photo)">
+            <img [src]="photo.thumbnailLargeUrl" [alt]="photo.fileName" width="96" height="96" loading="lazy" />
+          </button>
+        }
+      </div>
+    </section>
+  }
+</div>

@@ -5,7 +5,8 @@ import {SegmentedComponent, SegmentedOption} from 'src/app/shared/ui/segmented/s
 
 import {GooglePhotoMapComponent} from './google-photo-map.component';
 import {LeafletPhotoMapComponent} from './leaflet-photo-map.component';
-import {MapProvider, PhotoSelection, isGeotagged} from './photo-map.model';
+import {PhotoGroupPanelComponent} from './photo-group-panel.component';
+import {GeotaggedPhoto, MapProvider, PhotoSelection, isGeotagged} from './photo-map.model';
 
 const PROVIDER_STORAGE_KEY = 'map-provider';
 
@@ -18,7 +19,7 @@ const PROVIDER_STORAGE_KEY = 'map-provider';
   templateUrl: './photos-map-view.component.html',
   styleUrl: './photos-map-view.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [GooglePhotoMapComponent, LeafletPhotoMapComponent, SegmentedComponent],
+  imports: [GooglePhotoMapComponent, LeafletPhotoMapComponent, PhotoGroupPanelComponent, SegmentedComponent],
 })
 export class PhotosMapViewComponent {
   readonly photos = input<readonly Photo[]>([]);
@@ -32,10 +33,19 @@ export class PhotosMapViewComponent {
 
   readonly provider = signal<MapProvider>(this.readProviderPreference());
 
+  /** The photos of a crowded spot shown all together in a panel, if one is open. */
+  readonly group = signal<readonly GeotaggedPhoto[] | undefined>(undefined);
+
   private readonly photoViewerService = inject(PhotoViewerService);
 
   constructor() {
     effect(() => this.writeProviderPreference(this.provider()));
+
+    // a group from the photos shown before would no longer match the map
+    effect(() => {
+      this.geotaggedPhotos();
+      this.group.set(undefined);
+    });
   }
 
   openPhotos(selection: PhotoSelection): void {
