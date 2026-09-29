@@ -25,9 +25,15 @@ export const CLUSTER_RADIUS = 72;
 const PHOTO_MARKER_SIZE = 52;
 const CLUSTER_MARKER_SIZE = 60;
 
-/** The most tiles a spread cluster shows; past that, the last tile stands for the photos that did not fit. */
-const MAX_SPREAD_TILES = 16;
+/**
+ * The most tiles a spread cluster shows, for as much room as it has on the map, from the most to the fewest; past
+ * that, the last tile stands for the photos that did not fit.
+ */
+const SPREAD_TILE_STEPS = [16, 9, 4];
 const SPREAD_GAP = 6;
+
+/** The least room, in pixels, between a spread and whatever else is on the map. */
+const SPREAD_MARGIN = 12;
 
 /** The viewer is not meant for thousands of images, so a selection is cut to a window around the clicked photo. */
 const MAX_SELECTION = 500;
@@ -112,12 +118,12 @@ export function createPhotoSpreadElement(
   photos: readonly GeotaggedPhoto[],
   onClick: (photo: GeotaggedPhoto) => void,
   onMore: () => void,
+  maxTiles = SPREAD_TILE_STEPS[0],
 ): SizedElement {
   const sorted = [...photos].sort((a, b) => new Date(a.dateTimeTaken).getTime() - new Date(b.dateTimeTaken).getTime());
-  const shown = sorted.length > MAX_SPREAD_TILES ? MAX_SPREAD_TILES - 1 : sorted.length;
+  const shown = sorted.length > maxTiles ? maxTiles - 1 : sorted.length;
   const tiles = sorted.length > shown ? shown + 1 : shown;
-  const columns = Math.ceil(Math.sqrt(tiles));
-  const rows = Math.ceil(tiles / columns);
+  const {columns, width, height} = spreadLayout(tiles);
   const size = markerSize();
 
   const spread = document.createElement('div');
@@ -147,11 +153,95 @@ export function createPhotoSpreadElement(
     addTile(more, onMore);
   }
 
-  return {
-    element: spread,
-    width: columns * size + (columns - 1) * SPREAD_GAP,
-    height: rows * size + (rows - 1) * SPREAD_GAP,
+  return {element: spread, width, height};
+}
+
+/** The grid a spread of `tiles` tiles is laid out in, as square as it gets, and its size in pixels. */
+function spreadLayout(tiles: number): {columns: number; width: number; height: number} {
+  const columns = Math.ceil(Math.sqrt(tiles));
+  const rows = Math.ceil(tiles / columns);
+  const size = markerSize();
+
+  return {columns, width: columns * size + (columns - 1) * SPREAD_GAP, height: rows * size + (rows - 1) * SPREAD_GAP};
+}
+
+/** A point on the map in pixels, at the zoom the map is at. */
+export interface MapPoint {
+  x: number;
+  y: number;
+}
+
+interface Box {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/**
+ * How many tiles, at most, the spread of each of `clusters` can have at the deepest zoom without covering another
+ * cluster or one of `photos`, the photos drawn on their own. Clusters get as much room as there is in turn, the ones
+ * with the most photos first, and a cluster left with no room for even the smallest spread gets 1: it keeps the marker
+ * it has at the other zooms, as the other clusters leave room for that anyway.
+ */
+export function fitSpreads(clusters: readonly (MapPoint & {count: number})[], photos: readonly MapPoint[]): number[] {
+  // every box is grown by half the margin on each side, so boxes that do not overlap are a margin apart
+  const boxAround = ({x, y}: MapPoint, width: number, height: number): Box => ({
+    left: x - (width + SPREAD_MARGIN) / 2,
+    top: y - (height + SPREAD_MARGIN) / 2,
+    right: x + (width + SPREAD_MARGIN) / 2,
+    bottom: y + (height + SPREAD_MARGIN) / 2,
+  });
+  const overlap = (a: Box, b: Box) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+
+  // the stack drawn under a cluster marker sticks out on the bottom right
+  const markerBox = (point: MapPoint) => boxAround(point, CLUSTER_MARKER_SIZE + 12, CLUSTER_MARKER_SIZE + 12);
+  const boxes = [...clusters.map(markerBox), ...photos.map((point) => boxAround(point, PHOTO_MARKER_SIZE, PHOTO_MARKER_SIZE))];
+
+  // Boxes are looked up in a grid of cells as wide as the widest box, so each is checked against those of its own
+  // cell and the eight around it only: at the deepest zoom of Google Maps, all the clusters in the world are laid out.
+  const cellSize = spreadLayout(SPREAD_TILE_STEPS[0]).width + SPREAD_MARGIN;
+  const cellOf = ({x, y}: MapPoint) => [Math.floor(x / cellSize), Math.floor(y / cellSize)];
+  const cells = new Map<string, number[]>();
+
+  [...clusters, ...photos].forEach((point, index) => {
+    const [column, row] = cellOf(point);
+    const key = `${column},${row}`;
+    const cell = cells.get(key);
+
+    if (cell) {
+      cell.push(index);
+    } else {
+      cells.set(key, [index]);
+    }
+  });
+
+  const neighboursOf = (point: MapPoint) => {
+    const [column, row] = cellOf(point);
+
+    return [-1, 0, 1].flatMap((dx) => [-1, 0, 1].flatMap((dy) => cells.get(`${column + dx},${row + dy}`) ?? []));
   };
+
+  const tiles = clusters.map(() => 1);
+  const order = clusters.map((_, index) => index).sort((a, b) => clusters[b].count - clusters[a].count);
+
+  for (const index of order) {
+    const cluster = clusters[index];
+    const neighbours = neighboursOf(cluster).filter((other) => other !== index);
+
+    for (const maxTiles of SPREAD_TILE_STEPS) {
+      const {width, height} = spreadLayout(Math.min(cluster.count, maxTiles));
+      const box = boxAround(cluster, width, height);
+
+      if (!neighbours.some((other) => overlap(box, boxes[other]))) {
+        tiles[index] = maxTiles;
+        boxes[index] = box;
+        break;
+      }
+    }
+  }
+
+  return tiles;
 }
 
 /**

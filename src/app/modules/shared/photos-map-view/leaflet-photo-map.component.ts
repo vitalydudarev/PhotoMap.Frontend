@@ -25,6 +25,7 @@ import {
   PhotoSelection,
   createPhotoMarkerElement,
   createPhotoSpreadElement,
+  fitSpreads,
   isSinglePoint,
   markHighlighted,
   markerSize,
@@ -72,6 +73,9 @@ export class LeafletPhotoMapComponent {
   private readonly photoByMarker = new WeakMap<L.Layer, GeotaggedPhoto>();
   private clusterGroup?: L.MarkerClusterGroup;
   private highlightedIds: ReadonlySet<string> = new Set();
+  /** The clusters drawn at the deepest zoom, the only ones spread, and the most tiles each has room for there. */
+  private readonly spreadTiles = new WeakMap<L.MarkerCluster, number>();
+  private layoutPending = false;
 
   constructor() {
     // Leaflet fires a stream of DOM events while the map is dragged; none of them need change detection.
@@ -111,9 +115,17 @@ export class LeafletPhotoMapComponent {
       spiderfyOnMaxZoom: false,
       zoomToBoundsOnClick: false,
       iconCreateFunction: (cluster) => {
-        // markercluster keeps clustering at the deepest zoom, so a cluster there is drawn as its photos side by side
+        // markercluster keeps clustering at the deepest zoom, so a cluster there is drawn as its photos side by side,
+        // in as many tiles as it has room for, and without room as at the other zooms
         if (map.getZoom() >= map.getMaxZoom()) {
-          return this.createSpreadIcon(map, cluster);
+          const tiles = this.spreadTiles.get(cluster) ?? 1;
+
+          this.spreadTiles.set(cluster, tiles);
+          this.scheduleSpreadLayout(map);
+
+          if (tiles > 1) {
+            return this.createSpreadIcon(map, cluster, tiles);
+          }
         }
 
         const count = cluster.getChildCount();
@@ -135,6 +147,8 @@ export class LeafletPhotoMapComponent {
     this.clusterGroup.on('clusterclick', (event) => this.onClusterClick(map, (event as L.LeafletEvent & {layer: L.MarkerCluster}).layer));
     this.clusterGroup.on('click', (event) => this.onPhotoClick(map, this.photoOf(event.propagatedFrom as L.Marker)));
     this.clusterGroup.addTo(map);
+    // clusters that come back into view keep the icons they had, drawn for the room they had then
+    map.on('moveend', () => this.scheduleSpreadLayout(map));
 
     // The map is sized by its container, which changes with the layout and not only with the window.
     const resizeObserver = new ResizeObserver(() => map.invalidateSize());
@@ -170,7 +184,63 @@ export class LeafletPhotoMapComponent {
     }
   }
 
-  private createSpreadIcon(map: L.Map, cluster: L.MarkerCluster): L.DivIcon {
+  /**
+   * Lays out the spreads once the clusters of this round of drawing are all on the map: a microtask still runs before
+   * the browser paints them, so a spread without room is never seen.
+   */
+  private scheduleSpreadLayout(map: L.Map): void {
+    if (this.layoutPending) {
+      return;
+    }
+
+    this.layoutPending = true;
+    queueMicrotask(() => {
+      this.layoutPending = false;
+      this.layoutSpreads(map);
+    });
+  }
+
+  /** Gives each spread on the map as many tiles as it has room for, and draws again the ones that change. */
+  private layoutSpreads(map: L.Map): void {
+    const zoom = map.getZoom();
+
+    if (zoom < map.getMaxZoom()) {
+      return;
+    }
+
+    // While the map zooms in, the clusters of the zoom before stay on it for a moment; they were never spread.
+    const clusters: L.MarkerCluster[] = [];
+    const photos: L.Marker[] = [];
+
+    map.eachLayer((layer) => {
+      if (layer instanceof L.MarkerCluster) {
+        if (this.spreadTiles.has(layer)) {
+          clusters.push(layer);
+        }
+      } else if (layer instanceof L.Marker && this.photoByMarker.has(layer)) {
+        photos.push(layer);
+      }
+    });
+
+    const pointOf = (marker: L.Marker) => map.project(marker.getLatLng(), zoom);
+    const tiles = fitSpreads(
+      clusters.map((cluster) => {
+        const {x, y} = pointOf(cluster);
+
+        return {x, y, count: cluster.getChildCount()};
+      }),
+      photos.map(pointOf),
+    );
+    const changed = clusters.filter((cluster, index) => this.spreadTiles.get(cluster) !== tiles[index]);
+
+    clusters.forEach((cluster, index) => this.spreadTiles.set(cluster, tiles[index]));
+
+    if (changed.length > 0) {
+      this.clusterGroup!.refreshClusters(changed.flatMap((cluster) => cluster.getAllChildMarkers()));
+    }
+  }
+
+  private createSpreadIcon(map: L.Map, cluster: L.MarkerCluster, maxTiles: number): L.DivIcon {
     const photos = cluster.getAllChildMarkers().map((marker) => this.photoOf(marker));
     // the tiles take their clicks before Leaflet can tell a click from the end of a drag; `moved` is in Leaflet's
     // drag handler but not in its typings
@@ -183,6 +253,7 @@ export class LeafletPhotoMapComponent {
       photos,
       (photo) => unlessDragged(() => this.onPhotoClick(map, photo)),
       () => unlessDragged(() => this.zone.run(() => this.groupOpened.emit(photos))),
+      maxTiles,
     );
 
     markHighlighted(spread.element, photos, this.highlightedIds);
@@ -192,12 +263,15 @@ export class LeafletPhotoMapComponent {
 
   /**
    * Zooms into a cluster, straight to the deepest zoom when its photos all sit on one spot. There the cluster is a
-   * spread whose photos take their own clicks, and a click between them does nothing.
+   * spread whose photos take their own clicks, and a click between them does nothing; a cluster without room to
+   * spread shows all its photos together.
    */
   private onClusterClick(map: L.Map, cluster: L.MarkerCluster): void {
     const photos = cluster.getAllChildMarkers().map((marker) => this.photoOf(marker));
 
     if (map.getZoom() >= map.getMaxZoom()) {
+      this.zone.run(() => this.groupOpened.emit(photos));
+
       return;
     }
 

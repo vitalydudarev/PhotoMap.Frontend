@@ -13,7 +13,14 @@ import {
   viewChild,
 } from '@angular/core';
 import {importLibrary, setOptions} from '@googlemaps/js-api-loader';
-import {Cluster, MarkerClusterer, SuperClusterAlgorithm} from '@googlemaps/markerclusterer';
+import {
+  AlgorithmInput,
+  AlgorithmOutput,
+  Cluster,
+  MarkerClusterer,
+  SuperClusterAlgorithm,
+  SuperClusterOptions,
+} from '@googlemaps/markerclusterer';
 import {environment} from 'src/environments/environment';
 
 import {
@@ -24,6 +31,7 @@ import {
   PhotoSelection,
   createPhotoMarkerElement,
   createPhotoSpreadElement,
+  fitSpreads,
   isSinglePoint,
   markHighlighted,
   selectAround,
@@ -57,6 +65,26 @@ function loadGoogleMaps(): Promise<GoogleMaps> {
 
 type Marker = google.maps.marker.AdvancedMarkerElement;
 
+/** Clusters as SuperClusterAlgorithm does, and hands each new set of clusters to `clustered` before they are drawn. */
+class ObservedSuperClusterAlgorithm extends SuperClusterAlgorithm {
+  constructor(
+    options: SuperClusterOptions,
+    private readonly clustered: (clusters: readonly Cluster[], map: google.maps.Map) => void,
+  ) {
+    super(options);
+  }
+
+  override calculate(input: AlgorithmInput): AlgorithmOutput {
+    const output = super.calculate(input);
+
+    if (output.changed !== false) {
+      this.clustered(output.clusters, input.map as google.maps.Map);
+    }
+
+    return output;
+  }
+}
+
 /** Photos on a Google map, clustered by @googlemaps/markerclusterer. */
 @Component({
   selector: 'app-google-photo-map',
@@ -87,6 +115,8 @@ export class GooglePhotoMapComponent {
   private highlightedIds: ReadonlySet<string> = new Set();
   /** The markers the clusterer has drawn for clusters, with their photos, to mark when the highlight changes. */
   private readonly clusterMarkers = new Map<HTMLElement, readonly GeotaggedPhoto[]>();
+  /** The most tiles each cluster at the deepest zoom has room for. */
+  private spreadTiles = new WeakMap<Cluster, number>();
 
   constructor() {
     afterNextRender(() => this.zone.runOutsideAngular(() => this.createMap()));
@@ -152,11 +182,15 @@ export class GooglePhotoMapComponent {
 
     this.clusterer = new MarkerClusterer({
       map,
-      algorithm: new SuperClusterAlgorithm({radius: CLUSTER_RADIUS, maxZoom: CLUSTER_MAX_ZOOM}),
+      algorithm: new ObservedSuperClusterAlgorithm({radius: CLUSTER_RADIUS, maxZoom: CLUSTER_MAX_ZOOM}, (clusters) =>
+        this.layoutSpreads(map, clusters),
+      ),
       renderer: {
         render: (cluster) => {
           const photos = cluster.markers.map((marker) => this.photoOf(marker as Marker));
-          const content = this.isDeepest(map) ? this.createSpread(map, photos) : createPhotoMarkerElement(photos[0], cluster.count);
+          const tiles = this.isDeepest(map) ? (this.spreadTiles.get(cluster) ?? 1) : 1;
+          // a cluster without room to spread is drawn as at the other zooms
+          const content = tiles > 1 ? this.createSpread(map, photos, tiles) : createPhotoMarkerElement(photos[0], cluster.count);
 
           markHighlighted(content, photos, this.highlightedIds);
           this.clusterMarkers.set(content, photos);
@@ -209,22 +243,55 @@ export class GooglePhotoMapComponent {
     return Math.round(map.getZoom() ?? 0) >= CLUSTER_MAX_ZOOM;
   }
 
-  private createSpread(map: google.maps.Map, photos: readonly GeotaggedPhoto[]): HTMLElement {
+  /**
+   * Gives each cluster at the deepest zoom as many tiles as it has room for. The algorithm clusters the photos of the
+   * whole world at once, so the layout holds wherever the map is moved at that zoom.
+   */
+  private layoutSpreads(map: google.maps.Map, clusters: readonly Cluster[]): void {
+    const projection = map.getProjection();
+
+    this.spreadTiles = new WeakMap();
+
+    if (!this.isDeepest(map) || !projection) {
+      return;
+    }
+
+    const scale = 2 ** Math.round(map.getZoom() ?? 0);
+    const pointOf = (cluster: Cluster) => {
+      const point = projection.fromLatLngToPoint(cluster.position)!;
+
+      return {x: point.x * scale, y: point.y * scale};
+    };
+    // a cluster of one photo is drawn as the photo's own marker
+    const groups = clusters.filter((cluster) => cluster.count > 1);
+    const tiles = fitSpreads(
+      groups.map((cluster) => ({...pointOf(cluster), count: cluster.count})),
+      clusters.filter((cluster) => cluster.count === 1).map(pointOf),
+    );
+
+    groups.forEach((cluster, index) => this.spreadTiles.set(cluster, tiles[index]));
+  }
+
+  private createSpread(map: google.maps.Map, photos: readonly GeotaggedPhoto[], maxTiles: number): HTMLElement {
     return createPhotoSpreadElement(
       photos,
       (photo) => this.onPhotoClick(map, photo),
       () => this.zone.run(() => this.groupOpened.emit(photos)),
+      maxTiles,
     ).element;
   }
 
   /**
    * Zooms into a cluster, straight to the deepest zoom when its photos all sit on one spot. There the cluster is a
-   * spread whose photos take their own clicks, and a click between them does nothing.
+   * spread whose photos take their own clicks, and a click between them does nothing; a cluster without room to
+   * spread shows all its photos together.
    */
   private onClusterClick(map: google.maps.Map, cluster: Cluster): void {
     const photos = cluster.markers.map((marker) => this.photoOf(marker as Marker));
 
     if (this.isDeepest(map)) {
+      this.zone.run(() => this.groupOpened.emit(photos));
+
       return;
     }
 

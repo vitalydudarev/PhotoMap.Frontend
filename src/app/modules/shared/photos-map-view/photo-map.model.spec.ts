@@ -3,6 +3,7 @@ import {Photo} from 'src/app/core/models/photo.model';
 import {
   GeotaggedPhoto,
   createPhotoSpreadElement,
+  fitSpreads,
   groupByDay,
   isGeotagged,
   markHighlighted,
@@ -116,5 +117,35 @@ describe('photo map helpers', () => {
 
     markHighlighted(element, photos, new Set(['7']));
     expect(element.classList.contains('photo-map-highlight')).toBe(false);
+  });
+
+  it('spreads a cluster that has the room in full', () => {
+    expect(fitSpreads([{x: 0, y: 0, count: 40}], [])).toEqual([16]);
+  });
+
+  it('shrinks the spreads of clusters close together, giving the bigger cluster the room first', () => {
+    // a spread of 16 tiles is 226 pixels wide, of 9 is 168 and of 4 is 110
+    const clusters = [
+      {x: 0, y: 0, count: 5},
+      {x: 150, y: 0, count: 40},
+    ];
+
+    expect(fitSpreads(clusters, [])).toEqual([1, 9]);
+  });
+
+  it('keeps the marker of a cluster that has no room for any spread, clear of the photos around it', () => {
+    const clusters = [{x: 0, y: 0, count: 30}];
+    const photos = [
+      {x: 75, y: 0},
+      {x: -75, y: 0},
+    ];
+
+    expect(fitSpreads(clusters, photos)).toEqual([1]);
+  });
+
+  it('lays out clusters far apart independently of each other', () => {
+    const clusters = Array.from({length: 50}, (_, i) => ({x: i * 1000, y: 0, count: 20}));
+
+    expect(fitSpreads(clusters, [])).toEqual(clusters.map(() => 16));
   });
 });
