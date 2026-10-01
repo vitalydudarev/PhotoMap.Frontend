@@ -1,7 +1,7 @@
 import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
-import {beforeEach, describe, expect, it} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 
 import {Photo} from '../../../core/models/photo.model';
 import {PhotoViewerService} from '../../../core/services/photo-viewer.service';
@@ -22,7 +22,9 @@ describe('PhotoViewerComponent', () => {
 
   const element = () => fixture.nativeElement as HTMLElement;
   const photo = () => element().querySelector<HTMLImageElement>('img.photo')!;
-  const spinner = () => element().querySelector('app-spinner');
+  const spinner = () => element().querySelector('.stage app-spinner');
+  const info = () => element().querySelector<HTMLElement>('.info');
+  const http = () => TestBed.inject(HttpTestingController);
   const press = (key: string) => {
     element()
       .querySelector('.viewer')!
@@ -36,6 +38,8 @@ describe('PhotoViewerComponent', () => {
   };
 
   beforeEach(() => {
+    localStorage.clear();
+
     TestBed.configureTestingModule({
       imports: [PhotoViewerComponent],
       providers: [provideHttpClient(), provideHttpClientTesting()],
@@ -45,6 +49,8 @@ describe('PhotoViewerComponent', () => {
     viewer = TestBed.inject(PhotoViewerService);
     fixture.detectChanges();
   });
+
+  afterEach(() => localStorage.clear());
 
   it('should render nothing until a photo is opened', () => {
     expect(element().querySelector('.viewer')).toBeNull();
@@ -113,5 +119,63 @@ describe('PhotoViewerComponent', () => {
     press('Escape');
 
     expect(element().querySelector('.viewer')).toBeNull();
+  });
+
+  describe('EXIF', () => {
+    const flushExif = async (url: string, exif: object) => {
+      // the resource asks once its effects have run; waiting for stability would wait for the answer too
+      TestBed.tick();
+      http().expectOne(url).flush(exif);
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
+
+    it('should show the EXIF of the photo beside it', async () => {
+      open();
+
+      await flushExif('/photo-0.jpg/exif', {ExifIfd0: {Make: 'Canon', Model: 'EOS R6'}, ExifSubIfd: {Width: 6000}});
+
+      const rows = [...info()!.querySelectorAll('.info-row')].map((row) => [
+        row.querySelector('dt')?.textContent,
+        row.querySelector('dd')?.textContent,
+      ]);
+      expect(rows).toEqual([
+        ['Make', 'Canon'],
+        ['Model', 'EOS R6'],
+        ['Width', '6000 px'],
+      ]);
+      expect([...info()!.querySelectorAll('h3')].map((heading) => heading.textContent)).toEqual(['Camera', 'Image']);
+    });
+
+    it('should say when the photo has no EXIF', async () => {
+      open();
+
+      await flushExif('/photo-0.jpg/exif', {});
+
+      expect(info()?.textContent).toContain('This photo has no EXIF data.');
+    });
+
+    it('should ask for the EXIF of the next photo', async () => {
+      open();
+      await flushExif('/photo-0.jpg/exif', {});
+
+      press('ArrowRight');
+
+      await flushExif('/photo-1.jpg/exif', {ExifIfd0: {Make: 'DJI'}});
+      expect(info()?.textContent).toContain('DJI');
+    });
+
+    it('should hide the panel on I, not ask for the EXIF meanwhile, and keep it hidden across reloads', async () => {
+      open();
+      await flushExif('/photo-0.jpg/exif', {});
+
+      press('i');
+      press('ArrowRight');
+      TestBed.tick();
+
+      expect(info()).toBeNull();
+      http().expectNone('/photo-1.jpg/exif');
+      expect(localStorage.getItem('photo-viewer-info-open')).toBe('false');
+    });
   });
 });

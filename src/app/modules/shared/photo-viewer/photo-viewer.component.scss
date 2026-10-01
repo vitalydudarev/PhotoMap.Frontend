@@ -25,7 +25,9 @@
   gap: var(--app-space-4);
 }
 
-.bar .control {
+.actions {
+  display: flex;
+  gap: var(--app-space-2);
   justify-self: end;
 }
 
@@ -58,6 +60,10 @@
 }
 
 .control:hover:not(:disabled) {
+  background: rgb(255 255 255 / 22%);
+}
+
+.control--on {
   background: rgb(255 255 255 / 22%);
 }
 
@@ -121,6 +127,64 @@
   background: rgb(0 0 0 / 75%);
 }
 
+/* The panel takes a column of its own, so the photo shrinks to make room rather than hide behind it. */
+.viewer--info {
+  grid-template-columns: auto minmax(0, 1fr) auto 280px;
+}
+
+.info {
+  grid-area: 2 / 4;
+  align-self: stretch;
+  overflow-y: auto;
+  padding: var(--app-space-4);
+  border-radius: var(--app-radius);
+  background: rgb(255 255 255 / 6%);
+  font-size: 0.875rem;
+}
+
+.info-title {
+  margin: 0 0 var(--app-space-3);
+  font-size: 1rem;
+}
+
+.info-note {
+  margin: 0;
+  color: rgb(255 255 255 / 70%);
+}
+
+.info-section + .info-section {
+  margin-top: var(--app-space-4);
+}
+
+.info-section h3 {
+  margin: 0 0 var(--app-space-2);
+  color: rgb(255 255 255 / 70%);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.info-section dl {
+  margin: 0;
+}
+
+.info-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: var(--app-space-2);
+  padding-block: var(--app-space-1);
+}
+
+.info-row dt {
+  color: rgb(255 255 255 / 70%);
+}
+
+.info-row dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 @keyframes viewer-in {
   from {
     opacity: 0;
@@ -139,5 +203,17 @@
 
   .stage {
     grid-column: 1 / -1;
+  }
+
+  /* No room for a column beside the photo: the panel sits over the bottom of it instead. */
+  .viewer--info {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .info {
+    position: absolute;
+    inset: auto var(--app-space-2) var(--app-space-2);
+    max-height: 45%;
+    background: rgb(20 20 20 / 92%);
   }
 }

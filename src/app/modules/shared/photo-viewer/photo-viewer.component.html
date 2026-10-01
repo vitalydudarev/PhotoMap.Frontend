@@ -2,6 +2,7 @@
   <div
     #dialog
     class="viewer"
+    [class.viewer--info]="infoOpen()"
     role="dialog"
     aria-modal="true"
     tabindex="-1"
@@ -14,9 +15,23 @@
     <header class="bar">
       <span class="counter">{{ index() + 1 }} / {{ photos().length }}</span>
       <span class="name" [title]="photo.fileName">{{ photo.fileName }}</span>
-      <button class="control" type="button" aria-label="Close" (click)="close()">
-        <app-icon name="x" />
-      </button>
+      <div class="actions">
+        <button
+          class="control"
+          type="button"
+          aria-label="Photo info"
+          title="Photo info (I)"
+          aria-controls="photo-info"
+          [attr.aria-pressed]="infoOpen()"
+          [class.control--on]="infoOpen()"
+          (click)="toggleInfo()"
+        >
+          <app-icon name="info" />
+        </button>
+        <button class="control" type="button" aria-label="Close" (click)="close()">
+          <app-icon name="x" />
+        </button>
+      </div>
     </header>
 
     <button class="control nav" type="button" aria-label="Previous photo" [disabled]="index() === 0" (click)="move(-1)">
@@ -60,5 +75,33 @@
     <button class="control nav" type="button" aria-label="Next photo" [disabled]="index() === photos().length - 1" (click)="move(1)">
       <app-icon name="chevron-right" [size]="24" />
     </button>
+
+    @if (infoOpen()) {
+      <aside id="photo-info" class="info" aria-label="Photo info">
+        <h2 class="info-title">EXIF</h2>
+
+        @if (exif.isLoading()) {
+          <app-spinner [size]="20" label="Loading the EXIF" />
+        } @else if (exif.error()) {
+          <p class="info-note">The EXIF could not be loaded.</p>
+        } @else if (exifSections().length === 0) {
+          <p class="info-note">This photo has no EXIF data.</p>
+        } @else {
+          @for (section of exifSections(); track section.title) {
+            <section class="info-section">
+              <h3>{{ section.title }}</h3>
+              <dl>
+                @for (row of section.rows; track row.label) {
+                  <div class="info-row">
+                    <dt>{{ row.label }}</dt>
+                    <dd>{{ row.value }}</dd>
+                  </div>
+                }
+              </dl>
+            </section>
+          }
+        }
+      </aside>
+    }
   </div>
 }

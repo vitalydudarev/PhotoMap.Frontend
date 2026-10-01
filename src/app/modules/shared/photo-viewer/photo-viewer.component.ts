@@ -1,18 +1,24 @@
 import {DOCUMENT} from '@angular/common';
-import {ChangeDetectionStrategy, Component, ElementRef, effect, inject, linkedSignal, viewChild} from '@angular/core';
+import {httpResource} from '@angular/common/http';
+import {ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, linkedSignal, signal, viewChild} from '@angular/core';
 import {Photo} from 'src/app/core/models/photo.model';
 import {PhotoViewerService, UNAVAILABLE_IMAGE} from 'src/app/core/services/photo-viewer.service';
 import {IconComponent} from 'src/app/shared/ui/icon/icon.component';
 import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
+
+import {exifSections} from './exif-sections';
 
 type LoadStatus = 'loading' | 'loaded' | 'failed';
 
 /** How far a finger has to travel sideways, in pixels, for a swipe to change the photo. */
 const SWIPE_DISTANCE = 50;
 
+const INFO_OPEN_STORAGE_KEY = 'photo-viewer-info-open';
+
 /**
  * The full-screen viewer for the photo `PhotoViewerService` points at. The photo stays hidden until it has loaded,
- * with a spinner in its place, and a placeholder replaces a photo that fails to load.
+ * with a spinner in its place, and a placeholder replaces a photo that fails to load. A panel beside it shows the
+ * EXIF of the photo, open until the user closes it.
  */
 @Component({
   selector: 'app-photo-viewer',
@@ -33,6 +39,17 @@ export class PhotoViewerComponent {
   readonly status = linkedSignal<Photo | undefined, LoadStatus>({source: this.photo, computation: () => 'loading'});
 
   readonly unavailableImage = UNAVAILABLE_IMAGE;
+
+  readonly infoOpen = signal(this.readInfoOpenPreference());
+
+  /** Asked for only while the panel is open, and again for every photo shown. */
+  readonly exif = httpResource<unknown>(() => {
+    const photo = this.photo();
+
+    return photo && this.infoOpen() ? `${photo.photoUrl}/exif` : undefined;
+  });
+
+  readonly exifSections = computed(() => (this.exif.hasValue() ? exifSections(this.exif.value()) : []));
 
   private readonly dialog = viewChild<ElementRef<HTMLElement>>('dialog');
 
@@ -55,6 +72,8 @@ export class PhotoViewerComponent {
         this.returnFocus = undefined;
       }
     });
+
+    effect(() => this.writeInfoOpenPreference(this.infoOpen()));
   }
 
   close(): void {
@@ -63,6 +82,10 @@ export class PhotoViewerComponent {
 
   move(step: number): void {
     this.viewer.move(step);
+  }
+
+  toggleInfo(): void {
+    this.infoOpen.update((open) => !open);
   }
 
   onLoad(): void {
@@ -95,6 +118,9 @@ export class PhotoViewerComponent {
       case 'ArrowRight':
         this.move(1);
         break;
+      case 'i':
+        this.toggleInfo();
+        break;
       default:
         return;
     }
@@ -103,8 +129,10 @@ export class PhotoViewerComponent {
   }
 
   onTouchStart(event: TouchEvent): void {
-    // Two fingers are a pinch to zoom, not a swipe.
-    this.touchStartX = event.touches.length === 1 ? event.touches[0].clientX : undefined;
+    // Two fingers are a pinch to zoom, not a swipe, and a finger on the panel scrolls it.
+    const onInfo = (event.target as HTMLElement).closest('.info') !== null;
+
+    this.touchStartX = event.touches.length === 1 && !onInfo ? event.touches[0].clientX : undefined;
   }
 
   onTouchEnd(event: TouchEvent): void {
@@ -117,6 +145,23 @@ export class PhotoViewerComponent {
 
     if (Math.abs(distance) >= SWIPE_DISTANCE) {
       this.move(distance < 0 ? 1 : -1);
+    }
+  }
+
+  private readInfoOpenPreference(): boolean {
+    try {
+      return localStorage.getItem(INFO_OPEN_STORAGE_KEY) !== 'false';
+    } catch {
+      // Storage can be unavailable (private mode, blocked cookies); open is fine.
+      return true;
+    }
+  }
+
+  private writeInfoOpenPreference(open: boolean): void {
+    try {
+      localStorage.setItem(INFO_OPEN_STORAGE_KEY, String(open));
+    } catch {
+      // Ignore: the panel just will not stay closed across reloads.
     }
   }
 }
