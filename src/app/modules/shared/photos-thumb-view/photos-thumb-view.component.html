@@ -1,26 +1,41 @@
 <section class="grid">
   @for (photo of photos; track photo.id; let index = $index) {
-    <button class="thumb" type="button" [title]="photo.fileName" (click)="open(index)">
-      <img
-        [src]="photo.thumbnailLargeUrl"
-        [alt]="photo.fileName"
-        width="190"
-        height="190"
-        loading="lazy"
-        (error)="onThumbnailError($event)"
-      />
+    @let deleted = isDeleted(photo);
+    <div class="thumb" [class.thumb--deleted]="deleted">
+      <button class="open" type="button" [title]="photo.fileName" (click)="open(index)">
+        <img
+          [src]="photo.thumbnailLargeUrl"
+          [alt]="photo.fileName"
+          width="190"
+          height="190"
+          loading="lazy"
+          (error)="onThumbnailError($event)"
+        />
 
-      @let gps = hasGps(photo);
-      <span
-        class="gps"
-        [class.gps--off]="!gps"
-        role="img"
-        [attr.aria-label]="gps ? 'Has GPS location' : 'No GPS location'"
-        [title]="gps ? 'Has GPS location' : 'No GPS location'"
+        @let gps = hasGps(photo);
+        <span
+          class="gps"
+          [class.gps--off]="!gps"
+          role="img"
+          [attr.aria-label]="gps ? 'Has GPS location' : 'No GPS location'"
+          [title]="gps ? 'Has GPS location' : 'No GPS location'"
+        >
+          <app-icon [name]="gps ? 'map-pin' : 'map-pin-off'" [size]="14" />
+        </span>
+      </button>
+
+      @let label = (deleted ? 'Restore ' : 'Delete ') + photo.fileName;
+      <button
+        class="action"
+        type="button"
+        [attr.aria-label]="label"
+        [title]="deleted ? 'Restore' : 'Delete'"
+        [disabled]="busy().has(photo.id)"
+        (click)="deleted ? restore.emit(photo) : markAsDeleted.emit(photo)"
       >
-        <app-icon [name]="gps ? 'map-pin' : 'map-pin-off'" [size]="14" />
-      </span>
-    </button>
+        <app-icon [name]="deleted ? 'restore' : 'trash'" [size]="14" />
+      </button>
+    </div>
   }
 </section>
 

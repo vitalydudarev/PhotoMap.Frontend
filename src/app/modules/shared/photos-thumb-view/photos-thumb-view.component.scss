@@ -29,13 +29,9 @@
 
 .thumb {
   position: relative;
-  display: block;
-  padding: 0;
-  border: 0;
   border-radius: var(--app-radius);
   overflow: hidden;
   background: var(--app-surface-sunken);
-  cursor: pointer;
   transition:
     transform var(--app-transition),
     box-shadow var(--app-transition);
@@ -44,6 +40,14 @@
 .thumb:hover {
   transform: translateY(-2px);
   box-shadow: var(--app-shadow);
+}
+
+.open {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
 }
 
 .thumb img {
@@ -73,6 +77,60 @@
 /* No location is the less interesting case, so it steps back a little. */
 .gps--off {
   color: rgb(255 255 255 / 70%);
+}
+
+/* Shows on the thumbnail being pointed at or tabbed to, so that a grid of photos does not turn into a
+   grid of bins. Same dark backing as the GPS badge, for the same reason. */
+.action {
+  position: absolute;
+  top: var(--app-space-2);
+  left: var(--app-space-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 55%);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity var(--app-transition),
+    background var(--app-transition);
+}
+
+.thumb:hover .action,
+.thumb:focus-within .action {
+  opacity: 1;
+}
+
+.action:hover {
+  background: rgb(0 0 0 / 80%);
+}
+
+/* Nothing to point at on a touch screen, so the button stays in view there. */
+@media (hover: none) {
+  .action {
+    opacity: 1;
+  }
+}
+
+/* Among other photos, a deleted one is told apart by being faded; its restore button stays in view. */
+.thumb--deleted img {
+  opacity: 0.45;
+}
+
+.thumb--deleted .action {
+  opacity: 1;
+}
+
+/* Last, so that it wins over the rules that bring the button into view. */
+.thumb .action:disabled {
+  cursor: progress;
+  opacity: 0.6;
 }
 
 @media (width <= 720px) {

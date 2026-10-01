@@ -105,6 +105,10 @@
     <div class="state">
       <p>Neither photos with GPS nor without are selected. Pick one to see its photos.</p>
     </div>
+  } @else if (photos().length === 0 && onlyDeletedShown()) {
+    <div class="state">
+      <p>No deleted photos.</p>
+    </div>
   } @else if (photos().length === 0 && isFiltered()) {
     <div class="state">
       <p>No photos match the selected filters.</p>
@@ -114,7 +118,13 @@
       <p>No photos yet. Connect a photo source and start processing to see them here.</p>
     </div>
   } @else if (selectedViewMode() === 'thumb') {
-    <app-photos-thumb-view [photos]="photos()" [fullWidth]="isFullWidth()" />
+    <app-photos-thumb-view
+      [photos]="photos()"
+      [fullWidth]="isFullWidth()"
+      [busy]="busyPhotoIds()"
+      (markAsDeleted)="markPhotoAsDeleted($event)"
+      (restore)="restorePhoto($event)"
+    />
   } @else {
     <app-photos-map-view class="map" [photos]="photos()" />
   }

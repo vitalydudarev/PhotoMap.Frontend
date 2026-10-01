@@ -1,4 +1,4 @@
-import {Component, Input, booleanAttribute, inject, input} from '@angular/core';
+import {Component, Input, booleanAttribute, inject, input, output} from '@angular/core';
 import {Photo} from 'src/app/core/models/photo.model';
 import {PhotoViewerService, UNAVAILABLE_IMAGE} from 'src/app/core/services/photo-viewer.service';
 
@@ -21,6 +21,15 @@ export class PhotosThumbViewComponent {
   /** Lets the grid span the whole viewport instead of the page's reading measure. */
   readonly fullWidth = input(false, {transform: booleanAttribute});
 
+  /** The photos being deleted or restored, whose button waits for that to finish. */
+  readonly busy = input<ReadonlySet<string>>(new Set());
+
+  /** The user asked for the photo to be moved to the deleted photos. */
+  readonly markAsDeleted = output<Photo>();
+
+  /** The user asked for the photo to be taken back from the deleted photos. */
+  readonly restore = output<Photo>();
+
   private readonly photoViewerService = inject(PhotoViewerService);
 
   open(index: number): void {
@@ -30,6 +39,10 @@ export class PhotosThumbViewComponent {
   /** The same test the backend marks a photo as having GPS by: both coordinates were read from its EXIF. */
   hasGps(photo: Photo): boolean {
     return photo.latitude != null && photo.longitude != null;
+  }
+
+  isDeleted(photo: Photo): boolean {
+    return photo.deletedOn != null;
   }
 
   onThumbnailError(event: Event): void {

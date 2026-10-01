@@ -23,6 +23,7 @@ export type IconName =
   | 'monitor'
   | 'moon'
   | 'pause'
+  | 'restore'
   | 'play'
   | 'share'
   | 'shield-check'

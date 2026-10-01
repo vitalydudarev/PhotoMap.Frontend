@@ -60,4 +60,49 @@ describe('GalleryFilter', () => {
     expect(filter.selected()).toEqual([2016, 2019]);
     expect(filter.values()).toEqual([]);
   });
+
+  describe('with an opt-in option', () => {
+    const DELETED = 3;
+    const categories = [
+      {value: 1, label: 'Screenshots'},
+      {value: 0, label: 'Other photos'},
+      {value: DELETED, label: 'Deleted'},
+    ];
+
+    it('should pick every option but the opt-in one, and not narrow the photos down', () => {
+      const filter = new GalleryFilter([DELETED]);
+
+      filter.setOptions(categories);
+
+      expect(filter.selected()).toEqual([1, 0]);
+      expect(filter.values()).toEqual([]);
+      expect(filter.noneSelected()).toBe(false);
+    });
+
+    it('should ask for every picked option once the opt-in one is picked too', () => {
+      const filter = new GalleryFilter([DELETED]);
+      filter.setOptions(categories);
+
+      filter.selected.set([1, 0, DELETED]);
+
+      expect(filter.values()).toEqual([1, 0, DELETED]);
+    });
+
+    it('should ask for the opt-in option alone', () => {
+      const filter = new GalleryFilter([DELETED]);
+      filter.setOptions(categories);
+
+      filter.selected.set([DELETED]);
+
+      expect(filter.values()).toEqual([DELETED]);
+    });
+
+    it('should pick the opt-in option the address asked for', () => {
+      const filter = new GalleryFilter([DELETED]);
+      filter.request('3');
+
+      expect(filter.setOptions(categories)).toBe(false);
+      expect(filter.selected()).toEqual([DELETED]);
+    });
+  });
 });

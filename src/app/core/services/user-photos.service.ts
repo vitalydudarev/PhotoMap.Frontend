@@ -42,6 +42,16 @@ export class UserPhotosService {
     return this._httpClient.get<PagedResponse<Photo>>(`${this.url}/${userId}/photos`, {params});
   }
 
+  /** Marks the photo as deleted: it is kept, but only shows among the photos of the Deleted category. */
+  public markPhotoAsDeleted(userId: number, photoId: string): Observable<void> {
+    return this._httpClient.post<void>(`${this.url}/${userId}/photos/${photoId}/delete`, null);
+  }
+
+  /** Takes the photo back from the deleted photos. */
+  public restorePhoto(userId: number, photoId: string): Observable<void> {
+    return this._httpClient.post<void>(`${this.url}/${userId}/photos/${photoId}/restore`, null);
+  }
+
   /** The years, in UTC, the photos of the user were taken in, oldest first. */
   public getUserPhotoYears(userId: number): Observable<number[]> {
     return this._httpClient.get<number[]>(`${this.url}/${userId}/photos/years`);

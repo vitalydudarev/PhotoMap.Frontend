@@ -213,6 +213,7 @@ describe('GalleryComponent', () => {
 
       expect(component.sourceFilter.selected()).toEqual([1, 2]);
       expect(component.yearFilter.selected()).toEqual([2016, 2019]);
+      // the deleted photos are left out until they are picked
       expect(component.categoryFilter.selected()).toEqual([1, 2, 0]);
       expect(component.gpsFilter.selected()).toEqual([1, 0]);
       expect(request.request.params.getAll('source')).toBeNull();
@@ -222,16 +223,44 @@ describe('GalleryComponent', () => {
       expect(multiselects().map((multiselect) => multiselect.textContent)).toEqual([
         expect.stringContaining('All'),
         expect.stringContaining('All'),
-        expect.stringContaining('All'),
+        expect.stringContaining('3 of 4'),
         expect.stringContaining('All'),
       ]);
     });
 
-    it('should offer the screenshots, the drone footage and the other photos as categories', () => {
+    it('should offer the screenshots, the drone footage, the other photos and the deleted ones as categories', () => {
       photosRequests();
       flushYears();
 
-      expect(component.categoryFilter.options().map((option) => option.label)).toEqual(['Screenshots', 'Drone footage', 'Other photos']);
+      expect(component.categoryFilter.options().map((option) => option.label)).toEqual([
+        'Screenshots',
+        'Drone footage',
+        'Other photos',
+        'Deleted',
+      ]);
+    });
+
+    it('should ask for the deleted photos alone, and say when there are none', () => {
+      photosRequests();
+      flushYears();
+
+      component.filterUpdated(component.categoryFilter, [3]);
+      const [request] = photosRequests();
+      request.flush({total: 0, values: []});
+      fixture.detectChanges();
+
+      expect(request.request.params.getAll('category')).toEqual(['3']);
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('No deleted photos.');
+    });
+
+    it('should ask for every category by name once the deleted photos are picked too', () => {
+      photosRequests();
+      flushYears();
+
+      component.filterUpdated(component.categoryFilter, [1, 2, 0, 3]);
+
+      const [request] = photosRequests();
+      expect(request.request.params.getAll('category')).toEqual(['1', '2', '0', '3']);
     });
 
     it('should ask for the photos of the selected categories from the first page', () => {
@@ -330,6 +359,87 @@ describe('GalleryComponent', () => {
         expect.stringContaining('Category'),
         expect.stringContaining('GPS'),
       ]);
+    });
+  });
+
+  describe('deleting', () => {
+    const http = () => TestBed.inject(HttpTestingController);
+    const thumbs = () => [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('.thumb')];
+    const actionButton = (index: number) => thumbs()[index].querySelector<HTMLButtonElement>('.action')!;
+
+    it('should mark the photo as deleted and take it out of the photos shown', () => {
+      flushPhotos(3);
+
+      actionButton(1).click();
+      fixture.detectChanges();
+
+      const request = http().expectOne((request) => request.url.endsWith('/users/1/photos/1/delete'));
+      expect(request.request.method).toBe('POST');
+      expect(actionButton(1).disabled).toBe(true);
+
+      request.flush(null);
+      fixture.detectChanges();
+
+      expect(component.photos().map((photo) => photo.id)).toEqual(['0', '2']);
+      expect(component.totalCount()).toBe(2);
+    });
+
+    it('should keep the photo, and say so, when it could not be deleted', () => {
+      flushPhotos(3);
+
+      actionButton(1).click();
+      http()
+        .expectOne((request) => request.url.endsWith('/photos/1/delete'))
+        .flush('down', {status: 500, statusText: 'Server Error'});
+      fixture.detectChanges();
+
+      expect(component.photos()).toHaveLength(3);
+      expect(actionButton(1).disabled).toBe(false);
+    });
+
+    it('should keep a deleted photo in place, marked, while the deleted photos are shown too', () => {
+      flushPhotos(3);
+      component.filterUpdated(component.categoryFilter, [1, 2, 0, 3]);
+      flushPhotos(3);
+
+      actionButton(1).click();
+      http()
+        .expectOne((request) => request.url.endsWith('/photos/1/delete'))
+        .flush(null);
+      fixture.detectChanges();
+
+      expect(component.photos()).toHaveLength(3);
+      expect(thumbs()[1].classList).toContain('thumb--deleted');
+      expect(actionButton(1).getAttribute('aria-label')).toBe('Restore IMG_1.jpg');
+    });
+
+    it('should take a restored photo out of the deleted photos', () => {
+      flushPhotos();
+      component.filterUpdated(component.categoryFilter, [3]);
+      http()
+        .expectOne((request) => request.url.endsWith('/photos'))
+        .flush({
+          total: 2,
+          values: [0, 1].map((index) => ({
+            id: String(index),
+            photoUrl: `/photo-${index}.jpg`,
+            thumbnailSmallUrl: `/thumb-${index}.jpg`,
+            thumbnailLargeUrl: `/thumb-${index}.jpg`,
+            dateTimeTaken: new Date(),
+            fileName: `IMG_${index}.jpg`,
+            deletedOn: new Date(),
+          })),
+        });
+      fixture.detectChanges();
+
+      actionButton(0).click();
+      http()
+        .expectOne((request) => request.url.endsWith('/photos/0/restore'))
+        .flush(null);
+      fixture.detectChanges();
+
+      expect(component.photos().map((photo) => photo.id)).toEqual(['1']);
+      expect(component.totalCount()).toBe(1);
     });
   });
 

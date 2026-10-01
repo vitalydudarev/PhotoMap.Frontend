@@ -39,4 +39,23 @@ describe('PhotosThumbViewComponent', () => {
     ]);
     expect(badges().map((badge) => badge.classList.contains('gps--off'))).toEqual([false, true, false, true]);
   });
+
+  it('should offer to delete a photo, and to restore a deleted one', () => {
+    const deleted = {...photo('2'), deletedOn: new Date()};
+    fixture.componentInstance.photos = [photo('1'), deleted];
+    fixture.detectChanges();
+    const marked: Photo[] = [];
+    const restored: Photo[] = [];
+    fixture.componentInstance.markAsDeleted.subscribe((photo) => marked.push(photo));
+    fixture.componentInstance.restore.subscribe((photo) => restored.push(photo));
+
+    const buttons = [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('.thumb .action')];
+    expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual(['Delete IMG_1.jpg', 'Restore IMG_2.jpg']);
+
+    buttons[0].click();
+    buttons[1].click();
+
+    expect(marked.map((photo) => photo.id)).toEqual(['1']);
+    expect(restored).toEqual([deleted]);
+  });
 });

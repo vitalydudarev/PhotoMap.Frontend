@@ -2,7 +2,7 @@ import {PhotoCategory} from './photo-category.model';
 
 /**
  * Which photos to take. An empty list does not narrow the photos down: they come from every source, or every year, or
- * are of every category.
+ * are of every category but the deleted photos.
  */
 export interface PhotoFilter {
   sourceIds: readonly number[];

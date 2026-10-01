@@ -7,4 +7,6 @@ export interface Photo {
   latitude?: number;
   longitude?: number;
   fileName: string;
+  /** When the user marked the photo as deleted, none while it is not. */
+  deletedOn?: Date | null;
 }

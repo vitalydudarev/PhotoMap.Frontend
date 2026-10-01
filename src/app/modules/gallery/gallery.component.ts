@@ -3,7 +3,7 @@ import {HttpParams} from '@angular/common/http';
 import {Component, DestroyRef, OnInit, computed, effect, inject, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {ActivatedRoute, Router} from '@angular/router';
-import {Subscription} from 'rxjs';
+import {Observable, Subscription} from 'rxjs';
 import {PhotoCategory} from 'src/app/core/models/photo-category.model';
 import {PhotoSortOrder} from 'src/app/core/models/photo-sort-order.model';
 import {Photo} from 'src/app/core/models/photo.model';
@@ -26,11 +26,15 @@ type GalleryWidth = 'contained' | 'full';
 const WIDTH_STORAGE_KEY = 'gallery-width';
 const FILTERS_OPEN_STORAGE_KEY = 'gallery-filters-open';
 
-/** Other photos are an option too, so that picking every category still leaves no photo out. */
+/**
+ * Other photos are an option too, so that picking every category still leaves no photo out. The deleted photos are
+ * left out of every other category, and are not picked until the user picks them.
+ */
 const CATEGORY_OPTIONS: readonly MultiselectOption<number>[] = [
   {value: PhotoCategory.Screenshot, label: 'Screenshots'},
   {value: PhotoCategory.DroneFootage, label: 'Drone footage'},
   {value: PhotoCategory.Other, label: 'Other photos'},
+  {value: PhotoCategory.Deleted, label: 'Deleted'},
 ];
 
 const WITH_GPS = 1;
@@ -89,7 +93,7 @@ export class GalleryComponent implements OnInit {
    */
   readonly sourceFilter = new GalleryFilter();
   readonly yearFilter = new GalleryFilter();
-  readonly categoryFilter = new GalleryFilter();
+  readonly categoryFilter = new GalleryFilter([PhotoCategory.Deleted]);
   readonly gpsFilter = new GalleryFilter();
   readonly nothingSelected = computed(
     () =>
@@ -109,6 +113,16 @@ export class GalleryComponent implements OnInit {
         (filter) => filter.values().length > 0 || filter.noneSelected(),
       ).length,
   );
+
+  /** Whether the photos shown are the deleted ones only. */
+  readonly onlyDeletedShown = computed(() => {
+    const categories = this.categoryFilter.values();
+
+    return categories.length > 0 && categories.every((category) => category === PhotoCategory.Deleted);
+  });
+
+  /** The photos being deleted or restored. */
+  readonly busyPhotoIds = signal<ReadonlySet<string>>(new Set());
 
   pageIndex = 0;
   pageSize = 100;
@@ -206,6 +220,14 @@ export class GalleryComponent implements OnInit {
 
     this.addQueryString();
     this.setImages();
+  }
+
+  markPhotoAsDeleted(photo: Photo): void {
+    this.changeDeleted(photo, this.userPhotosService.markPhotoAsDeleted(this.userId, photo.id), new Date(), 'Could not delete the photo.');
+  }
+
+  restorePhoto(photo: Photo): void {
+    this.changeDeleted(photo, this.userPhotosService.restorePhoto(this.userId, photo.id), null, 'Could not restore the photo.');
   }
 
   /** Whether the photos are narrowed down by any of the filters. */
@@ -318,6 +340,70 @@ export class GalleryComponent implements OnInit {
           this.toastService.error('Could not load the photos.', error);
         },
       });
+  }
+
+  /**
+   * Marks the photo as deleted, or not, once the server has. It stays in place when the photos shown take it either
+   * way, and leaves otherwise, without loading the page again, so that the grid does not jump back to the top.
+   */
+  private changeDeleted(photo: Photo, request: Observable<void>, deletedOn: Date | null, failure: string): void {
+    this.setBusy(photo.id, true);
+
+    request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: () => {
+        this.setBusy(photo.id, false);
+
+        // the photos were loaded again meanwhile, and the server already left it out of them, or not
+        if (!this.photos().some((shown) => shown.id === photo.id)) {
+          return;
+        }
+
+        if (this.shows(deletedOn !== null)) {
+          this.photos.update((photos) => photos.map((shown) => (shown.id === photo.id ? {...shown, deletedOn} : shown)));
+
+          return;
+        }
+
+        this.photos.update((photos) => photos.filter((shown) => shown.id !== photo.id));
+        this.totalCount.update((count) => count - 1);
+
+        // the page was emptied, but the photos after it would move up into it
+        if (this.photos().length === 0 && this.totalCount() > 0) {
+          this.pageIndex = Math.min(this.pageIndex, Math.ceil(this.totalCount() / this.pageSize) - 1);
+          this.addQueryString();
+          this.setImages();
+        }
+      },
+      error: (error) => {
+        this.setBusy(photo.id, false);
+        this.toastService.error(failure, error);
+      },
+    });
+  }
+
+  /** Whether the photos shown take the deleted photos, or the ones that are not. */
+  private shows(deleted: boolean): boolean {
+    const categories = this.categoryFilter.values();
+
+    if (categories.length === 0) {
+      return !deleted;
+    }
+
+    return deleted ? categories.includes(PhotoCategory.Deleted) : categories.some((category) => category !== PhotoCategory.Deleted);
+  }
+
+  private setBusy(photoId: string, busy: boolean): void {
+    this.busyPhotoIds.update((ids) => {
+      const updated = new Set(ids);
+
+      if (busy) {
+        updated.add(photoId);
+      } else {
+        updated.delete(photoId);
+      }
+
+      return updated;
+    });
   }
 
   /** Whether the photos to take have a GPS location, undefined when both kinds are picked and nothing is narrowed. */
