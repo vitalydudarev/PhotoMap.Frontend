@@ -9,18 +9,24 @@ import {MultiselectOption} from 'src/app/shared/ui/multiselect/multiselect.compo
  * Some options take photos that are left out unless asked for, such as the deleted ones. Those are not picked until
  * the user picks them, and picking them narrows the photos down to the ones picked, so they are asked for.
  */
-export class GalleryFilter {
-  readonly options = signal<readonly MultiselectOption<number>[]>([]);
-  readonly selected = signal<readonly number[]>([]);
+export class GalleryFilter<T extends number | string = number> {
+  readonly options = signal<readonly MultiselectOption<T>[]>([]);
+  readonly selected = signal<readonly T[]>([]);
   readonly noneSelected = computed(() => this.options().length > 0 && this.selected().length === 0);
 
-  private requested: readonly number[] = [];
+  private requested: readonly T[] = [];
 
-  /** @param optIn The options that take photos left out unless asked for. */
-  constructor(private readonly optIn: readonly number[] = []) {}
+  /**
+   * @param optIn The options that take photos left out unless asked for.
+   * @param parse Reads a value the address asks for, undefined for one that is not a value; numbers by default.
+   */
+  constructor(
+    private readonly optIn: readonly T[] = [],
+    private readonly parse: (value: string) => T | undefined = (value) => parseNumber(value) as T | undefined,
+  ) {}
 
   /** The values to narrow the photos down to, none when every option but the opt-in ones is picked. */
-  values(): readonly number[] {
+  values(): readonly T[] {
     const options = this.options();
     const selected = this.selected();
 
@@ -38,8 +44,8 @@ export class GalleryFilter {
   request(param: string | string[] | undefined): void {
     this.requested = ([] as string[])
       .concat(param ?? [])
-      .map((value) => parseInt(value))
-      .filter((value) => !isNaN(value));
+      .map((value) => this.parse(value))
+      .filter((value): value is T => value !== undefined);
   }
 
   /**
@@ -47,7 +53,7 @@ export class GalleryFilter {
    * @returns Whether the address asked for a value that is not among the options, so the photos shown so far were
    * not narrowed down to the ones now picked.
    */
-  setOptions(options: readonly MultiselectOption<number>[]): boolean {
+  setOptions(options: readonly MultiselectOption<T>[]): boolean {
     const available = options.map((option) => option.value);
     const requested = this.requested.filter((value) => available.includes(value));
     const changed = requested.length !== this.requested.length;
@@ -60,7 +66,13 @@ export class GalleryFilter {
   }
 
   /** The options picked until the user says otherwise. */
-  private defaults(options: readonly MultiselectOption<number>[]): number[] {
+  private defaults(options: readonly MultiselectOption<T>[]): T[] {
     return options.map((option) => option.value).filter((value) => !this.optIn.includes(value));
   }
+}
+
+function parseNumber(value: string): number | undefined {
+  const number = parseInt(value);
+
+  return isNaN(number) ? undefined : number;
 }

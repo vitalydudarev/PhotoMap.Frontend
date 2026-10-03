@@ -93,7 +93,7 @@ export class GalleryComponent implements OnInit {
    */
   readonly sourceFilter = new GalleryFilter();
   readonly yearFilter = new GalleryFilter();
-  readonly categoryFilter = new GalleryFilter([PhotoCategory.Deleted]);
+  readonly categoryFilter = new GalleryFilter<number>([PhotoCategory.Deleted]);
   readonly gpsFilter = new GalleryFilter();
   readonly nothingSelected = computed(
     () =>

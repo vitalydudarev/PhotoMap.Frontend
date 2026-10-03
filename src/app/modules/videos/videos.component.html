@@ -1,13 +1,24 @@
 <div class="videos">
   <div class="toolbar">
     <div class="toolbar-inner">
-      <app-segmented
-        aria-label="Sort order"
-        [options]="sortOrders"
-        [value]="selectedSortOrder()"
-        (valueChange)="sortOrderUpdated($event)"
-        [iconsOnly]="true"
-      />
+      <div class="view-controls">
+        <app-segmented
+          aria-label="Sort order"
+          [options]="sortOrders"
+          [value]="selectedSortOrder()"
+          (valueChange)="sortOrderUpdated($event)"
+          [iconsOnly]="true"
+        />
+
+        @if (folderFilter.options().length > 0) {
+          <app-multiselect
+            label="Folders"
+            [options]="folderFilter.options()"
+            [value]="folderFilter.selected()"
+            (valueChange)="folderFilterUpdated($event)"
+          />
+        }
+      </div>
 
       <app-paginator
         [length]="totalCount()"
@@ -27,6 +38,14 @@
   } @else if (failed()) {
     <div class="state">
       <p>The videos could not be loaded.</p>
+    </div>
+  } @else if (folderFilter.noneSelected()) {
+    <div class="state">
+      <p>No folders are selected. Pick one to see its videos.</p>
+    </div>
+  } @else if (videos().length === 0 && folderFilter.values().length > 0) {
+    <div class="state">
+      <p>No videos in the selected folders.</p>
     </div>
   } @else if (videos().length === 0) {
     <div class="state">

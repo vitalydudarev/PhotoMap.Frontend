@@ -24,10 +24,26 @@ export class VideosService {
 
   private readonly url = `${environment.photoMapApiUrl}/users`;
 
-  getUserVideos(userId: number, top: number, skip: number, sort: PhotoSortOrder): Observable<PagedResponse<Video>> {
-    const params = new HttpParams().set('top', top).set('skip', skip).set('sort', sort);
+  /** @param folderPaths The folders to take the videos from, all of them when empty. */
+  getUserVideos(
+    userId: number,
+    top: number,
+    skip: number,
+    sort: PhotoSortOrder,
+    folderPaths: readonly string[] = [],
+  ): Observable<PagedResponse<Video>> {
+    let params = new HttpParams().set('top', top).set('skip', skip).set('sort', sort);
+
+    for (const folderPath of folderPaths) {
+      params = params.append('folder', folderPath);
+    }
 
     return this.httpClient.get<PagedResponse<Video>>(`${this.url}/${userId}/videos`, {params});
+  }
+
+  /** The folders the videos of the user are in, without the file names, by name. */
+  getUserVideoFolders(userId: number): Observable<string[]> {
+    return this.httpClient.get<string[]>(`${this.url}/${userId}/videos/folders`);
   }
 
   runCommand(userId: number, sourceId: number, command: VideoProcessingCommand): Observable<void> {

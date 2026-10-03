@@ -70,7 +70,7 @@ describe('GalleryFilter', () => {
     ];
 
     it('should pick every option but the opt-in one, and not narrow the photos down', () => {
-      const filter = new GalleryFilter([DELETED]);
+      const filter = new GalleryFilter<number>([DELETED]);
 
       filter.setOptions(categories);
 
@@ -80,7 +80,7 @@ describe('GalleryFilter', () => {
     });
 
     it('should ask for every picked option once the opt-in one is picked too', () => {
-      const filter = new GalleryFilter([DELETED]);
+      const filter = new GalleryFilter<number>([DELETED]);
       filter.setOptions(categories);
 
       filter.selected.set([1, 0, DELETED]);
@@ -89,7 +89,7 @@ describe('GalleryFilter', () => {
     });
 
     it('should ask for the opt-in option alone', () => {
-      const filter = new GalleryFilter([DELETED]);
+      const filter = new GalleryFilter<number>([DELETED]);
       filter.setOptions(categories);
 
       filter.selected.set([DELETED]);
@@ -98,11 +98,24 @@ describe('GalleryFilter', () => {
     });
 
     it('should pick the opt-in option the address asked for', () => {
-      const filter = new GalleryFilter([DELETED]);
+      const filter = new GalleryFilter<number>([DELETED]);
       filter.request('3');
 
       expect(filter.setOptions(categories)).toBe(false);
       expect(filter.selected()).toEqual([DELETED]);
     });
+  });
+
+  it('should take values of its own kind from the address, such as folders', () => {
+    const filter = new GalleryFilter<string>([], (value) => value || undefined);
+
+    filter.request(['disk:/Videos', '']);
+    filter.setOptions([
+      {value: 'disk:/Camera Uploads', label: '/Camera Uploads'},
+      {value: 'disk:/Videos', label: '/Videos'},
+    ]);
+
+    expect(filter.selected()).toEqual(['disk:/Videos']);
+    expect(filter.values()).toEqual(['disk:/Videos']);
   });
 });

@@ -7,6 +7,7 @@ import {Subscription} from 'rxjs';
 import {PhotoSortOrder} from 'src/app/core/models/photo-sort-order.model';
 import {Video} from 'src/app/core/models/video.model';
 import {UNAVAILABLE_IMAGE} from 'src/app/core/services/photo-viewer.service';
+import {MultiselectComponent} from 'src/app/shared/ui/multiselect/multiselect.component';
 import {PageEvent, PaginatorComponent} from 'src/app/shared/ui/paginator/paginator.component';
 import {SegmentedComponent, SegmentedOption} from 'src/app/shared/ui/segmented/segmented.component';
 import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
@@ -14,11 +15,13 @@ import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
 import {ToastService} from '../../core/services/toast.service';
 import {VideosService} from '../../core/services/videos.service';
 import {IconComponent} from '../../shared/ui/icon/icon.component';
+import {GalleryFilter} from '../gallery/gallery-filter';
 import {ScrollControlComponent} from '../shared/scroll-control/scroll-control.component';
 
 const PAGE_PARAM = 'page';
 const PAGE_SIZE_PARAM = 'pageSize';
 const SORT_PARAM = 'sort';
+const FOLDER_PARAM = 'folder';
 
 // TODO: take the user ID from cookies
 const USER_ID = 1;
@@ -28,7 +31,15 @@ const USER_ID = 1;
   selector: 'app-videos-page',
   templateUrl: './videos.component.html',
   styleUrls: ['./videos.component.scss'],
-  imports: [DatePipe, IconComponent, PaginatorComponent, ScrollControlComponent, SegmentedComponent, SpinnerComponent],
+  imports: [
+    DatePipe,
+    IconComponent,
+    MultiselectComponent,
+    PaginatorComponent,
+    ScrollControlComponent,
+    SegmentedComponent,
+    SpinnerComponent,
+  ],
 })
 export class VideosComponent implements OnInit {
   readonly videos = signal<Video[]>([]);
@@ -42,6 +53,9 @@ export class VideosComponent implements OnInit {
   ];
 
   readonly selectedSortOrder = signal<PhotoSortOrder>('asc');
+
+  /** The folders of the videos, without the file names, to narrow the videos down to. */
+  readonly folderFilter = new GalleryFilter<string>([], (value) => value || undefined);
 
   pageIndex = 0;
   pageSize = 100;
@@ -75,8 +89,11 @@ export class VideosComponent implements OnInit {
       this.selectedSortOrder.set(sort);
     }
 
+    this.folderFilter.request(params.getAll(FOLDER_PARAM));
+
     this.addQueryString();
     this.loadVideos();
+    this.loadFolders();
   }
 
   pageUpdated(event: PageEvent): void {
@@ -100,6 +117,16 @@ export class VideosComponent implements OnInit {
     this.loadVideos();
   }
 
+  folderFilterUpdated(folderPaths: readonly string[]): void {
+    this.folderFilter.selected.set(folderPaths);
+
+    // the other videos fill the pages differently, so the first page is the only one worth keeping
+    this.pageIndex = 0;
+
+    this.addQueryString();
+    this.loadVideos();
+  }
+
   onPreviewError(event: Event): void {
     const image = event.target as HTMLImageElement;
 
@@ -109,11 +136,35 @@ export class VideosComponent implements OnInit {
     }
   }
 
+  private loadFolders(): void {
+    this.videosService
+      .getUserVideoFolders(USER_ID)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (folderPaths) => {
+          // the address asked for a folder there is no video in, so the videos shown are not the ones now selected
+          if (this.folderFilter.setOptions(folderPaths.map((folderPath) => ({value: folderPath, label: folderLabel(folderPath)})))) {
+            this.pageIndex = 0;
+            this.addQueryString();
+            this.loadVideos();
+          }
+        },
+        error: (error) => {
+          this.folderFilter.setOptions([]);
+          this.toastService.error('Could not load the folders to filter the videos by.', error);
+        },
+      });
+  }
+
   private addQueryString(): void {
-    const params = new HttpParams()
+    let params = new HttpParams()
       .append(PAGE_PARAM, (this.pageIndex + 1).toString())
       .append(PAGE_SIZE_PARAM, this.pageSize.toString())
       .append(SORT_PARAM, this.selectedSortOrder());
+
+    for (const folderPath of this.folderFilter.values()) {
+      params = params.append(FOLDER_PARAM, folderPath);
+    }
 
     this.location.go(this.router.url.split('?')[0], params.toString());
   }
@@ -121,12 +172,21 @@ export class VideosComponent implements OnInit {
   private loadVideos(): void {
     this.videosRequest?.unsubscribe();
 
+    if (this.folderFilter.noneSelected()) {
+      this.videos.set([]);
+      this.totalCount.set(0);
+      this.failed.set(false);
+      this.showSpinner.set(false);
+
+      return;
+    }
+
     this.showSpinner.set(true);
     this.failed.set(false);
 
     // a request still on its way is dropped, so an answer for the previous page cannot land after this one
     this.videosRequest = this.videosService
-      .getUserVideos(USER_ID, this.pageSize, this.pageSize * this.pageIndex, this.selectedSortOrder())
+      .getUserVideos(USER_ID, this.pageSize, this.pageSize * this.pageIndex, this.selectedSortOrder(), this.folderFilter.values())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (pagedResponse) => {
@@ -142,4 +202,9 @@ export class VideosComponent implements OnInit {
         },
       });
   }
+}
+
+/** A folder without the name of the disk it is on, `disk:/Camera Uploads` as `/Camera Uploads`. */
+function folderLabel(folderPath: string): string {
+  return folderPath.replace(/^[^/]*:(?=\/)/, '');
 }
