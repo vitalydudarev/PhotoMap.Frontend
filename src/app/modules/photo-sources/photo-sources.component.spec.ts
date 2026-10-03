@@ -8,6 +8,7 @@ import {PhotoSourceProgress} from '../../core/models/photo-source-progress.model
 import {DataService} from '../../core/services/data.service';
 import {NotificationHubService} from '../../core/services/notification-hub.service';
 import {PhotoSourceAuthService} from '../../core/services/photo-source-auth.service';
+import {VideoProcessingCommand, VideosService} from '../../core/services/videos.service';
 import {UserPhotoSourceDto, UserPhotoSourceStatusDto, UsersPhotoSourcesClient} from '../../shared/models/photomap-backend.swagger';
 import {PhotoSourceRedirectConfig, PhotoSourcesComponent, SourceView} from './photo-sources.component';
 
@@ -27,6 +28,12 @@ describe('PhotoSourcesComponent', () => {
   let completeAuthorization: ReturnType<typeof vi.fn>;
   let redirect: PhotoSourceRedirectConfig | undefined;
   let queryParams: Record<string, string>;
+  let videoProgress: Subject<HubProgress>;
+  let videoHubErrors: Subject<HubError>;
+  let runVideoCommand: ReturnType<typeof vi.fn>;
+  let deleteVideoData: ReturnType<typeof vi.fn>;
+  let getVideoStatus: ReturnType<typeof vi.fn>;
+  let videoSourceProgress: Record<number, PhotoSourceProgress>;
 
   const text = () => (fixture.nativeElement as HTMLElement).textContent ?? '';
   const view = (id: number): SourceView => component.sources().find((source) => source.id === id)!;
@@ -61,6 +68,14 @@ describe('PhotoSourcesComponent', () => {
     completeAuthorization = vi.fn(() => of(true));
     redirect = undefined;
     queryParams = {};
+    videoProgress = new Subject<HubProgress>();
+    videoHubErrors = new Subject<HubError>();
+    runVideoCommand = vi.fn(() => of(undefined));
+    deleteVideoData = vi.fn(() => of(undefined));
+    videoSourceProgress = {};
+    getVideoStatus = vi.fn((_userId: number, sourceId: number) =>
+      of(videoSourceProgress[sourceId] ?? {status: 1, totalCount: 0, processedCount: 0, failedCount: 0}),
+    );
 
     TestBed.configureTestingModule({
       imports: [PhotoSourcesComponent],
@@ -89,8 +104,11 @@ describe('PhotoSourcesComponent', () => {
             connect: () => Promise.resolve(),
             progressFor: (sourceId: number) => progress.pipe(filter((value) => value.sourceId === sourceId)),
             errorFor: (sourceId: number) => hubErrors.pipe(filter((value) => value.sourceId === sourceId)),
+            videoProgressFor: (sourceId: number) => videoProgress.pipe(filter((value) => value.sourceId === sourceId)),
+            videoErrorFor: (sourceId: number) => videoHubErrors.pipe(filter((value) => value.sourceId === sourceId)),
           },
         },
+        {provide: VideosService, useValue: {runCommand: runVideoCommand, deleteData: deleteVideoData, getStatus: getVideoStatus}},
       ],
     });
   });
@@ -239,5 +257,85 @@ describe('PhotoSourcesComponent', () => {
 
     expect(completeAuthorization).toHaveBeenCalledWith(1, 2, 'abc', null);
     expect(navigate).toHaveBeenCalledWith('/photo-sources', {replaceUrl: true});
+  });
+  describe('videos', () => {
+    const videosSection = (card: HTMLElement) => card.querySelector<HTMLElement>('section.videos');
+
+    it('should only offer videos on Yandex.Disk', () => {
+      build();
+
+      expect(view(1).videos).toBeUndefined();
+      expect(videosSection(cards()[0])).toBeNull();
+      expect(view(2).videos).toBeDefined();
+      expect(videosSection(cards()[1])).toBeTruthy();
+      expect(getVideoStatus).toHaveBeenCalledWith(1, 2);
+      expect(getVideoStatus).not.toHaveBeenCalledWith(1, 1);
+    });
+
+    it('should only offer processing videos once Yandex.Disk is connected', () => {
+      build();
+
+      expect(button(videosSection(cards()[1])!, 'Start processing videos')).toBeUndefined();
+
+      sources[1].isUserAuthorized = true;
+      build();
+
+      expect(button(videosSection(cards()[1])!, 'Start processing videos')).toBeTruthy();
+    });
+
+    it('should show the counters of the last run of the videos', () => {
+      videoSourceProgress[2] = {status: 4, totalCount: 40, processedCount: 30, failedCount: 2};
+      build();
+
+      expect(view(2).videos!.statusLabel).toBe('Stopped');
+      expect(view(2).videos!.progressLabel).toBe('30 of 40 · 2 failed');
+      expect(view(2).videos!.action).toBe('Continue processing videos');
+      // the photos of the source are not affected
+      expect(view(2).statusLabel).toBe('Not started');
+    });
+
+    it('should start and pause processing the videos', () => {
+      sources[1].isUserAuthorized = true;
+      build();
+
+      component.startStopVideoProcessing(view(2));
+
+      expect(runVideoCommand).toHaveBeenCalledWith(1, 2, VideoProcessingCommand.Start);
+      expect(view(2).videos!.isRunning).toBe(true);
+      expect(component.isAnyRunning()).toBe(true);
+
+      component.startStopVideoProcessing(view(2));
+
+      expect(runVideoCommand).toHaveBeenCalledWith(1, 2, VideoProcessingCommand.Stop);
+      expect(view(2).videos!.statusLabel).toBe('Stopped');
+    });
+
+    it('should follow the progress of the videos live, apart from the photos', () => {
+      build();
+
+      videoProgress.next({sourceId: 2, status: 'InProgress', processed: 5, failed: 0, total: 10});
+      fixture.detectChanges();
+
+      expect(view(2).videos!.isRunning).toBe(true);
+      expect(view(2).videos!.progressPercent).toBe(50);
+      expect(view(2).isRunning).toBe(false);
+
+      videoHubErrors.next({sourceId: 2, error: 'Disk unavailable'});
+      fixture.detectChanges();
+
+      expect(view(2).videos!.statusLabel).toBe('Failed');
+      expect(videosSection(cards()[1])!.textContent).toContain('Disk unavailable');
+    });
+
+    it('should delete the videos and start over', () => {
+      videoSourceProgress[2] = {status: 3, totalCount: 40, processedCount: 40, failedCount: 0};
+      build();
+
+      component.deleteVideoData(view(2));
+
+      expect(deleteVideoData).toHaveBeenCalledWith(1, 2);
+      expect(view(2).videos!.statusLabel).toBe('Not started');
+      expect(view(2).videos!.total).toBe(0);
+    });
   });
 });

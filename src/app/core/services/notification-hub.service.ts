@@ -9,12 +9,16 @@ import {HubError, HubProgress} from '../models/hub-notification.model';
 /**
  * Client for the backend's single `/notifications` hub. Clients join a per-user group by passing
  * `userId` on the query string, then receive `Progress` and `Error` events for every photo source
- * of that user, which callers narrow with `progressFor` / `errorFor`.
+ * of that user, which callers narrow with `progressFor` / `errorFor`. The processing of the videos of a
+ * source sends `VideoProgress` and `VideoError` events of the same shape, narrowed with `videoProgressFor`
+ * / `videoErrorFor`.
  */
 @Injectable({providedIn: 'root'})
 export class NotificationHubService {
   private readonly progressSubject = new Subject<HubProgress>();
   private readonly errorSubject = new Subject<HubError>();
+  private readonly videoProgressSubject = new Subject<HubProgress>();
+  private readonly videoErrorSubject = new Subject<HubError>();
 
   private connection?: HubConnection;
   private connecting?: Promise<void>;
@@ -38,6 +42,14 @@ export class NotificationHubService {
     return this.errorSubject.pipe(filter((error) => error.sourceId === sourceId));
   }
 
+  videoProgressFor(sourceId: number): Observable<HubProgress> {
+    return this.videoProgressSubject.pipe(filter((progress) => progress.sourceId === sourceId));
+  }
+
+  videoErrorFor(sourceId: number): Observable<HubError> {
+    return this.videoErrorSubject.pipe(filter((error) => error.sourceId === sourceId));
+  }
+
   private open(userId: number): Promise<void> {
     const connection = new HubConnectionBuilder()
       .withUrl(`${environment.notificationHub}?userId=${userId}`)
@@ -46,6 +58,8 @@ export class NotificationHubService {
 
     connection.on('Progress', (progress: HubProgress) => this.progressSubject.next(progress));
     connection.on('Error', (error: HubError) => this.errorSubject.next(error));
+    connection.on('VideoProgress', (progress: HubProgress) => this.videoProgressSubject.next(progress));
+    connection.on('VideoError', (error: HubError) => this.videoErrorSubject.next(error));
 
     this.connection = connection;
 

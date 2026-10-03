@@ -22,6 +22,7 @@ import {DataService} from '../../core/services/data.service';
 import {NotificationHubService} from '../../core/services/notification-hub.service';
 import {PhotoSourceAuthService} from '../../core/services/photo-source-auth.service';
 import {ToastService} from '../../core/services/toast.service';
+import {VideoProcessingCommand, VideosService} from '../../core/services/videos.service';
 
 /**
  * Supplied through the route's `data` on the OAuth redirect routes, see `app.routes.ts`. Matched against
@@ -31,8 +32,8 @@ export interface PhotoSourceRedirectConfig {
   sourceName: string;
 }
 
-interface SourceState {
-  source: UserPhotoSourceDto;
+/** Where the processing of the photos, or of the videos, of a source has got to. */
+interface ProcessingState {
   status?: PhotoSourceStatus;
   processed: number;
   failed: number;
@@ -41,21 +42,35 @@ interface SourceState {
   error: string;
 }
 
-export interface SourceView extends SourceState {
+interface SourceState extends ProcessingState {
+  source: UserPhotoSourceDto;
+  /** Only the sources whose videos the backend imports have them processed, see `VIDEO_SOURCE_NAMES`. */
+  videos?: ProcessingState;
+}
+
+interface ProcessingView {
+  isRunning: boolean;
+  statusLabel: string;
+  lastUpdated?: string;
+  progressPercent: number;
+  progressLabel: string;
+}
+
+export interface VideosView extends ProcessingState, ProcessingView {
+  action: string;
+}
+
+export interface SourceView extends Omit<SourceState, 'videos'>, ProcessingView {
   id: number;
   name: string;
   isAuthorized: boolean;
-  isRunning: boolean;
-  statusLabel: string;
   /**
    * Stopping cancels the run rather than discarding it, and starting again resumes it, so the button offers
    * Pause and Continue instead of Stop and Start.
    */
   action: string;
   tokenExpires?: string;
-  lastUpdated?: string;
-  progressPercent: number;
-  progressLabel: string;
+  videos?: VideosView;
 }
 
 // The generated enum names its members after their values; these are the backend's
@@ -64,6 +79,9 @@ const START_PROCESSING = PhotoSourceProcessingCommands._1;
 const STOP_PROCESSING = PhotoSourceProcessingCommands._2;
 
 const SOURCES_ROUTE = '/photo-sources';
+
+/** The sources the backend imports the videos of, by `photoSourceName`. */
+const VIDEO_SOURCE_NAMES: readonly string[] = ['Yandex.Disk'];
 
 // TODO: take the user ID from cookies
 const USER_ID = 1;
@@ -80,7 +98,7 @@ export class PhotoSourcesComponent implements OnInit {
   private readonly states = signal<readonly SourceState[]>([]);
 
   readonly sources = computed(() => this.states().map(toView));
-  readonly isAnyRunning = computed(() => this.sources().some((source) => source.isRunning));
+  readonly isAnyRunning = computed(() => this.sources().some((source) => source.isRunning || source.videos?.isRunning));
 
   private readonly destroyRef = inject(DestroyRef);
   private readonly route = inject(ActivatedRoute);
@@ -90,6 +108,7 @@ export class PhotoSourcesComponent implements OnInit {
   private readonly authService = inject(PhotoSourceAuthService);
   private readonly hubService = inject(NotificationHubService);
   private readonly usersPhotoSourcesClient = inject(UsersPhotoSourcesClient);
+  private readonly videosService = inject(VideosService);
 
   ngOnInit(): void {
     const redirect = this.route.snapshot.data['config'] as PhotoSourceRedirectConfig | undefined;
@@ -126,6 +145,47 @@ export class PhotoSourcesComponent implements OnInit {
           this.toastService.success(`${starting ? (resuming ? 'Resumed' : 'Started') : 'Paused'} processing ${source.name}.`);
         },
         error: (error) => this.toastService.error(`Failed to ${starting ? 'start' : 'pause'} processing ${source.name}.`, error),
+      });
+  }
+
+  /** The videos are processed by a run of their own, which resumes by skipping the videos saved already. */
+  startStopVideoProcessing(source: SourceView): void {
+    const videos = source.videos;
+
+    if (!videos) {
+      return;
+    }
+
+    const starting = !videos.isRunning;
+    const resuming = starting && isPhotoSourceResumable(videos.status);
+
+    this.videosService
+      .runCommand(USER_ID, source.id, starting ? VideoProcessingCommand.Start : VideoProcessingCommand.Stop)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.patchVideos(source.id, {status: starting ? PhotoSourceStatus.InProgress : PhotoSourceStatus.Stopped, error: ''});
+          this.toastService.success(`${starting ? (resuming ? 'Resumed' : 'Started') : 'Paused'} processing the videos of ${source.name}.`);
+        },
+        error: (error) =>
+          this.toastService.error(`Failed to ${starting ? 'start' : 'pause'} processing the videos of ${source.name}.`, error),
+      });
+  }
+
+  deleteVideoData(source: SourceView): void {
+    if (!confirm(`Delete the videos imported from ${source.name} and start over?`)) {
+      return;
+    }
+
+    this.videosService
+      .deleteData(USER_ID, source.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.patchVideos(source.id, initialProcessingState(PhotoSourceStatus.NotStarted));
+          this.toastService.success(`Deleted the videos of ${source.name}.`);
+        },
+        error: (error) => this.toastService.error(`Failed to delete the videos of ${source.name}.`, error),
       });
   }
 
@@ -184,7 +244,12 @@ export class PhotoSourcesComponent implements OnInit {
         switchMap((sources) => {
           this.states.set(sources.map(initialState));
 
-          return sources.length > 0 ? forkJoin(sources.map((source) => this.loadProgress(source.photoSourceId!))) : of([]);
+          const progress = [
+            ...sources.map((source) => this.loadProgress(source.photoSourceId!)),
+            ...sources.filter(supportsVideos).map((source) => this.loadVideoProgress(source.photoSourceId!)),
+          ];
+
+          return progress.length > 0 ? forkJoin(progress) : of([]);
         }),
         takeUntilDestroyed(this.destroyRef),
       )
@@ -209,6 +274,25 @@ export class PhotoSourcesComponent implements OnInit {
       map((progress) => this.applyProgress(sourceId, progress)),
       catchError((error) => {
         this.toastService.error('Could not load the processing status of a photo source.', error);
+
+        return of(undefined);
+      }),
+    );
+  }
+
+  private loadVideoProgress(sourceId: number): Observable<void> {
+    return this.videosService.getStatus(USER_ID, sourceId).pipe(
+      map((progress) =>
+        this.patchVideos(sourceId, (videos) => ({
+          status: parsePhotoSourceStatus(progress.status) ?? videos.status,
+          processed: progress.processedCount,
+          failed: progress.failedCount,
+          total: progress.totalCount,
+          lastUpdatedAt: progress.lastUpdatedAt,
+        })),
+      ),
+      catchError((error) => {
+        this.toastService.error('Could not load the processing status of the videos of a photo source.', error);
 
         return of(undefined);
       }),
@@ -295,6 +379,28 @@ export class PhotoSourcesComponent implements OnInit {
         .errorFor(sourceId)
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe((error) => this.patch(sourceId, {error: error.error, status: PhotoSourceStatus.Failed}));
+
+      if (!supportsVideos(source)) {
+        continue;
+      }
+
+      this.hubService
+        .videoProgressFor(sourceId)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((progress) =>
+          this.patchVideos(sourceId, (videos) => ({
+            status: parsePhotoSourceStatus(progress.status) ?? videos.status,
+            processed: progress.processed,
+            failed: progress.failed,
+            total: progress.total,
+            lastUpdatedAt: new Date().toISOString(),
+          })),
+        );
+
+      this.hubService
+        .videoErrorFor(sourceId)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((error) => this.patchVideos(sourceId, {error: error.error, status: PhotoSourceStatus.Failed}));
     }
   }
 
@@ -305,28 +411,63 @@ export class PhotoSourcesComponent implements OnInit {
       ),
     );
   }
+
+  private patchVideos(sourceId: number, change: Partial<ProcessingState> | ((videos: ProcessingState) => Partial<ProcessingState>)): void {
+    this.patch(sourceId, (state) =>
+      state.videos ? {videos: {...state.videos, ...(typeof change === 'function' ? change(state.videos) : change)}} : {},
+    );
+  }
+}
+
+function supportsVideos(source: UserPhotoSourceDto): boolean {
+  return VIDEO_SOURCE_NAMES.includes(source.photoSourceName ?? '');
+}
+
+function initialProcessingState(status: PhotoSourceStatus | undefined): ProcessingState {
+  return {status, processed: 0, failed: 0, total: 0, lastUpdatedAt: undefined, error: ''};
 }
 
 function initialState(source: UserPhotoSourceDto): SourceState {
-  return {source, status: parsePhotoSourceStatus(source.status), processed: 0, failed: 0, total: 0, error: ''};
+  return {
+    source,
+    ...initialProcessingState(parsePhotoSourceStatus(source.status)),
+    videos: supportsVideos(source) ? initialProcessingState(PhotoSourceStatus.NotStarted) : undefined,
+  };
 }
 
-function toView(state: SourceState): SourceView {
-  const {source, status, processed, failed, total, lastUpdatedAt} = state;
-  const isRunning = isPhotoSourceRunning(status);
+function toProcessingView({status, processed, failed, total, lastUpdatedAt}: ProcessingState): ProcessingView {
   const progress = `${processed.toLocaleString()} of ${total.toLocaleString()}`;
 
   return {
-    ...state,
-    id: source.photoSourceId!,
-    name: source.photoSourceName ?? `Source #${source.photoSourceId}`,
-    isAuthorized: source.isUserAuthorized === true,
-    isRunning,
+    isRunning: isPhotoSourceRunning(status),
     statusLabel: photoSourceStatusLabel(status),
-    action: isRunning ? 'Pause processing' : isPhotoSourceResumable(status) ? 'Continue processing' : 'Start processing',
-    tokenExpires: source.tokenExpiresOn ? new Date(source.tokenExpiresOn).toLocaleString() : undefined,
     lastUpdated: lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleString() : undefined,
     progressPercent: total > 0 ? (processed / total) * 100 : 0,
     progressLabel: failed > 0 ? `${progress} · ${failed.toLocaleString()} failed` : progress,
+  };
+}
+
+function processingAction(view: ProcessingView, status: PhotoSourceStatus | undefined, noun: string): string {
+  return view.isRunning ? `Pause ${noun}` : isPhotoSourceResumable(status) ? `Continue ${noun}` : `Start ${noun}`;
+}
+
+function toView(state: SourceState): SourceView {
+  const {source, videos, ...photos} = state;
+  const view = toProcessingView(photos);
+  const videosView = videos ? toProcessingView(videos) : undefined;
+
+  return {
+    source,
+    ...photos,
+    ...view,
+    id: source.photoSourceId!,
+    name: source.photoSourceName ?? `Source #${source.photoSourceId}`,
+    isAuthorized: source.isUserAuthorized === true,
+    action: processingAction(view, photos.status, 'processing'),
+    tokenExpires: source.tokenExpiresOn ? new Date(source.tokenExpiresOn).toLocaleString() : undefined,
+    videos:
+      videos && videosView
+        ? {...videos, ...videosView, action: processingAction(videosView, videos.status, 'processing videos')}
+        : undefined,
   };
 }

@@ -29,6 +29,7 @@ export class AppComponent implements OnInit {
 
   readonly menuItems: readonly MenuItem[] = [
     {title: 'Gallery', route: '/gallery', icon: 'grid'},
+    {title: 'Videos', route: '/videos', icon: 'video'},
     {title: 'Map', route: '/map', icon: 'map'},
     {title: 'Photo Sources', route: '/photo-sources', icon: 'shield-check'},
   ];

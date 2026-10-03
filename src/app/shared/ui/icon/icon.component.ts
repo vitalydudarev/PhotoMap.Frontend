@@ -31,6 +31,7 @@ export type IconName =
   | 'sort-desc'
   | 'sun'
   | 'trash'
+  | 'video'
   | 'x';
 
 /**

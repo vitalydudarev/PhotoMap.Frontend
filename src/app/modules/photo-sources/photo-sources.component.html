@@ -88,6 +88,63 @@
             Delete data
           </button>
         </div>
+
+        @if (source.videos; as videos) {
+          <section class="videos" [attr.aria-labelledby]="'videos-' + source.id">
+            <div class="videos-header">
+              <h3 class="videos-title" [id]="'videos-' + source.id">
+                <app-icon name="video" [size]="16" />
+                Videos
+              </h3>
+              <span class="app-badge" [class.app-badge--accent]="videos.isRunning">{{ videos.statusLabel }}</span>
+            </div>
+            <p class="videos-hint">Imports a preview image of every video on the disk. The videos themselves stay in {{ source.name }}.</p>
+
+            @if (videos.error) {
+              <app-alert tone="danger" heading="Processing videos failed">{{ videos.error }}</app-alert>
+            }
+
+            @if (videos.total > 0 || (videos.lastUpdated && !videos.isRunning)) {
+              <dl class="app-detail-list">
+                @if (videos.total > 0) {
+                  <div class="app-detail-row">
+                    <dt class="app-detail-term">Processed</dt>
+                    <dd class="app-detail-value">{{ videos.progressLabel }}</dd>
+                  </div>
+                }
+
+                @if (videos.lastUpdated && !videos.isRunning) {
+                  <div class="app-detail-row">
+                    <dt class="app-detail-term">Last updated</dt>
+                    <dd class="app-detail-value">{{ videos.lastUpdated }}</dd>
+                  </div>
+                }
+              </dl>
+            }
+
+            @if (videos.isRunning) {
+              <div class="progress">
+                <app-progress-bar [mode]="videos.total > 0 ? 'determinate' : 'indeterminate'" [value]="videos.progressPercent" />
+                @if (videos.total > 0) {
+                  <span class="progress-value">{{ videos.progressPercent.toFixed(1) }}%</span>
+                }
+              </div>
+            }
+
+            <div class="app-actions videos-actions">
+              @if (source.isAuthorized) {
+                <button appButton="outline" type="button" (click)="startStopVideoProcessing(source)">
+                  <app-icon [name]="videos.isRunning ? 'pause' : 'play'" [size]="16" />
+                  {{ videos.action }}
+                </button>
+              }
+              <button class="danger-action" appButton="ghost" type="button" [disabled]="videos.isRunning" (click)="deleteVideoData(source)">
+                <app-icon name="trash" [size]="16" />
+                Delete videos
+              </button>
+            </div>
+          </section>
+        }
       </app-card>
     }
 

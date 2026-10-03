@@ -1,0 +1,102 @@
+.videos {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - var(--app-header-height));
+}
+
+/* The toolbar of the gallery, so the two pages feel the same. */
+.toolbar {
+  position: sticky;
+  top: var(--app-header-height);
+  z-index: 30;
+  border-bottom: 1px solid var(--app-border);
+  background: color-mix(in srgb, var(--app-surface) 82%, transparent);
+  backdrop-filter: saturate(180%) blur(12px);
+}
+
+.toolbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-4);
+  flex-wrap: wrap;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: var(--app-space-3) var(--app-space-5);
+}
+
+.state {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--app-space-4);
+  padding: var(--app-space-7) var(--app-space-5);
+  color: var(--app-fg-muted);
+  text-align: center;
+}
+
+.state p {
+  max-width: 42ch;
+}
+
+/* The thumbnail grid of the gallery. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 190px);
+  gap: var(--app-space-2);
+  justify-content: start;
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: var(--app-space-4) var(--app-space-5) var(--app-space-7);
+}
+
+.thumb {
+  position: relative;
+  display: block;
+  border-radius: var(--app-radius);
+  overflow: hidden;
+  background: var(--app-surface-sunken);
+  transition:
+    transform var(--app-transition),
+    box-shadow var(--app-transition);
+}
+
+.thumb:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--app-shadow);
+}
+
+.thumb img {
+  display: block;
+  width: 190px;
+  height: 190px;
+  object-fit: cover;
+  /* Hides the alt text while the preview loads; the file name is in the link's title. */
+  color: transparent;
+}
+
+/* Tells a video from a photo at a glance. Sits on the preview itself, so it keeps its own dark backing
+   whatever the theme: a light one would vanish on bright previews. */
+.badge {
+  position: absolute;
+  right: var(--app-space-2);
+  bottom: var(--app-space-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 55%);
+  color: #fff;
+}
+
+@media (width <= 720px) {
+  .toolbar-inner,
+  .grid {
+    padding-inline: var(--app-space-4);
+  }
+}

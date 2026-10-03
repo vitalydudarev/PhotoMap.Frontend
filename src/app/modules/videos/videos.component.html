@@ -1,0 +1,55 @@
+<div class="videos">
+  <div class="toolbar">
+    <div class="toolbar-inner">
+      <app-segmented
+        aria-label="Sort order"
+        [options]="sortOrders"
+        [value]="selectedSortOrder()"
+        (valueChange)="sortOrderUpdated($event)"
+        [iconsOnly]="true"
+      />
+
+      <app-paginator
+        [length]="totalCount()"
+        [pageIndex]="pageIndex"
+        [pageSize]="pageSize"
+        [pageSizeOptions]="pageSizes"
+        (page)="pageUpdated($event)"
+      />
+    </div>
+  </div>
+
+  @if (showSpinner()) {
+    <div class="state">
+      <app-spinner [size]="28" label="Loading videos" />
+      <p>Loading videos…</p>
+    </div>
+  } @else if (failed()) {
+    <div class="state">
+      <p>The videos could not be loaded.</p>
+    </div>
+  } @else if (videos().length === 0) {
+    <div class="state">
+      <p>No videos yet. Connect Yandex.Disk and start processing its videos on the Photo Sources page to see them here.</p>
+    </div>
+  } @else {
+    <section class="grid">
+      @for (video of videos(); track video.id) {
+        <a
+          class="thumb"
+          [href]="video.previewUrl"
+          target="_blank"
+          rel="noopener"
+          [title]="video.fileName + ' · ' + (video.dateTimeTaken | date: 'medium')"
+        >
+          <img [src]="video.previewUrl" [alt]="video.fileName" width="190" height="190" loading="lazy" (error)="onPreviewError($event)" />
+          <span class="badge" aria-hidden="true">
+            <app-icon name="play" [size]="12" />
+          </span>
+        </a>
+      }
+    </section>
+
+    <app-scroll-control />
+  }
+</div>

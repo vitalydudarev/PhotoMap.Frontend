@@ -40,6 +40,43 @@
   margin-top: var(--app-space-5);
 }
 
+/* A subsection of the source's card, set apart from its photos by a rule. */
+.videos {
+  margin-top: var(--app-space-5);
+  padding-top: var(--app-space-5);
+  border-top: 1px solid var(--app-border);
+}
+
+.videos-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-3);
+}
+
+.videos-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--app-space-2);
+  margin: 0;
+  font-size: var(--app-text-md);
+  font-weight: 600;
+}
+
+.videos-hint {
+  margin: var(--app-space-2) 0 var(--app-space-4);
+  color: var(--app-fg-muted);
+  font-size: var(--app-text-sm);
+}
+
+.videos app-alert {
+  margin-bottom: var(--app-space-4);
+}
+
+.videos-actions {
+  margin-top: var(--app-space-4);
+}
+
 .danger-action {
   margin-left: auto;
   color: var(--app-danger);
