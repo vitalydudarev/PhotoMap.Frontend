@@ -17,6 +17,7 @@ describe('VideosComponent', () => {
     id: '1',
     photoSourceId: 2,
     previewUrl: 'https://localhost/api/videos/1/preview',
+    videoUrl: 'https://localhost/api/videos/1',
     fileName: 'trip.mp4',
     folderPath: 'disk:/Videos',
     size: 1024,
@@ -95,5 +96,15 @@ describe('VideosComponent', () => {
 
     expect(getUserVideos).not.toHaveBeenCalled();
     expect(text()).toContain('No folders are selected');
+  });
+
+  it('should play a video when its preview is clicked', () => {
+    build();
+
+    (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('button.thumb')!.click();
+    fixture.detectChanges();
+
+    expect(component.playingIndex()).toBe(0);
+    expect((fixture.nativeElement as HTMLElement).querySelector('app-video-player video')?.getAttribute('src')).toBe(video.videoUrl);
   });
 });

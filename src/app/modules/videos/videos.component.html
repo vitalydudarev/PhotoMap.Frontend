@@ -54,21 +54,23 @@
   } @else {
     <section class="grid">
       @for (video of videos(); track video.id) {
-        <a
+        <button
           class="thumb"
-          [href]="video.previewUrl"
-          target="_blank"
-          rel="noopener"
+          type="button"
           [title]="video.fileName + ' · ' + (video.dateTimeTaken | date: 'medium')"
+          [attr.aria-label]="'Play ' + video.fileName"
+          (click)="playingIndex.set($index)"
         >
           <img [src]="video.previewUrl" [alt]="video.fileName" width="190" height="190" loading="lazy" (error)="onPreviewError($event)" />
           <span class="badge" aria-hidden="true">
             <app-icon name="play" [size]="12" />
           </span>
-        </a>
+        </button>
       }
     </section>
 
     <app-scroll-control />
   }
+
+  <app-video-player [videos]="videos()" [(index)]="playingIndex" />
 </div>

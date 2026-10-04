@@ -3,6 +3,8 @@ export interface Video {
   id: string;
   photoSourceId: number;
   previewUrl: string;
+  /** Streams the video from its photo source, a range at a time. */
+  videoUrl: string;
   fileName: string;
   /** The folder of the video in the photo source, without its file name, such as `disk:/Camera Uploads`. */
   folderPath?: string;

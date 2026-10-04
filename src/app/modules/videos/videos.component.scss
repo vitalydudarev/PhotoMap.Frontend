@@ -63,6 +63,9 @@
 .thumb {
   position: relative;
   display: block;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
   border-radius: var(--app-radius);
   overflow: hidden;
   background: var(--app-surface-sunken);

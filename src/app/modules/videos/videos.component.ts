@@ -16,6 +16,7 @@ import {ToastService} from '../../core/services/toast.service';
 import {VideosService} from '../../core/services/videos.service';
 import {IconComponent} from '../../shared/ui/icon/icon.component';
 import {GalleryFilter} from '../gallery/gallery-filter';
+import {VideoPlayerComponent} from './video-player/video-player.component';
 import {ScrollControlComponent} from '../shared/scroll-control/scroll-control.component';
 
 const PAGE_PARAM = 'page';
@@ -39,6 +40,7 @@ const USER_ID = 1;
     ScrollControlComponent,
     SegmentedComponent,
     SpinnerComponent,
+    VideoPlayerComponent,
   ],
 })
 export class VideosComponent implements OnInit {
@@ -46,6 +48,9 @@ export class VideosComponent implements OnInit {
   readonly showSpinner = signal(false);
   readonly failed = signal(false);
   readonly totalCount = signal(0);
+
+  /** The video playing, of the ones of the page; none while the player is closed. */
+  readonly playingIndex = signal<number | null>(null);
 
   readonly sortOrders: readonly SegmentedOption<PhotoSortOrder>[] = [
     {value: 'asc', label: 'Oldest first', icon: 'sort-asc'},
@@ -171,6 +176,7 @@ export class VideosComponent implements OnInit {
 
   private loadVideos(): void {
     this.videosRequest?.unsubscribe();
+    this.playingIndex.set(null);
 
     if (this.folderFilter.noneSelected()) {
       this.videos.set([]);

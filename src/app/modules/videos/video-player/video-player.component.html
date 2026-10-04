@@ -1,0 +1,56 @@
+@if (video(); as video) {
+  <div
+    #dialog
+    class="player"
+    role="dialog"
+    aria-modal="true"
+    tabindex="-1"
+    [attr.aria-label]="video.fileName"
+    (click)="onBackdropClick($event)"
+    (keydown)="onKeydown($event)"
+  >
+    <header class="bar">
+      <span class="counter">{{ index()! + 1 }} / {{ videos().length }}</span>
+      <span class="name" [title]="video.fileName">{{ video.fileName }}</span>
+      <div class="actions">
+        <button class="control" type="button" aria-label="Close" (click)="close()">
+          <app-icon name="x" />
+        </button>
+      </div>
+    </header>
+
+    <button class="control nav" type="button" aria-label="Previous video" [disabled]="index() === 0" (click)="move(-1)">
+      <app-icon name="chevron-left" [size]="24" />
+    </button>
+
+    <div class="stage">
+      @if (status() === 'failed') {
+        <div class="failure">
+          <p>The video could not be played. It may be in a format this browser does not play.</p>
+        </div>
+      } @else {
+        <!-- the poster stands in while the first frames download -->
+        <video
+          class="video"
+          [class.video--loading]="status() === 'loading'"
+          [src]="video.videoUrl"
+          [poster]="video.previewUrl"
+          controls
+          autoplay
+          playsinline
+          preload="auto"
+          (canplay)="onCanPlay()"
+          (error)="onError()"
+        ></video>
+
+        @if (status() === 'loading') {
+          <app-spinner class="spinner" [size]="40" label="Loading the video" />
+        }
+      }
+    </div>
+
+    <button class="control nav" type="button" aria-label="Next video" [disabled]="index() === videos().length - 1" (click)="move(1)">
+      <app-icon name="chevron-right" [size]="24" />
+    </button>
+  </div>
+}
