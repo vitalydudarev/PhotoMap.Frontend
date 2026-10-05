@@ -9,7 +9,7 @@
     "test": "ng test",
     "lint": "ng lint",
     "format": "prettier --write \"src/**/*.{ts,html,scss,json}\"",
-    "nswag:backend": "nswag run src/app/shared/models/photomap-backend.nswag /variables:url=https://localhost:5001/swagger/v1/swagger.json /runtime:Net80"
+    "nswag:backend": "nswag run src/app/shared/models/photomap-backend.nswag /variables:url=https://localhost:5002/swagger/v1/swagger.json /runtime:Net80"
   },
   "private": true,
   "dependencies": {

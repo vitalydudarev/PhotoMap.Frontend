@@ -4,9 +4,9 @@
 
 export const environment = {
   production: false,
-  backendUrl: 'https://localhost:5001',
-  photoMapApiUrl: 'https://localhost:5001/api',
-  notificationHub: 'https://localhost:5001/notifications',
+  backendUrl: 'https://localhost:5002',
+  photoMapApiUrl: 'https://localhost:5002/api',
+  notificationHub: 'https://localhost:5002/notifications',
   // The key of the Maps JavaScript API, for the Google Maps option on the map views; OpenStreetMap needs none.
   // The map ID enables the advanced markers the photos are drawn with.
   googleMapsApiKey: '',

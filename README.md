@@ -10,7 +10,7 @@ Node.js `^22.22.3 || ^24.15.0 || >=26.0.0` and npm 8+. Run `npm ci` to install d
 
 Run `npm start` for a dev server. Navigate to `http://localhost:4200/`. The app reloads automatically when you change a source file.
 
-The app expects the PhotoMap backend on `https://localhost:5001` — see `src/environments/environment.ts`.
+The app expects the PhotoMap backend on `https://localhost:5002` — see `src/environments/environment.ts`.
 
 ## Design system
 
