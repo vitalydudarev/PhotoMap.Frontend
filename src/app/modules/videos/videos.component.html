@@ -2,31 +2,43 @@
   <div class="toolbar">
     <div class="toolbar-inner">
       <div class="view-controls">
-        <app-segmented
-          aria-label="Sort order"
-          [options]="sortOrders"
-          [value]="selectedSortOrder()"
-          (valueChange)="sortOrderUpdated($event)"
-          [iconsOnly]="true"
-        />
+        <button appButton="outline" type="button" [attr.aria-pressed]="showDuplicates()" (click)="toggleDuplicates()">
+          {{ showDuplicates() ? 'Show all videos' : 'Show duplicates' }}
+        </button>
 
-        @if (folderFilter.options().length > 0) {
-          <app-multiselect
-            label="Folders"
-            [options]="folderFilter.options()"
-            [value]="folderFilter.selected()"
-            (valueChange)="folderFilterUpdated($event)"
+        @if (!showDuplicates()) {
+          <app-segmented
+            aria-label="Sort order"
+            [options]="sortOrders"
+            [value]="selectedSortOrder()"
+            (valueChange)="sortOrderUpdated($event)"
+            [iconsOnly]="true"
           />
+
+          @if (folderFilter.options().length > 0) {
+            <app-multiselect
+              label="Folders"
+              [options]="folderFilter.options()"
+              [value]="folderFilter.selected()"
+              (valueChange)="folderFilterUpdated($event)"
+            />
+          }
         }
       </div>
 
-      <app-paginator
-        [length]="totalCount()"
-        [pageIndex]="pageIndex"
-        [pageSize]="pageSize"
-        [pageSizeOptions]="pageSizes"
-        (page)="pageUpdated($event)"
-      />
+      @if (showDuplicates()) {
+        @if (duplicateGroups().length > 0) {
+          <p class="summary">{{ duplicateCount() }} videos in {{ duplicateGroups().length }} groups of copies</p>
+        }
+      } @else {
+        <app-paginator
+          [length]="totalCount()"
+          [pageIndex]="pageIndex"
+          [pageSize]="pageSize"
+          [pageSizeOptions]="pageSizes"
+          (page)="pageUpdated($event)"
+        />
+      }
     </div>
   </div>
 
@@ -39,6 +51,39 @@
     <div class="state">
       <p>The videos could not be loaded.</p>
     </div>
+  } @else if (showDuplicates()) {
+    @if (duplicateGroups().length === 0) {
+      <div class="state">
+        <p>No duplicate videos. Videos of the same size and file name are listed here as copies of one another.</p>
+      </div>
+    } @else {
+      <section class="duplicates">
+        @for (group of duplicateGroups(); track group.id) {
+          <article class="group">
+            <h2 class="group-title">
+              <span class="group-name">{{ group.fileName }}</span>
+              <span class="group-meta">{{ sizeLabel(group.size) }} · {{ group.videos.length }} copies</span>
+            </h2>
+
+            <div class="group-videos">
+              @for (video of group.videos; track video.id) {
+                <figure class="copy">
+                  <ng-container *ngTemplateOutlet="thumb; context: {$implicit: video}" />
+                  <figcaption>
+                    <span class="copy-folder" [title]="video.folderPath ?? ''">{{
+                      video.folderPath ? folderLabel(video.folderPath) : '—'
+                    }}</span>
+                    <span class="copy-date">{{ video.dateTimeTaken | date: 'medium' }}</span>
+                  </figcaption>
+                </figure>
+              }
+            </div>
+          </article>
+        }
+      </section>
+
+      <app-scroll-control />
+    }
   } @else if (folderFilter.noneSelected()) {
     <div class="state">
       <p>No folders are selected. Pick one to see its videos.</p>
@@ -54,23 +99,27 @@
   } @else {
     <section class="grid">
       @for (video of videos(); track video.id) {
-        <button
-          class="thumb"
-          type="button"
-          [title]="video.fileName + ' · ' + (video.dateTimeTaken | date: 'medium')"
-          [attr.aria-label]="'Play ' + video.fileName"
-          (click)="playingIndex.set($index)"
-        >
-          <img [src]="video.previewUrl" [alt]="video.fileName" width="190" height="190" loading="lazy" (error)="onPreviewError($event)" />
-          <span class="badge" aria-hidden="true">
-            <app-icon name="play" [size]="12" />
-          </span>
-        </button>
+        <ng-container *ngTemplateOutlet="thumb; context: {$implicit: video}" />
       }
     </section>
 
     <app-scroll-control />
   }
 
-  <app-video-player [videos]="videos()" [(index)]="playingIndex" />
+  <app-video-player [videos]="playerVideos()" [(index)]="playingIndex" />
 </div>
+
+<ng-template #thumb let-video>
+  <button
+    class="thumb"
+    type="button"
+    [title]="video.fileName + ' · ' + (video.dateTimeTaken | date: 'medium')"
+    [attr.aria-label]="'Play ' + video.fileName"
+    (click)="play(video)"
+  >
+    <img [src]="video.previewUrl" [alt]="video.fileName" width="190" height="190" loading="lazy" (error)="onPreviewError($event)" />
+    <span class="badge" aria-hidden="true">
+      <app-icon name="play" [size]="12" />
+    </span>
+  </button>
+</ng-template>

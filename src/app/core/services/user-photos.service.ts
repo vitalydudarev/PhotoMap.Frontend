@@ -6,7 +6,7 @@ import {environment} from 'src/environments/environment';
 import {PagedResponse} from '../models/paged-response.model';
 import {PhotoFilter} from '../models/photo-filter.model';
 import {PhotoSortOrder} from '../models/photo-sort-order.model';
-import {Photo} from '../models/photo.model';
+import {Photo, PhotoDuplicateGroup} from '../models/photo.model';
 
 @Injectable()
 export class UserPhotosService {
@@ -40,6 +40,15 @@ export class UserPhotosService {
     }
 
     return this._httpClient.get<PagedResponse<Photo>>(`${this.url}/${userId}/photos`, {params});
+  }
+
+  /**
+   * The photos of the user that are copies of one another, by their groups, the photos taken first first. Photos marked
+   * as deleted are in no group. The groups are looked for in the background, so a photo saved, deleted or restored a
+   * moment ago may not be in its group yet.
+   */
+  public getUserPhotoDuplicates(userId: number): Observable<PhotoDuplicateGroup[]> {
+    return this._httpClient.get<PhotoDuplicateGroup[]>(`${this.url}/${userId}/photos/duplicates`);
   }
 
   /** Marks the photo as deleted: it is kept, but only shows among the photos of the Deleted category. */

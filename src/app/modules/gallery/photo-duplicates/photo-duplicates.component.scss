@@ -1,0 +1,132 @@
+/* The measure of the thumbnail grid of the gallery. */
+:host {
+  display: block;
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: var(--app-space-4) var(--app-space-5) var(--app-space-7);
+}
+
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-6);
+}
+
+.group-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--app-space-2);
+  margin: 0 0 var(--app-space-3);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.group-name {
+  overflow-wrap: anywhere;
+}
+
+.group-meta {
+  color: var(--app-fg-muted);
+  font-weight: 400;
+}
+
+.copies {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 190px);
+  gap: var(--app-space-3);
+}
+
+.copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-1);
+  margin: 0;
+  min-width: 0;
+}
+
+.copy figcaption {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.8125rem;
+}
+
+.copy-folder,
+.copy-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copy-date {
+  color: var(--app-fg-muted);
+}
+
+/* The thumbnails of the gallery. */
+.thumb {
+  position: relative;
+  border-radius: var(--app-radius);
+  overflow: hidden;
+  background: var(--app-surface-sunken);
+  transition:
+    transform var(--app-transition),
+    box-shadow var(--app-transition);
+}
+
+.thumb:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--app-shadow);
+}
+
+.open {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.thumb img {
+  display: block;
+  width: 190px;
+  height: 190px;
+  object-fit: cover;
+  /* Hides the alt text while the thumbnail loads; the file name is in the button's title. */
+  color: transparent;
+}
+
+/* Deleting a copy is what this view is for, so the button stays in view. It sits on the photo itself,
+   so it keeps its own dark backing whatever the theme. */
+.action {
+  position: absolute;
+  top: var(--app-space-2);
+  left: var(--app-space-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 55%);
+  color: #fff;
+  cursor: pointer;
+  transition: background var(--app-transition);
+}
+
+.action:hover {
+  background: rgb(0 0 0 / 80%);
+}
+
+.action:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+@media (width <= 720px) {
+  :host {
+    padding-inline: var(--app-space-4);
+  }
+}

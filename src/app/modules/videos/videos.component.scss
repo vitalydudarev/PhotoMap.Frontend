@@ -104,8 +104,73 @@
   color: #fff;
 }
 
+.summary {
+  color: var(--app-fg-muted);
+}
+
+/* The groups of copies, one under another, each with the copies side by side. */
+.duplicates {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-6);
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: var(--app-space-4) var(--app-space-5) var(--app-space-7);
+}
+
+.group-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--app-space-2);
+  margin: 0 0 var(--app-space-3);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.group-name {
+  overflow-wrap: anywhere;
+}
+
+.group-meta {
+  color: var(--app-fg-muted);
+  font-weight: 400;
+}
+
+.group-videos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 190px);
+  gap: var(--app-space-3);
+}
+
+.copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-1);
+  margin: 0;
+  min-width: 0;
+}
+
+.copy figcaption {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.8125rem;
+}
+
+.copy-folder {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copy-date {
+  color: var(--app-fg-muted);
+}
+
 @media (width <= 720px) {
   .toolbar-inner,
+  .duplicates,
   .grid {
     padding-inline: var(--app-space-4);
   }

@@ -1,0 +1,50 @@
+<section class="groups">
+  @for (group of groups(); track group.id) {
+    <article class="group">
+      <h2 class="group-title">
+        <span class="group-name">{{ group.photos[0].fileName }}</span>
+        <span class="group-meta">{{ group.photos.length }} copies</span>
+      </h2>
+
+      <div class="copies">
+        @for (photo of group.photos; track photo.id) {
+          <figure class="copy">
+            <div class="thumb">
+              <button class="open" type="button" [title]="photo.fileName" (click)="open(photo)">
+                <img
+                  [src]="photo.thumbnailLargeUrl"
+                  [alt]="photo.fileName"
+                  width="190"
+                  height="190"
+                  loading="lazy"
+                  (error)="onThumbnailError($event)"
+                />
+              </button>
+
+              <button
+                class="action"
+                type="button"
+                [attr.aria-label]="'Delete ' + (photo.path ?? photo.fileName)"
+                title="Delete"
+                [disabled]="busy().has(photo.id)"
+                (click)="markAsDeleted.emit(photo)"
+              >
+                <app-icon name="trash" [size]="14" />
+              </button>
+            </div>
+
+            <figcaption>
+              <span class="copy-folder" [title]="photo.path ?? ''">{{ folder(photo) }}</span>
+              @if (photo.fileName !== group.photos[0].fileName) {
+                <span class="copy-name" [title]="photo.fileName">{{ photo.fileName }}</span>
+              }
+              <span class="copy-date">{{ photo.dateTimeTaken | date: 'medium' }}</span>
+            </figcaption>
+          </figure>
+        }
+      </div>
+    </article>
+  }
+</section>
+
+<app-scroll-control />

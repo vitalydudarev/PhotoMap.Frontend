@@ -2,46 +2,58 @@
   <div class="toolbar">
     <div class="toolbar-inner">
       <div class="view-controls">
-        <app-segmented aria-label="View mode" [options]="viewModes" [(value)]="selectedViewMode" [iconsOnly]="true" />
-
-        @if (selectedViewMode() === 'thumb') {
-          <app-segmented aria-label="Grid width" [options]="widthModes" [(value)]="selectedWidth" [iconsOnly]="true" />
-        }
-
-        <app-segmented
-          aria-label="Sort order"
-          [options]="sortOrders"
-          [value]="selectedSortOrder()"
-          (valueChange)="sortOrderUpdated($event)"
-          [iconsOnly]="true"
-        />
-
-        <button
-          type="button"
-          class="filters-toggle"
-          [attr.aria-controls]="filtersOpen() ? 'gallery-filters' : null"
-          [attr.aria-expanded]="filtersOpen()"
-          (click)="filtersOpen.set(!filtersOpen())"
-        >
-          <app-icon name="filter" [size]="16" />
-          <span>Filters</span>
-          @if (activeFilterCount() > 0) {
-            <span class="filters-count">{{ activeFilterCount() }}<span class="app-visually-hidden"> active</span></span>
-          }
-          <app-icon class="chevron" [class.chevron--open]="filtersOpen()" name="chevron-down" [size]="16" />
+        <button appButton="outline" type="button" [attr.aria-pressed]="showDuplicates()" (click)="toggleDuplicates()">
+          {{ showDuplicates() ? 'Show all photos' : 'Show duplicates' }}
         </button>
+
+        @if (!showDuplicates()) {
+          <app-segmented aria-label="View mode" [options]="viewModes" [(value)]="selectedViewMode" [iconsOnly]="true" />
+
+          @if (selectedViewMode() === 'thumb') {
+            <app-segmented aria-label="Grid width" [options]="widthModes" [(value)]="selectedWidth" [iconsOnly]="true" />
+          }
+
+          <app-segmented
+            aria-label="Sort order"
+            [options]="sortOrders"
+            [value]="selectedSortOrder()"
+            (valueChange)="sortOrderUpdated($event)"
+            [iconsOnly]="true"
+          />
+
+          <button
+            type="button"
+            class="filters-toggle"
+            [attr.aria-controls]="filtersOpen() ? 'gallery-filters' : null"
+            [attr.aria-expanded]="filtersOpen()"
+            (click)="filtersOpen.set(!filtersOpen())"
+          >
+            <app-icon name="filter" [size]="16" />
+            <span>Filters</span>
+            @if (activeFilterCount() > 0) {
+              <span class="filters-count">{{ activeFilterCount() }}<span class="app-visually-hidden"> active</span></span>
+            }
+            <app-icon class="chevron" [class.chevron--open]="filtersOpen()" name="chevron-down" [size]="16" />
+          </button>
+        }
       </div>
 
-      <app-paginator
-        [length]="totalCount()"
-        [pageIndex]="pageIndex"
-        [pageSize]="pageSize"
-        [pageSizeOptions]="pageSizes"
-        (page)="pageUpdated($event)"
-      />
+      @if (showDuplicates()) {
+        @if (duplicateGroups().length > 0) {
+          <p class="summary">{{ duplicateCount() }} photos in {{ duplicateGroups().length }} groups of copies</p>
+        }
+      } @else {
+        <app-paginator
+          [length]="totalCount()"
+          [pageIndex]="pageIndex"
+          [pageSize]="pageSize"
+          [pageSizeOptions]="pageSizes"
+          (page)="pageUpdated($event)"
+        />
+      }
     </div>
 
-    @if (filtersOpen()) {
+    @if (filtersOpen() && !showDuplicates()) {
       <div id="gallery-filters" class="filters" role="group" aria-label="Filters">
         <div class="filters-inner">
           @if (sourceFilter.options().length > 0) {
@@ -89,6 +101,14 @@
     <div class="state">
       <p>The photos could not be loaded.</p>
     </div>
+  } @else if (showDuplicates()) {
+    @if (duplicateGroups().length === 0) {
+      <div class="state">
+        <p>No duplicate photos. Photos of the same contents, wherever they are kept, are listed here as copies of one another.</p>
+      </div>
+    } @else {
+      <app-photo-duplicates [groups]="duplicateGroups()" [busy]="busyPhotoIds()" (markAsDeleted)="deleteDuplicate($event)" />
+    }
   } @else if (sourceFilter.noneSelected()) {
     <div class="state">
       <p>No photo sources are selected. Pick one to see its photos.</p>

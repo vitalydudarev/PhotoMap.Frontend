@@ -1,15 +1,16 @@
-import {DOCUMENT, DatePipe, Location} from '@angular/common';
+import {DOCUMENT, DatePipe, Location, NgTemplateOutlet} from '@angular/common';
 import {HttpParams} from '@angular/common/http';
-import {Component, DestroyRef, OnInit, inject, signal} from '@angular/core';
+import {Component, DestroyRef, OnInit, computed, inject, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {ActivatedRoute, Router} from '@angular/router';
 import {Subscription} from 'rxjs';
 import {PhotoSortOrder} from 'src/app/core/models/photo-sort-order.model';
-import {Video} from 'src/app/core/models/video.model';
+import {Video, VideoDuplicateGroup} from 'src/app/core/models/video.model';
 import {UNAVAILABLE_IMAGE} from 'src/app/core/services/photo-viewer.service';
 import {MultiselectComponent} from 'src/app/shared/ui/multiselect/multiselect.component';
 import {PageEvent, PaginatorComponent} from 'src/app/shared/ui/paginator/paginator.component';
 import {SegmentedComponent, SegmentedOption} from 'src/app/shared/ui/segmented/segmented.component';
+import {ButtonDirective} from 'src/app/shared/ui/button/button.directive';
 import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
 
 import {ToastService} from '../../core/services/toast.service';
@@ -23,6 +24,7 @@ const PAGE_PARAM = 'page';
 const PAGE_SIZE_PARAM = 'pageSize';
 const SORT_PARAM = 'sort';
 const FOLDER_PARAM = 'folder';
+const DUPLICATES_PARAM = 'duplicates';
 
 // TODO: take the user ID from cookies
 const USER_ID = 1;
@@ -33,9 +35,11 @@ const USER_ID = 1;
   templateUrl: './videos.component.html',
   styleUrls: ['./videos.component.scss'],
   imports: [
+    ButtonDirective,
     DatePipe,
     IconComponent,
     MultiselectComponent,
+    NgTemplateOutlet,
     PaginatorComponent,
     ScrollControlComponent,
     SegmentedComponent,
@@ -49,7 +53,15 @@ export class VideosComponent implements OnInit {
   readonly failed = signal(false);
   readonly totalCount = signal(0);
 
-  /** The video playing, of the ones of the page; none while the player is closed. */
+  /** Whether the page lists the videos that are copies of one another, by their groups, rather than every video. */
+  readonly showDuplicates = signal(false);
+  readonly duplicateGroups = signal<VideoDuplicateGroup[]>([]);
+  readonly duplicateCount = computed(() => this.duplicateGroups().reduce((count, group) => count + group.videos.length, 0));
+
+  /** The videos the player steps through: the ones of the page, or every duplicate, group after group. */
+  readonly playerVideos = computed(() => (this.showDuplicates() ? this.duplicateGroups().flatMap((group) => group.videos) : this.videos()));
+
+  /** The video playing, of the ones of the player; none while the player is closed. */
   readonly playingIndex = signal<number | null>(null);
 
   readonly sortOrders: readonly SegmentedOption<PhotoSortOrder>[] = [
@@ -65,6 +77,9 @@ export class VideosComponent implements OnInit {
   pageIndex = 0;
   pageSize = 100;
   readonly pageSizes: number[] = [100, 250, 500, 1000];
+
+  readonly folderLabel = folderLabel;
+  readonly sizeLabel = sizeLabel;
 
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
@@ -95,10 +110,24 @@ export class VideosComponent implements OnInit {
     }
 
     this.folderFilter.request(params.getAll(FOLDER_PARAM));
+    this.showDuplicates.set(params.get(DUPLICATES_PARAM) === 'true');
 
     this.addQueryString();
-    this.loadVideos();
+    this.load();
     this.loadFolders();
+  }
+
+  toggleDuplicates(): void {
+    this.showDuplicates.update((showDuplicates) => !showDuplicates);
+
+    this.addQueryString();
+    this.load();
+
+    this.document.defaultView?.scrollTo({top: 0});
+  }
+
+  play(video: Video): void {
+    this.playingIndex.set(this.playerVideos().indexOf(video));
   }
 
   pageUpdated(event: PageEvent): void {
@@ -151,7 +180,11 @@ export class VideosComponent implements OnInit {
           if (this.folderFilter.setOptions(folderPaths.map((folderPath) => ({value: folderPath, label: folderLabel(folderPath)})))) {
             this.pageIndex = 0;
             this.addQueryString();
-            this.loadVideos();
+
+            // the duplicates are of every folder
+            if (!this.showDuplicates()) {
+              this.loadVideos();
+            }
           }
         },
         error: (error) => {
@@ -171,7 +204,42 @@ export class VideosComponent implements OnInit {
       params = params.append(FOLDER_PARAM, folderPath);
     }
 
+    if (this.showDuplicates()) {
+      params = params.append(DUPLICATES_PARAM, 'true');
+    }
+
     this.location.go(this.router.url.split('?')[0], params.toString());
+  }
+
+  private load(): void {
+    if (this.showDuplicates()) {
+      this.loadDuplicates();
+    } else {
+      this.loadVideos();
+    }
+  }
+
+  private loadDuplicates(): void {
+    this.videosRequest?.unsubscribe();
+    this.playingIndex.set(null);
+    this.showSpinner.set(true);
+    this.failed.set(false);
+
+    this.videosRequest = this.videosService
+      .getUserVideoDuplicates(USER_ID)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (groups) => {
+          this.duplicateGroups.set(groups);
+          this.showSpinner.set(false);
+        },
+        error: (error) => {
+          this.duplicateGroups.set([]);
+          this.failed.set(true);
+          this.showSpinner.set(false);
+          this.toastService.error('Could not load the duplicate videos.', error);
+        },
+      });
   }
 
   private loadVideos(): void {
@@ -213,4 +281,18 @@ export class VideosComponent implements OnInit {
 /** A folder without the name of the disk it is on, `disk:/Camera Uploads` as `/Camera Uploads`. */
 function folderLabel(folderPath: string): string {
   return folderPath.replace(/^[^/]*:(?=\/)/, '');
+}
+
+/** A size in bytes the way a file manager shows it, such as `1.2 GB`. */
+function sizeLabel(bytes: number): string {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let size = bytes;
+  let unit = 0;
+
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024;
+    unit++;
+  }
+
+  return `${unit === 0 ? size : size.toFixed(1)} ${units[unit]}`;
 }

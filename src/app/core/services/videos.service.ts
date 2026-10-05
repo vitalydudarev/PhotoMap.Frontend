@@ -6,7 +6,7 @@ import {environment} from 'src/environments/environment';
 import {PagedResponse} from '../models/paged-response.model';
 import {PhotoSortOrder} from '../models/photo-sort-order.model';
 import {PhotoSourceProgress} from '../models/photo-source-progress.model';
-import {Video} from '../models/video.model';
+import {Video, VideoDuplicateGroup} from '../models/video.model';
 
 /** The backend's `PhotoSourceProcessingCommands.Start` and `.Stop`, the only ones the videos of a source take. */
 export enum VideoProcessingCommand {
@@ -44,6 +44,14 @@ export class VideosService {
   /** The folders the videos of the user are in, without the file names, by name. */
   getUserVideoFolders(userId: number): Observable<string[]> {
     return this.httpClient.get<string[]>(`${this.url}/${userId}/videos/folders`);
+  }
+
+  /**
+   * The videos of the user that are copies of one another, by their groups, the largest videos first. The groups are
+   * looked for in the background, so a video imported a moment ago may not be in one yet.
+   */
+  getUserVideoDuplicates(userId: number): Observable<VideoDuplicateGroup[]> {
+    return this.httpClient.get<VideoDuplicateGroup[]>(`${this.url}/${userId}/videos/duplicates`);
   }
 
   runCommand(userId: number, sourceId: number, command: VideoProcessingCommand): Observable<void> {

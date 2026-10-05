@@ -6,8 +6,9 @@ import {ActivatedRoute, Router} from '@angular/router';
 import {Observable, Subscription} from 'rxjs';
 import {PhotoCategory} from 'src/app/core/models/photo-category.model';
 import {PhotoSortOrder} from 'src/app/core/models/photo-sort-order.model';
-import {Photo} from 'src/app/core/models/photo.model';
+import {Photo, PhotoDuplicateGroup} from 'src/app/core/models/photo.model';
 import {UsersPhotoSourcesClient} from 'src/app/shared/models/photomap-backend.swagger';
+import {ButtonDirective} from 'src/app/shared/ui/button/button.directive';
 import {IconComponent} from 'src/app/shared/ui/icon/icon.component';
 import {MultiselectComponent, MultiselectOption} from 'src/app/shared/ui/multiselect/multiselect.component';
 import {PageEvent, PaginatorComponent} from 'src/app/shared/ui/paginator/paginator.component';
@@ -19,6 +20,7 @@ import {UserPhotosService} from '../../core/services/user-photos.service';
 import {PhotosMapViewComponent} from '../shared/photos-map-view/photos-map-view.component';
 import {PhotosThumbViewComponent} from '../shared/photos-thumb-view/photos-thumb-view.component';
 import {GalleryFilter} from './gallery-filter';
+import {PhotoDuplicatesComponent} from './photo-duplicates/photo-duplicates.component';
 
 type ViewMode = 'thumb' | 'map';
 type GalleryWidth = 'contained' | 'full';
@@ -50,9 +52,11 @@ const GPS_OPTIONS: readonly MultiselectOption<number>[] = [
   templateUrl: './gallery.component.html',
   styleUrls: ['./gallery.component.scss'],
   imports: [
+    ButtonDirective,
     IconComponent,
     MultiselectComponent,
     PaginatorComponent,
+    PhotoDuplicatesComponent,
     PhotosMapViewComponent,
     PhotosThumbViewComponent,
     SegmentedComponent,
@@ -121,6 +125,11 @@ export class GalleryComponent implements OnInit {
     return categories.length > 0 && categories.every((category) => category === PhotoCategory.Deleted);
   });
 
+  /** Whether the page lists the photos that are copies of one another, by their groups, rather than the filtered ones. */
+  readonly showDuplicates = signal(false);
+  readonly duplicateGroups = signal<PhotoDuplicateGroup[]>([]);
+  readonly duplicateCount = computed(() => this.duplicateGroups().reduce((count, group) => count + group.photos.length, 0));
+
   /** The photos being deleted or restored. */
   readonly busyPhotoIds = signal<ReadonlySet<string>>(new Set());
 
@@ -145,6 +154,7 @@ export class GalleryComponent implements OnInit {
   private yearConst = 'year';
   private categoryConst = 'category';
   private gpsConst = 'gps';
+  private duplicatesConst = 'duplicates';
 
   private photosRequest?: Subscription;
 
@@ -177,6 +187,7 @@ export class GalleryComponent implements OnInit {
         this.yearFilter.request(params[this.yearConst]);
         this.categoryFilter.request(params[this.categoryConst]);
         this.gpsFilter.request(params[this.gpsConst]);
+        this.showDuplicates.set(params[this.duplicatesConst] === 'true');
       },
     });
 
@@ -220,6 +231,38 @@ export class GalleryComponent implements OnInit {
 
     this.addQueryString();
     this.setImages();
+  }
+
+  toggleDuplicates(): void {
+    this.showDuplicates.update((showDuplicates) => !showDuplicates);
+
+    this.addQueryString();
+    this.setImages();
+
+    this.document.defaultView?.scrollTo({top: 0});
+  }
+
+  /** Deletes a copy, which leaves its group, and the group too once a single photo is left in it. */
+  deleteDuplicate(photo: Photo): void {
+    this.setBusy(photo.id, true);
+
+    this.userPhotosService
+      .markPhotoAsDeleted(this.userId, photo.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.setBusy(photo.id, false);
+          this.duplicateGroups.update((groups) =>
+            groups
+              .map((group) => ({...group, photos: group.photos.filter((copy) => copy.id !== photo.id)}))
+              .filter((group) => group.photos.length > 1),
+          );
+        },
+        error: (error) => {
+          this.setBusy(photo.id, false);
+          this.toastService.error('Could not delete the photo.', error);
+        },
+      });
   }
 
   markPhotoAsDeleted(photo: Photo): void {
@@ -274,7 +317,11 @@ export class GalleryComponent implements OnInit {
     if (filter.setOptions(options)) {
       this.pageIndex = 0;
       this.addQueryString();
-      this.setImages();
+
+      // the duplicates are not filtered
+      if (!this.showDuplicates()) {
+        this.setImages();
+      }
     }
   }
 
@@ -300,11 +347,21 @@ export class GalleryComponent implements OnInit {
       params = params.append(this.gpsConst, gps.toString());
     }
 
+    if (this.showDuplicates()) {
+      params = params.append(this.duplicatesConst, 'true');
+    }
+
     this.location.go(this.router.url.split('?')[0], params.toString());
   }
 
   private setImages() {
     this.photosRequest?.unsubscribe();
+
+    if (this.showDuplicates()) {
+      this.loadDuplicates();
+
+      return;
+    }
 
     if (this.nothingSelected()) {
       this.photos.set([]);
@@ -338,6 +395,27 @@ export class GalleryComponent implements OnInit {
           this.failed.set(true);
           this.showSpinner.set(false);
           this.toastService.error('Could not load the photos.', error);
+        },
+      });
+  }
+
+  private loadDuplicates(): void {
+    this.showSpinner.set(true);
+    this.failed.set(false);
+
+    this.photosRequest = this.userPhotosService
+      .getUserPhotoDuplicates(this.userId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (groups) => {
+          this.duplicateGroups.set(groups);
+          this.showSpinner.set(false);
+        },
+        error: (error) => {
+          this.duplicateGroups.set([]);
+          this.failed.set(true);
+          this.showSpinner.set(false);
+          this.toastService.error('Could not load the duplicate photos.', error);
         },
       });
   }

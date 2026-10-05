@@ -461,4 +461,71 @@ describe('GalleryComponent', () => {
     build();
     expect(component.selectedWidth()).toBe('full');
   });
+
+  describe('duplicates', () => {
+    const http = () => TestBed.inject(HttpTestingController);
+
+    afterEach(() => vi.restoreAllMocks());
+    const photo = (id: string, path: string) => ({
+      id,
+      photoUrl: `/photo-${id}.jpg`,
+      thumbnailSmallUrl: `/thumb-${id}.jpg`,
+      thumbnailLargeUrl: `/thumb-${id}.jpg`,
+      dateTimeTaken: new Date(),
+      fileName: 'IMG_1.jpg',
+      path,
+    });
+
+    const showDuplicates = () => {
+      flushPhotos(3);
+      vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+
+      component.toggleDuplicates();
+      http()
+        .expectOne((request) => request.url.endsWith('/users/1/photos/duplicates'))
+        .flush([
+          {id: '1', photos: [photo('1', 'disk:/Camera Uploads/IMG_1.jpg'), photo('2', '/Photos/IMG_1.jpg')]},
+          {id: '3', photos: [photo('3', '/a/IMG_1.jpg'), photo('4', '/b/IMG_1.jpg'), photo('5', '/c/IMG_1.jpg')]},
+        ]);
+      fixture.detectChanges();
+    };
+
+    const copies = () => [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('app-photo-duplicates .copy')];
+
+    it('should list the copies by their groups, with the folder each one is in, in place of the photos', () => {
+      showDuplicates();
+
+      expect(copies()).toHaveLength(5);
+      expect(copies()[0].textContent).toContain('/Camera Uploads');
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('5 photos in 2 groups of copies');
+      expect((fixture.nativeElement as HTMLElement).querySelector('app-paginator')).toBeNull();
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('Show all photos');
+    });
+
+    it('should take a deleted copy out of its group, and the group out once one photo is left', () => {
+      showDuplicates();
+
+      copies()[1].querySelector<HTMLButtonElement>('.action')!.click();
+      http()
+        .expectOne((request) => request.url.endsWith('/users/1/photos/2/delete'))
+        .flush(null);
+      fixture.detectChanges();
+
+      expect(component.duplicateGroups().map((group) => group.id)).toEqual(['3']);
+      expect(copies()).toHaveLength(3);
+    });
+
+    it('should say so when there are no duplicates', () => {
+      flushPhotos(3);
+      vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+
+      component.toggleDuplicates();
+      http()
+        .expectOne((request) => request.url.endsWith('/photos/duplicates'))
+        .flush([]);
+      fixture.detectChanges();
+
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('No duplicate photos.');
+    });
+  });
 });

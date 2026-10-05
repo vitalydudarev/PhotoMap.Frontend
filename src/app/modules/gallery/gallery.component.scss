@@ -90,6 +90,10 @@
   padding: var(--app-space-3) var(--app-space-5);
 }
 
+.summary {
+  color: var(--app-fg-muted);
+}
+
 /* Fills the height left under the toolbar. */
 .map {
   flex: 1;

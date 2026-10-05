@@ -17,3 +17,15 @@ export interface Video {
   latitude?: number;
   longitude?: number;
 }
+
+/** Mirrors the backend's `VideoDuplicateGroupDto`: videos that are copies of one another, of the same size and file name. */
+export interface VideoDuplicateGroup {
+  /** The ID of the first video of the group. */
+  id: string;
+  /** The file name of the first video of the group, the others differ from it in case at most. */
+  fileName: string;
+  /** The size of each video of the group, in bytes. */
+  size: number;
+  /** By their ID, two at least. */
+  videos: Video[];
+}
