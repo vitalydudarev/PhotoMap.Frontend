@@ -42,6 +42,11 @@ export class UserPhotosService {
     return this._httpClient.get<PagedResponse<Photo>>(`${this.url}/${userId}/photos`, {params});
   }
 
+  /** The photos of the user with a GPS location, all of them, oldest first. The deleted photos are left out. */
+  public getUserGeotaggedPhotos(userId: number): Observable<Photo[]> {
+    return this._httpClient.get<Photo[]>(`${this.url}/${userId}/photos/geotagged`);
+  }
+
   /**
    * The photos of the user that are copies of one another, by their groups, the photos taken first first. Photos marked
    * as deleted are in no group. The groups are looked for in the background, so a photo saved, deleted or restored a

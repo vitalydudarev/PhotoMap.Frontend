@@ -1,12 +1,7 @@
 @if (loading()) {
   <div class="state">
     <app-spinner [size]="28" label="Loading photos" />
-    <p>
-      Loading photos…
-      @if (total() > 0) {
-        {{ loaded() }} of {{ total() }}
-      }
-    </p>
+    <p>Loading photos…</p>
   </div>
 } @else if (failed()) {
   <div class="state">
@@ -14,7 +9,7 @@
   </div>
 } @else if (photos().length === 0) {
   <div class="state">
-    <p>No photos yet. Connect a photo source and start processing to see them here.</p>
+    <p>No photos with a location yet. Connect a photo source and start processing to see them here.</p>
   </div>
 } @else {
   <app-photos-map-view class="map" [photos]="photos()" />
