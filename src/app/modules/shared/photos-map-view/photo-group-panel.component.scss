@@ -71,6 +71,7 @@
 }
 
 .thumb {
+  position: relative;
   display: block;
   padding: 0;
   border: 0;
@@ -89,6 +90,31 @@
   /* Hides the alt text while the thumbnail loads; the file name is in the button's title. */
   color: transparent;
   transition: transform var(--app-transition);
+}
+
+/* A photo whose location may be far off: a red frame and an exclamation mark, as on the map. */
+.thumb--inaccurate {
+  box-shadow: inset 0 0 0 3px var(--app-danger);
+}
+
+.thumb--inaccurate img {
+  padding: 3px;
+  border-radius: var(--app-radius-sm);
+}
+
+.thumb-warning {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--app-radius-pill);
+  background: var(--app-danger);
+  color: var(--app-danger-fg);
+  font-size: var(--app-text-xs);
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
 }
 
 .thumb:hover img {

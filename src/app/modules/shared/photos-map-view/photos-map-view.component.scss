@@ -9,23 +9,36 @@
   isolation: isolate;
 }
 
-/* Centred at the top, clear of the zoom buttons on the left and Google's map type control on the right. */
-.provider-switch,
+/* Centred at the top, clear of the zoom buttons on the left and Google's map type control on the right;
+   the switch for the areas of the inaccurate locations goes under the provider switch. */
+.controls,
 .notice {
   position: absolute;
   left: 50%;
   z-index: 1000;
   transform: translateX(-50%);
-  box-shadow: var(--app-shadow);
 }
 
-.provider-switch {
+.controls {
   top: var(--app-space-3);
-  background: var(--app-surface);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--app-space-2);
+}
+
+.provider-switch,
+.accuracy-switch {
+  box-shadow: var(--app-shadow);
   white-space: nowrap;
 }
 
+.provider-switch {
+  background: var(--app-surface);
+}
+
 .notice {
+  box-shadow: var(--app-shadow);
   bottom: var(--app-space-5);
   max-width: calc(100% - 2 * var(--app-space-4));
   padding: var(--app-space-2) var(--app-space-4);

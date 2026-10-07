@@ -58,6 +58,38 @@
   text-align: center;
 }
 
+/* A photo whose location may be far off: framed in red, with an exclamation mark on the top left,
+   clear of the count badge clusters have on the top right. */
+.photo-marker--inaccurate {
+  background: var(--app-danger);
+}
+
+.photo-marker__warning {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #ffffff;
+  border-radius: var(--app-radius-pill);
+  background: var(--app-danger);
+  color: var(--app-danger-fg);
+  font-size: var(--app-text-xs);
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+/* The area a photo whose location may be far off may have been taken in, the hovered photo's or all
+   of them, on OpenStreetMap; Google Maps draws its circles itself, in the same colours. */
+.photo-map-accuracy {
+  fill: var(--app-danger);
+  fill-opacity: 0.12;
+  stroke: var(--app-danger);
+  stroke-opacity: 0.8;
+  stroke-width: 1.5px;
+}
+
 /* A cluster at the deepest zoom: its photos side by side, each with its own click. The gaps
    between them are not part of the marker, and neither is the div Leaflet wraps it in. */
 .photo-marker-host:has(> .photo-spread) {

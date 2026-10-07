@@ -2,13 +2,17 @@ import {Photo} from 'src/app/core/models/photo.model';
 
 import {
   GeotaggedPhoto,
+  createPhotoMarkerElement,
   createPhotoSpreadElement,
   fitSpreads,
   groupByDay,
+  hasInaccurateLocation,
+  inaccuratePhotosById,
   isGeotagged,
   markHighlighted,
   isSinglePoint,
   selectAround,
+  watchInaccurateMarkerHover,
 } from './photo-map.model';
 
 function photo(id: number, taken: string, latitude?: number, longitude?: number): Photo {
@@ -28,6 +32,54 @@ describe('photo map helpers', () => {
   it('treats the equator and the prime meridian as a location', () => {
     expect(isGeotagged(photo(1, '2020-01-01', 0, 0))).toBe(true);
     expect(isGeotagged(photo(2, '2020-01-01'))).toBe(false);
+  });
+
+  it('takes a location as inaccurate only when it may be more than 50 m off', () => {
+    expect(hasInaccurateLocation({...photo(1, '2020-01-01', 53.9, 27.5), horizontalPositioningError: 65})).toBe(true);
+    expect(hasInaccurateLocation({...photo(2, '2020-01-01', 53.9, 27.5), horizontalPositioningError: 50})).toBe(false);
+    expect(hasInaccurateLocation(photo(3, '2020-01-01', 53.9, 27.5))).toBe(false);
+  });
+
+  it('marks the marker of a photo whose location may be far off, but not that of a cluster', () => {
+    const inaccurate = {...photo(1, '2020-01-01', 53.9, 27.5), horizontalPositioningError: 65.4};
+
+    const marker = createPhotoMarkerElement(inaccurate);
+
+    expect(marker.classList).toContain('photo-marker--inaccurate');
+    expect(marker.querySelector('.photo-marker__warning')).not.toBeNull();
+    expect(marker.title).toBe('1.jpg\nThe location may be off by up to 65 m');
+    expect(createPhotoMarkerElement(inaccurate, 3).classList).not.toContain('photo-marker--inaccurate');
+    expect(createPhotoMarkerElement(photo(2, '2020-01-01', 53.9, 27.5)).classList).not.toContain('photo-marker--inaccurate');
+  });
+
+  it('tells which photo with an inaccurate location the pointer is over, and when it leaves it', () => {
+    const container = document.createElement('div');
+    const inaccurate = createPhotoMarkerElement({...photo(1, '2020-01-01', 53.9, 27.5), horizontalPositioningError: 65});
+    const accurate = createPhotoMarkerElement(photo(2, '2020-01-01', 53.9, 27.5));
+    const hovered: (string | undefined)[] = [];
+    container.append(inaccurate, accurate);
+    watchInaccurateMarkerHover(container, (photoId) => hovered.push(photoId));
+
+    // onto the warning badge inside the marker, then within the marker, then off to the other one
+    inaccurate.querySelector('.photo-marker__warning')!.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}));
+    inaccurate.dispatchEvent(new MouseEvent('mouseout', {bubbles: true, relatedTarget: inaccurate.firstChild}));
+    inaccurate.dispatchEvent(new MouseEvent('mouseout', {bubbles: true, relatedTarget: accurate}));
+    accurate.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}));
+
+    expect(hovered).toEqual(['1', undefined]);
+  });
+
+  it('finds the hovered photo by the id the marker tells, though the backend sends ids as numbers', () => {
+    const fromBackend = {...photo(7, '2020-01-01', 53.9, 27.5), id: 7 as unknown as string, horizontalPositioningError: 65};
+    const marker = createPhotoMarkerElement(fromBackend);
+    const container = document.createElement('div');
+    let hovered: string | undefined;
+    container.append(marker);
+    watchInaccurateMarkerHover(container, (photoId) => (hovered = photoId));
+
+    marker.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}));
+
+    expect(inaccuratePhotosById([fromBackend, photo(8, '2020-01-01', 53.9, 27.5)]).get(hovered!)).toBe(fromBackend);
   });
 
   it('tells photos taken on one spot from photos taken apart', () => {

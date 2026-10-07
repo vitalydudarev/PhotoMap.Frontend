@@ -6,6 +6,8 @@ export interface Photo {
   dateTimeTaken: Date;
   latitude?: number;
   longitude?: number;
+  /** How far off the location may be, in meters, as the camera reported it; none when it did not. */
+  horizontalPositioningError?: number | null;
   fileName: string;
   /** The path of the photo in its photo source, with its file name. */
   path?: string | null;

@@ -26,10 +26,13 @@ import {
   createPhotoMarkerElement,
   createPhotoSpreadElement,
   fitSpreads,
+  hasInaccurateLocation,
+  inaccuratePhotosById,
   isSinglePoint,
   markHighlighted,
   markerSize,
   selectAround,
+  watchInaccurateMarkerHover,
 } from './photo-map.model';
 
 const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -66,12 +69,22 @@ export class LeafletPhotoMapComponent {
   readonly groupOpened = output<readonly GeotaggedPhoto[]>();
   /** Photos whose spot stands out on the map, for as long as they are shown together. */
   readonly highlighted = input<readonly GeotaggedPhoto[] | undefined>(undefined);
+  /** Whether the areas of all the photos whose location may be far off are circled, not only the hovered one's. */
+  readonly showAccuracyAreas = input(false);
 
   private readonly container = viewChild.required<ElementRef<HTMLElement>>('map');
   private readonly map = signal<L.Map | undefined>(undefined);
   private readonly zone = inject(NgZone);
   private readonly photoByMarker = new WeakMap<L.Layer, GeotaggedPhoto>();
   private clusterGroup?: L.MarkerClusterGroup;
+  /**
+   * The area the hovered photo may have been taken in, when its location may be far off, coloured by
+   * `src/styles/_map.scss`; one circle, moved from photo to photo.
+   */
+  private readonly accuracyCircle = this.createAccuracyCircle();
+  private inaccurateById = new Map<string, GeotaggedPhoto>();
+  /** The areas of all the photos whose location may be far off, while they are all circled. */
+  private readonly accuracyLayer = L.layerGroup();
   private highlightedIds: ReadonlySet<string> = new Set();
   /** The clusters drawn at the deepest zoom, the only ones spread, and the most tiles each has room for there. */
   private readonly spreadTiles = new WeakMap<L.MarkerCluster, number>();
@@ -87,6 +100,16 @@ export class LeafletPhotoMapComponent {
 
       if (map) {
         this.zone.runOutsideAngular(() => this.showPhotos(map, photos));
+      }
+    });
+
+    effect(() => {
+      const map = this.map();
+      const photos = this.photos();
+      const show = this.showAccuracyAreas();
+
+      if (map) {
+        this.zone.runOutsideAngular(() => this.showAllAccuracyAreas(map, show ? photos : []));
       }
     });
 
@@ -150,6 +173,11 @@ export class LeafletPhotoMapComponent {
     // clusters that come back into view keep the icons they had, drawn for the room they had then
     map.on('moveend', () => this.scheduleSpreadLayout(map));
 
+    const stopWatchingHover = watchInaccurateMarkerHover(element, (photoId) => this.showAccuracyArea(map, photoId));
+    // the hovered marker may be gone into a cluster once the map has zoomed, without the pointer leaving it
+    map.on('zoomstart', () => this.accuracyCircle.remove());
+    map.on('unload', stopWatchingHover);
+
     // The map is sized by its container, which changes with the layout and not only with the window.
     const resizeObserver = new ResizeObserver(() => map.invalidateSize());
     resizeObserver.observe(element);
@@ -175,12 +203,47 @@ export class LeafletPhotoMapComponent {
 
     clusterGroup.clearLayers();
     clusterGroup.addLayers(markers);
+    this.inaccurateById = inaccuratePhotosById(photos);
+    this.accuracyCircle.remove();
 
     if (photos.length > 0) {
       map.fitBounds(L.latLngBounds(photos.map((photo) => [photo.latitude, photo.longitude])), {
         padding: [FIT_PADDING, FIT_PADDING],
         maxZoom: FIT_MAX_ZOOM,
       });
+    }
+  }
+
+  /** Circles the areas of those of `photos` whose location may be far off, or takes them all off the map for none. */
+  private showAllAccuracyAreas(map: L.Map, photos: readonly GeotaggedPhoto[]): void {
+    const circles = photos
+      .filter(hasInaccurateLocation)
+      .map((photo) =>
+        this.createAccuracyCircle().setLatLng([photo.latitude, photo.longitude]).setRadius(photo.horizontalPositioningError!),
+      );
+
+    this.accuracyLayer.clearLayers();
+    circles.forEach((circle) => this.accuracyLayer.addLayer(circle));
+    this.accuracyCircle.remove();
+
+    if (circles.length > 0) {
+      this.accuracyLayer.addTo(map);
+    } else {
+      this.accuracyLayer.remove();
+    }
+  }
+
+  /**
+   * Circles the area the photo may have been taken in, as far around it as the camera said it may be off, or none.
+   * While all the areas are circled, the photo's is already.
+   */
+  private showAccuracyArea(map: L.Map, photoId: string | undefined): void {
+    const photo = photoId === undefined || this.showAccuracyAreas() ? undefined : this.inaccurateById.get(photoId);
+
+    if (photo) {
+      this.accuracyCircle.setLatLng([photo.latitude, photo.longitude]).setRadius(photo.horizontalPositioningError!).addTo(map);
+    } else {
+      this.accuracyCircle.remove();
     }
   }
 
@@ -292,6 +355,10 @@ export class LeafletPhotoMapComponent {
 
   private select(selection: PhotoSelection): void {
     this.zone.run(() => this.photosSelected.emit(selection));
+  }
+
+  private createAccuracyCircle(): L.Circle {
+    return L.circle([0, 0], {radius: 1, className: 'photo-map-accuracy', interactive: false});
   }
 
   private photoOf(marker: L.Layer): GeotaggedPhoto {

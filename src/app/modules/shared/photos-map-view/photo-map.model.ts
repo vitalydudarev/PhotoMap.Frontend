@@ -22,6 +22,9 @@ export const FIT_PADDING = 48;
 /** How far apart, in pixels, markers can be and still end up in one cluster. */
 export const CLUSTER_RADIUS = 72;
 
+/** How far off, in meters, the location of a photo may be before the photo is marked as not to be relied on. */
+export const MAX_POSITIONING_ERROR = 50;
+
 const PHOTO_MARKER_SIZE = 52;
 const CLUSTER_MARKER_SIZE = 60;
 
@@ -45,6 +48,53 @@ export function markerSize(count = 1): number {
 
 export function isGeotagged(photo: Photo): photo is GeotaggedPhoto {
   return photo.latitude != null && photo.longitude != null;
+}
+
+/** True when the camera reported that the location of the photo may be more than `MAX_POSITIONING_ERROR` off. */
+export function hasInaccurateLocation(photo: Photo): boolean {
+  return photo.horizontalPositioningError != null && photo.horizontalPositioningError > MAX_POSITIONING_ERROR;
+}
+
+/** What the title of a photo says: its file name, and how far off its location may be when that is too far. */
+export function photoTitle(photo: Photo): string {
+  return hasInaccurateLocation(photo)
+    ? `${photo.fileName}\nThe location may be off by up to ${Math.round(photo.horizontalPositioningError!)} m`
+    : photo.fileName;
+}
+
+/**
+ * The photos whose location may be far off, by their ids as the hovered markers tell them: as text, though the backend
+ * sends numbers.
+ */
+export function inaccuratePhotosById<T extends Photo>(photos: readonly T[]): Map<string, T> {
+  return new Map(photos.filter(hasInaccurateLocation).map((photo) => [String(photo.id), photo]));
+}
+
+/**
+ * Calls `hovered` with the id of the photo whose location may be far off as the pointer comes onto its marker anywhere
+ * in `container`, a single photo or a tile of a spread, and with none as it leaves it. Returns what stops listening.
+ */
+export function watchInaccurateMarkerHover(container: HTMLElement, hovered: (photoId: string | undefined) => void): () => void {
+  let current: string | undefined;
+
+  const idOf = (target: EventTarget | null) =>
+    target instanceof Element ? target.closest<HTMLElement>('.photo-marker--inaccurate')?.dataset['photoId'] : undefined;
+  const update = (photoId: string | undefined) => {
+    if (photoId !== current) {
+      current = photoId;
+      hovered(photoId);
+    }
+  };
+  const onOver = (event: MouseEvent) => update(idOf(event.target));
+  const onOut = (event: MouseEvent) => update(idOf(event.relatedTarget));
+
+  container.addEventListener('mouseover', onOver);
+  container.addEventListener('mouseout', onOut);
+
+  return () => {
+    container.removeEventListener('mouseover', onOver);
+    container.removeEventListener('mouseout', onOut);
+  };
 }
 
 /** True when every photo sits on the same spot, so no amount of zooming will pull them apart. */
@@ -254,7 +304,8 @@ export function markHighlighted(element: HTMLElement, photos: readonly Geotagged
 
 /**
  * The marker drawn for a photo or, with `count`, for a cluster of photos: the photo's thumbnail in a frame, with the
- * number of photos on a badge. The thumbnail is a background image, so it is only downloaded once the marker is
+ * number of photos on a badge. A photo whose location may be far off is framed in red, with an exclamation mark on a
+ * badge. The thumbnail is a background image, so it is only downloaded once the marker is
  * actually on the screen. Styled by `src/styles/_map.scss`, as map libraries render markers outside the component.
  */
 export function createPhotoMarkerElement(photo: Photo, count = 1): HTMLElement {
@@ -278,7 +329,16 @@ export function createPhotoMarkerElement(photo: Photo, count = 1): HTMLElement {
     marker.appendChild(badge);
     marker.title = `${count} photos`;
   } else {
-    marker.title = photo.fileName;
+    marker.title = photoTitle(photo);
+
+    if (hasInaccurateLocation(photo)) {
+      const warning = document.createElement('span');
+      warning.className = 'photo-marker__warning';
+      warning.textContent = '!';
+      marker.classList.add('photo-marker--inaccurate');
+      marker.dataset['photoId'] = photo.id;
+      marker.appendChild(warning);
+    }
   }
 
   return marker;

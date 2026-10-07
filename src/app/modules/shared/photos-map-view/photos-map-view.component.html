@@ -2,6 +2,7 @@
   <app-google-photo-map
     [photos]="geotaggedPhotos()"
     [highlighted]="group()"
+    [showAccuracyAreas]="showAccuracyAreas()"
     (photosSelected)="openPhotos($event)"
     (groupOpened)="group.set($event)"
   />
@@ -9,6 +10,7 @@
   <app-leaflet-photo-map
     [photos]="geotaggedPhotos()"
     [highlighted]="group()"
+    [showAccuracyAreas]="showAccuracyAreas()"
     (photosSelected)="openPhotos($event)"
     (groupOpened)="group.set($event)"
   />
@@ -18,7 +20,24 @@
   <app-photo-group-panel [photos]="groupPhotos" (photosSelected)="openPhotos($event)" (closed)="group.set(undefined)" />
 }
 
-<app-segmented class="provider-switch" aria-label="Map provider" [options]="providers" [(value)]="provider" />
+<div class="controls">
+  <app-segmented class="provider-switch" aria-label="Map provider" [options]="providers" [(value)]="provider" />
+
+  @if (hasInaccurateLocations()) {
+    <button
+      class="accuracy-switch"
+      type="button"
+      size="sm"
+      [appButton]="showAccuracyAreas() ? 'tonal' : 'outline'"
+      [attr.aria-pressed]="showAccuracyAreas()"
+      title="Circle the areas the photos with an inaccurate location may have been taken in"
+      (click)="showAccuracyAreas.set(!showAccuracyAreas())"
+    >
+      <app-icon name="alert-triangle" [size]="16" />
+      Inaccurate locations
+    </button>
+  }
+</div>
 
 @if (geotaggedPhotos().length === 0) {
   <p class="notice">None of these photos has a location.</p>

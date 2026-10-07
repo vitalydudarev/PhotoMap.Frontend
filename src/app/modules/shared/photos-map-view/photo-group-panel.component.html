@@ -15,8 +15,17 @@
 
       <div class="grid">
         @for (photo of day.photos; track photo.id) {
-          <button class="thumb" type="button" [title]="photo.fileName" (click)="open(photo)">
+          <button
+            class="thumb"
+            type="button"
+            [class.thumb--inaccurate]="hasInaccurateLocation(photo)"
+            [title]="photoTitle(photo)"
+            (click)="open(photo)"
+          >
             <img [src]="photo.thumbnailLargeUrl" [alt]="photo.fileName" width="96" height="96" loading="lazy" />
+            @if (hasInaccurateLocation(photo)) {
+              <span class="thumb-warning" aria-hidden="true">!</span>
+            }
           </button>
         }
       </div>

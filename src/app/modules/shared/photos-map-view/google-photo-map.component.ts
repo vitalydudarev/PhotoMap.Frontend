@@ -32,9 +32,12 @@ import {
   createPhotoMarkerElement,
   createPhotoSpreadElement,
   fitSpreads,
+  hasInaccurateLocation,
+  inaccuratePhotosById,
   isSinglePoint,
   markHighlighted,
   selectAround,
+  watchInaccurateMarkerHover,
 } from './photo-map.model';
 
 // Keeps clusters together up to the deepest zoom, where they are spread, so photos taken on the same spot never end
@@ -43,6 +46,7 @@ const CLUSTER_MAX_ZOOM = 22;
 
 interface GoogleMaps {
   Map: typeof google.maps.Map;
+  Circle: typeof google.maps.Circle;
   AdvancedMarkerElement: typeof google.maps.marker.AdvancedMarkerElement;
 }
 
@@ -53,9 +57,9 @@ function loadGoogleMaps(): Promise<GoogleMaps> {
   googleMaps ??= (async () => {
     setOptions({key: environment.googleMapsApiKey, v: 'weekly'});
 
-    const [{Map}, {AdvancedMarkerElement}] = await Promise.all([importLibrary('maps'), importLibrary('marker')]);
+    const [{Map, Circle}, {AdvancedMarkerElement}] = await Promise.all([importLibrary('maps'), importLibrary('marker')]);
 
-    return {Map, AdvancedMarkerElement};
+    return {Map, Circle, AdvancedMarkerElement};
   })();
 
   googleMaps.catch(() => (googleMaps = undefined));
@@ -64,6 +68,13 @@ function loadGoogleMaps(): Promise<GoogleMaps> {
 }
 
 type Marker = google.maps.marker.AdvancedMarkerElement;
+
+const ACCURACY_CIRCLE_OPTIONS: google.maps.CircleOptions = {
+  clickable: false,
+  strokeOpacity: 0.8,
+  strokeWeight: 1.5,
+  fillOpacity: 0.12,
+};
 
 /** Clusters as SuperClusterAlgorithm does, and hands each new set of clusters to `clustered` before they are drawn. */
 class ObservedSuperClusterAlgorithm extends SuperClusterAlgorithm {
@@ -104,6 +115,8 @@ export class GooglePhotoMapComponent {
   readonly groupOpened = output<readonly GeotaggedPhoto[]>();
   /** Photos whose spot stands out on the map, for as long as they are shown together. */
   readonly highlighted = input<readonly GeotaggedPhoto[] | undefined>(undefined);
+  /** Whether the areas of all the photos whose location may be far off are circled, not only the hovered one's. */
+  readonly showAccuracyAreas = input(false);
 
   readonly error = signal<string | undefined>(undefined);
 
@@ -117,6 +130,12 @@ export class GooglePhotoMapComponent {
   private readonly clusterMarkers = new Map<HTMLElement, readonly GeotaggedPhoto[]>();
   /** The most tiles each cluster at the deepest zoom has room for. */
   private spreadTiles = new WeakMap<Cluster, number>();
+  /** The area the hovered photo may have been taken in, when its location may be far off; one circle, moved from photo to photo. */
+  private accuracyCircle?: google.maps.Circle;
+  private inaccurateById = new Map<string, GeotaggedPhoto>();
+  /** The areas of all the photos whose location may be far off, while they are all circled. */
+  private accuracyCircles: google.maps.Circle[] = [];
+  private stopWatchingHover?: () => void;
 
   constructor() {
     afterNextRender(() => this.zone.runOutsideAngular(() => this.createMap()));
@@ -127,6 +146,16 @@ export class GooglePhotoMapComponent {
 
       if (ready) {
         this.zone.runOutsideAngular(() => this.showPhotos(ready.map, ready.lib, photos));
+      }
+    });
+
+    effect(() => {
+      const ready = this.ready();
+      const photos = this.photos();
+      const show = this.showAccuracyAreas();
+
+      if (ready) {
+        this.zone.runOutsideAngular(() => this.showAllAccuracyAreas(ready.map, ready.lib, show ? photos : []));
       }
     });
 
@@ -146,6 +175,9 @@ export class GooglePhotoMapComponent {
     inject(DestroyRef).onDestroy(() => {
       this.clusterer?.clearMarkers();
       this.clusterer?.setMap(null);
+      this.accuracyCircle?.setMap(null);
+      this.accuracyCircles.forEach((circle) => circle.setMap(null));
+      this.stopWatchingHover?.();
     });
   }
 
@@ -201,6 +233,11 @@ export class GooglePhotoMapComponent {
       onClusterClick: (_event, cluster) => this.onClusterClick(map, cluster),
     });
 
+    this.accuracyCircle = new lib.Circle(ACCURACY_CIRCLE_OPTIONS);
+    this.stopWatchingHover = watchInaccurateMarkerHover(this.container().nativeElement, (photoId) => this.showAccuracyArea(map, photoId));
+    // the hovered marker may be gone into a cluster once the map has zoomed, without the pointer leaving it
+    map.addListener('zoom_changed', () => this.accuracyCircle!.setMap(null));
+
     this.ready.set({map, lib});
   }
 
@@ -221,6 +258,8 @@ export class GooglePhotoMapComponent {
     this.clusterer!.clearMarkers(true);
     this.clusterMarkers.clear();
     this.clusterer!.addMarkers(markers);
+    this.inaccurateById = inaccuratePhotosById(photos);
+    this.accuracyCircle!.setMap(null);
 
     if (photos.length === 0) {
       return;
@@ -237,6 +276,54 @@ export class GooglePhotoMapComponent {
         map.setZoom(FIT_MAX_ZOOM);
       }
     });
+  }
+
+  /** Circles the areas of those of `photos` whose location may be far off, or takes them all off the map for none. */
+  private showAllAccuracyAreas(map: google.maps.Map, lib: GoogleMaps, photos: readonly GeotaggedPhoto[]): void {
+    const color = this.accuracyColor();
+
+    this.accuracyCircles.forEach((circle) => circle.setMap(null));
+    this.accuracyCircle?.setMap(null);
+    this.accuracyCircles = photos.filter(hasInaccurateLocation).map(
+      (photo) =>
+        new lib.Circle({
+          ...ACCURACY_CIRCLE_OPTIONS,
+          map,
+          center: {lat: photo.latitude, lng: photo.longitude},
+          radius: photo.horizontalPositioningError!,
+          strokeColor: color,
+          fillColor: color,
+        }),
+    );
+  }
+
+  /**
+   * Circles the area the photo may have been taken in, as far around it as the camera said it may be off, or none.
+   * While all the areas are circled, the photo's is already.
+   */
+  private showAccuracyArea(map: google.maps.Map, photoId: string | undefined): void {
+    const photo = photoId === undefined || this.showAccuracyAreas() ? undefined : this.inaccurateById.get(photoId);
+
+    if (!photo) {
+      this.accuracyCircle!.setMap(null);
+
+      return;
+    }
+
+    const color = this.accuracyColor();
+
+    this.accuracyCircle!.setOptions({
+      map,
+      center: {lat: photo.latitude, lng: photo.longitude},
+      radius: photo.horizontalPositioningError!,
+      strokeColor: color,
+      fillColor: color,
+    });
+  }
+
+  /** Google draws the circles itself, so they get the colour of the theme rather than the variable. */
+  private accuracyColor(): string {
+    return getComputedStyle(this.container().nativeElement).getPropertyValue('--app-danger').trim() || '#dc2626';
   }
 
   private isDeepest(map: google.maps.Map): boolean {
