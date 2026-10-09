@@ -2,6 +2,7 @@ import {ChangeDetectionStrategy, Component, input} from '@angular/core';
 
 export type IconName =
   | 'alert-triangle'
+  | 'box'
   | 'check'
   | 'check-circle'
   | 'chevron-down'
@@ -10,12 +11,15 @@ export type IconName =
   | 'chevron-up'
   | 'chevrons-left'
   | 'chevrons-right'
+  | 'cloud'
+  | 'download'
   | 'external-link'
   | 'filter'
   | 'fit-width'
   | 'full-width'
   | 'grid'
   | 'heart'
+  | 'image'
   | 'info'
   | 'map'
   | 'map-pin'

@@ -31,7 +31,8 @@ export class AppComponent implements OnInit {
     {title: 'Gallery', route: '/gallery', icon: 'grid'},
     {title: 'Videos', route: '/videos', icon: 'video'},
     {title: 'Map', route: '/map', icon: 'map'},
-    {title: 'Photo Sources', route: '/photo-sources', icon: 'shield-check'},
+    {title: 'Yandex.Disk', route: '/yandex-disk', icon: 'cloud'},
+    {title: 'Dropbox', route: '/dropbox', icon: 'box'},
   ];
 
   /** Connection badges, one per source the backend knows about. */

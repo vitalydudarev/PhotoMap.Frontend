@@ -1,0 +1,234 @@
+.page-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-3);
+}
+
+.connection-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-3);
+}
+
+.connection-status {
+  margin: 0;
+  color: var(--app-fg-muted);
+  font-size: var(--app-text-sm);
+}
+
+.all-data-actions {
+  margin-top: var(--app-space-5);
+  padding-top: var(--app-space-4);
+  border-top: 1px solid var(--app-border);
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--app-space-5);
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-3);
+  margin-top: var(--app-space-4);
+}
+
+.progress-value {
+  color: var(--app-fg-muted);
+  font-size: var(--app-text-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* What a tab shows: the processing of the photos or of the videos, or a download. */
+.subsection {
+  display: block;
+}
+
+.subsection-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-3);
+}
+
+.subsection-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--app-space-2);
+  margin: 0;
+  font-size: var(--app-text-md);
+  font-weight: 600;
+}
+
+.subsection-hint {
+  margin: var(--app-space-2) 0 var(--app-space-4);
+  color: var(--app-fg-muted);
+  font-size: var(--app-text-sm);
+}
+
+.subsection app-alert {
+  margin-bottom: var(--app-space-4);
+}
+
+.folder-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-1);
+  margin-bottom: var(--app-space-4);
+}
+
+.folder-label {
+  color: var(--app-fg-muted);
+  font-size: var(--app-text-sm);
+}
+
+.folder-input {
+  width: 100%;
+  min-width: 0;
+  padding: var(--app-space-2) var(--app-space-3);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-surface);
+  color: inherit;
+  font: inherit;
+  font-family: var(--app-font-mono);
+}
+
+.folder-input:focus-visible {
+  outline: none;
+  box-shadow: var(--app-focus-ring);
+}
+
+.download-choice {
+  margin-bottom: var(--app-space-4);
+}
+
+.download-folder {
+  font-family: var(--app-font-mono);
+  overflow-wrap: anywhere;
+}
+
+.failed-files {
+  margin-top: var(--app-space-4);
+  font-size: var(--app-text-sm);
+}
+
+.failed-files summary {
+  color: var(--app-danger);
+  cursor: pointer;
+}
+
+.failed-files-list {
+  max-height: 240px;
+  margin: var(--app-space-2) 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.failed-file {
+  display: flex;
+  flex-direction: column;
+  padding: var(--app-space-2) 0;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.failed-file-name {
+  font-family: var(--app-font-mono);
+  overflow-wrap: anywhere;
+}
+
+.failed-file-error {
+  color: var(--app-fg-muted);
+}
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--app-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.preview-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface);
+}
+
+.preview-image {
+  display: block;
+  aspect-ratio: 4 / 3;
+  background: var(--app-surface-sunken);
+}
+
+.preview-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.preview-image--missing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--app-space-1);
+  padding: var(--app-space-3);
+  color: var(--app-fg-muted);
+  font-size: var(--app-text-sm);
+  text-align: center;
+}
+
+.preview-error {
+  font-size: var(--app-text-xs);
+  overflow-wrap: anywhere;
+}
+
+.preview-details {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--app-space-1);
+  padding: var(--app-space-3);
+  font-size: var(--app-text-sm);
+}
+
+.preview-name {
+  max-width: 100%;
+  overflow: hidden;
+  font-family: var(--app-font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-failure {
+  color: var(--app-fg-muted);
+  overflow-wrap: anywhere;
+}
+
+.subsection-actions {
+  margin-top: var(--app-space-4);
+}
+
+.danger-action {
+  margin-left: auto;
+  color: var(--app-danger);
+}
+
+.danger-action:hover {
+  background: var(--app-danger-soft);
+  color: var(--app-danger);
+}

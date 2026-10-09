@@ -1,0 +1,410 @@
+<div class="app-page app-page--narrow app-stack">
+  <header>
+    <div class="page-heading">
+      <h1 class="app-page-title">{{ sourceName() }}</h1>
+      @if (source(); as source) {
+        @if (source.isAuthorized) {
+          <span class="app-badge app-badge--success">
+            <app-icon name="check" [size]="13" />
+            Connected
+          </span>
+        } @else {
+          <span class="app-badge">Not connected</span>
+        }
+      }
+    </div>
+    <p class="app-page-subtitle">Connect the account, then import its photos and videos, or download its files as they are.</p>
+  </header>
+
+  @if (isLoading()) {
+    <app-card>
+      <div class="loading">
+        <app-spinner [size]="24" [label]="'Loading ' + sourceName()" />
+      </div>
+    </app-card>
+  } @else if (source(); as source) {
+    <app-card class="connection">
+      <div class="connection-row">
+        <p class="connection-status">
+          @if (source.isAuthorized) {
+            Connected{{ source.tokenExpires ? ' until ' + source.tokenExpires : '' }}.
+          } @else {
+            Authorize the account to import and download its files.
+          }
+        </p>
+        <button [appButton]="source.isAuthorized ? 'outline' : 'filled'" type="button" (click)="authorize(source.id)">
+          <app-icon name="shield-check" [size]="16" />
+          {{ source.isAuthorized ? 'Reauthorize' : 'Authorize' }}
+        </button>
+      </div>
+    </app-card>
+
+    <app-tabs
+      [attr.aria-label]="sourceName()"
+      [idPrefix]="tabsIdPrefix"
+      [options]="tabs()"
+      [value]="tab()"
+      (valueChange)="selectTab($event)"
+    />
+
+    <app-card class="panel" role="tabpanel" [id]="tabPanelId(tabsIdPrefix, tab())" [attr.aria-labelledby]="tabId(tabsIdPrefix, tab())">
+      @switch (tab()) {
+        @case ('photos') {
+          <section class="subsection photos" [attr.aria-labelledby]="'photos-' + source.id">
+            <div class="subsection-header">
+              <h2 class="subsection-title" [id]="'photos-' + source.id">
+                <app-icon name="image" [size]="16" />
+                Photos
+              </h2>
+              <span class="app-badge" [class.app-badge--accent]="source.isRunning">{{ source.statusLabel }}</span>
+            </div>
+            <p class="subsection-hint">Imports the photos of {{ source.name }} and keeps their locations in sync.</p>
+
+            @if (source.error) {
+              <app-alert tone="danger" heading="Processing failed">{{ source.error }}</app-alert>
+            }
+
+            @if (source.total > 0 || (source.lastUpdated && !source.isRunning)) {
+              <dl class="app-detail-list">
+                @if (source.total > 0) {
+                  <div class="app-detail-row">
+                    <dt class="app-detail-term">Processed</dt>
+                    <dd class="app-detail-value">{{ source.progressLabel }}</dd>
+                  </div>
+                }
+
+                @if (source.lastUpdated && !source.isRunning) {
+                  <div class="app-detail-row">
+                    <dt class="app-detail-term">Last updated</dt>
+                    <dd class="app-detail-value">{{ source.lastUpdated }}</dd>
+                  </div>
+                }
+              </dl>
+            }
+
+            @if (source.isRunning) {
+              <div class="progress">
+                <app-progress-bar [mode]="source.total > 0 ? 'determinate' : 'indeterminate'" [value]="source.progressPercent" />
+                @if (source.total > 0) {
+                  <span class="progress-value">{{ source.progressPercent.toFixed(1) }}%</span>
+                }
+              </div>
+            }
+
+            <div class="app-actions subsection-actions">
+              @if (source.isAuthorized) {
+                <button appButton="filled" type="button" (click)="startStopProcessing(source)">
+                  <app-icon [name]="source.isRunning ? 'pause' : 'play'" [size]="16" />
+                  {{ source.action }}
+                </button>
+              }
+              <button class="danger-action" appButton="ghost" type="button" [disabled]="source.isRunning" (click)="deleteData(source)">
+                <app-icon name="trash" [size]="16" />
+                Delete data
+              </button>
+            </div>
+
+            <div class="app-actions all-data-actions">
+              <button class="danger-action" appButton="ghost" type="button" [disabled]="isAnyRunning()" (click)="deleteAllData()">
+                <app-icon name="trash" [size]="16" />
+                Delete the data of all sources
+              </button>
+            </div>
+          </section>
+        }
+        @case ('videos') {
+          @if (source.videos; as videos) {
+            <section class="subsection videos" [attr.aria-labelledby]="'videos-' + source.id">
+              <div class="subsection-header">
+                <h2 class="subsection-title" [id]="'videos-' + source.id">
+                  <app-icon name="video" [size]="16" />
+                  Videos
+                </h2>
+                <span class="app-badge" [class.app-badge--accent]="videos.isRunning">{{ videos.statusLabel }}</span>
+              </div>
+              <p class="subsection-hint">
+                Imports a preview image of every video on the disk. The videos themselves stay in {{ source.name }}.
+              </p>
+
+              @if (videos.error) {
+                <app-alert tone="danger" heading="Processing videos failed">{{ videos.error }}</app-alert>
+              }
+
+              @if (videos.total > 0 || (videos.lastUpdated && !videos.isRunning)) {
+                <dl class="app-detail-list">
+                  @if (videos.total > 0) {
+                    <div class="app-detail-row">
+                      <dt class="app-detail-term">Processed</dt>
+                      <dd class="app-detail-value">{{ videos.progressLabel }}</dd>
+                    </div>
+                  }
+
+                  @if (videos.lastUpdated && !videos.isRunning) {
+                    <div class="app-detail-row">
+                      <dt class="app-detail-term">Last updated</dt>
+                      <dd class="app-detail-value">{{ videos.lastUpdated }}</dd>
+                    </div>
+                  }
+                </dl>
+              }
+
+              @if (videos.isRunning) {
+                <div class="progress">
+                  <app-progress-bar [mode]="videos.total > 0 ? 'determinate' : 'indeterminate'" [value]="videos.progressPercent" />
+                  @if (videos.total > 0) {
+                    <span class="progress-value">{{ videos.progressPercent.toFixed(1) }}%</span>
+                  }
+                </div>
+              }
+
+              <div class="app-actions subsection-actions">
+                @if (source.isAuthorized) {
+                  <button appButton="outline" type="button" (click)="startStopVideoProcessing(source)">
+                    <app-icon [name]="videos.isRunning ? 'pause' : 'play'" [size]="16" />
+                    {{ videos.action }}
+                  </button>
+                }
+                <button
+                  class="danger-action"
+                  appButton="ghost"
+                  type="button"
+                  [disabled]="videos.isRunning"
+                  (click)="deleteVideoData(source)"
+                >
+                  <app-icon name="trash" [size]="16" />
+                  Delete videos
+                </button>
+              </div>
+            </section>
+          }
+        }
+        @case ('download') {
+          <ng-container *ngTemplateOutlet="downloadSection; context: {$implicit: source, download: source.download}" />
+        }
+        @case ('failed-previews') {
+          <section class="subsection failed-previews" [attr.aria-labelledby]="'failed-previews-' + source.id">
+            <div class="subsection-header">
+              <h2 class="subsection-title" [id]="'failed-previews-' + source.id">
+                <app-icon name="alert-triangle" [size]="16" />
+                Failed previews
+              </h2>
+              @if (failedPreviews(); as failedPreviews) {
+                <span class="app-badge">{{ failedPreviews.length.toLocaleString() }}</span>
+              }
+            </div>
+            <p class="subsection-hint">
+              The files that failed to be processed or downloaded, with a preview of each to tell which it is. The previews are downloaded
+              in the background, the largest {{ source.name }} makes.
+            </p>
+
+            @if (isLoadingFailedPreviews() && !failedPreviews()) {
+              <div class="loading">
+                <app-spinner [size]="24" label="Loading the failed files" />
+              </div>
+            } @else if (failedPreviews(); as failedPreviews) {
+              @if (failedPreviews.length === 0) {
+                <p class="app-empty">No files of {{ source.name }} have failed.</p>
+              } @else {
+                <ul class="preview-grid">
+                  @for (failedPreview of failedPreviews; track failedPreview.table + failedPreview.id) {
+                    <li class="preview-card">
+                      @if (failedPreview.previewUrl) {
+                        <a class="preview-image" [href]="failedPreview.previewUrl" target="_blank" rel="noopener">
+                          <img [src]="failedPreview.previewUrl" [alt]="'Preview of ' + failedPreview.fileName" loading="lazy" />
+                        </a>
+                      } @else {
+                        <div class="preview-image preview-image--missing">
+                          <app-icon name="image" [size]="28" />
+                          <span>{{ failedPreview.previewStatus === 'Pending' ? 'Preview pending' : 'No preview' }}</span>
+                          @if (failedPreview.previewError) {
+                            <span class="preview-error">{{ failedPreview.previewError }}</span>
+                          }
+                        </div>
+                      }
+                      <div class="preview-details">
+                        <span class="preview-name" [title]="failedPreview.fileName">
+                          {{ failedPreview.folder ? failedPreview.folder + '/' + failedPreview.fileName : failedPreview.fileName }}
+                        </span>
+                        <span class="app-badge preview-origin">{{ failedPreviewOrigins[failedPreview.origin] }}</span>
+                        <span class="preview-failure">
+                          {{ failedPreview.error }} · {{ failedPreview.attempts }}
+                          {{ failedPreview.attempts === 1 ? 'attempt' : 'attempts' }}
+                        </span>
+                      </div>
+                    </li>
+                  }
+                </ul>
+              }
+            }
+
+            <div class="app-actions subsection-actions">
+              <button appButton="outline" type="button" [disabled]="isLoadingFailedPreviews()" (click)="loadFailedPreviews()">
+                <app-icon name="restore" [size]="16" />
+                Refresh
+              </button>
+              @if (source.isAuthorized && hasMissingPreviews()) {
+                <button appButton="ghost" type="button" (click)="retryFailedPreviews(source)">
+                  <app-icon name="download" [size]="16" />
+                  Try the missing previews again
+                </button>
+              }
+            </div>
+          </section>
+        }
+        @case ('folder-download') {
+          @if (source.folderDownload; as folderDownload) {
+            <ng-container *ngTemplateOutlet="downloadSection; context: {$implicit: source, download: folderDownload}" />
+          }
+        }
+      }
+    </app-card>
+  } @else {
+    <app-card>
+      <p class="app-empty">The backend has no photo source named {{ sourceName() }}.</p>
+    </app-card>
+  }
+</div>
+
+<ng-template #downloadSection let-source let-download="download">
+  @let chosenFolder = download.kind === 'chosen-folder';
+  @let headingId = (chosenFolder ? 'folder-download-' : 'download-') + source.id;
+
+  <section class="subsection download" [class.folder-download]="chosenFolder" [attr.aria-labelledby]="headingId">
+    <div class="subsection-header">
+      <h2 class="subsection-title" [id]="headingId">
+        <app-icon name="download" [size]="16" />
+        {{ chosenFolder ? 'Download a folder' : 'Download' }}
+      </h2>
+      <span class="app-badge" [class.app-badge--accent]="download.isRunning">{{ download.statusLabel }}</span>
+    </div>
+    <p class="subsection-hint">
+      @if (chosenFolder) {
+        Saves the original files of a folder of {{ source.name }}, without its subfolders, in the folders of its path. Files downloaded
+        already are skipped.
+      } @else {
+        Saves the original files from the folder {{ source.name }} is processed from. Files downloaded already are skipped.
+      }
+    </p>
+
+    @if (download.error) {
+      <app-alert tone="danger" heading="Download failed">{{ download.error }}</app-alert>
+    }
+
+    @if (chosenFolder && !download.isRunning) {
+      <label class="folder-field">
+        <span class="folder-label">Folder</span>
+        <input
+          class="folder-input"
+          type="text"
+          placeholder="disk:/Photos/2020"
+          autocomplete="off"
+          spellcheck="false"
+          [value]="download.folder"
+          (input)="setDownloadFolder(source, $any($event.target).value)"
+          (keydown.enter)="source.isAuthorized && startStopDownload(source, download)"
+        />
+      </label>
+    }
+
+    @if (!download.isRunning) {
+      <app-segmented
+        class="download-choice"
+        aria-label="Files to download"
+        [options]="downloadChoices"
+        [value]="download.choice"
+        (valueChange)="selectDownloadChoice(source, download, $event)"
+      />
+    }
+
+    <dl class="app-detail-list">
+      @if (download.isRunning) {
+        <div class="app-detail-row">
+          <dt class="app-detail-term">Downloading</dt>
+          <dd class="app-detail-value">{{ download.choiceLabel }}</dd>
+        </div>
+      }
+
+      @if (download.targetFolder) {
+        <div class="app-detail-row">
+          <dt class="app-detail-term">Saved to</dt>
+          <dd class="app-detail-value download-folder">{{ download.targetFolder }}</dd>
+        </div>
+      }
+
+      @if (download.total > 0) {
+        <div class="app-detail-row">
+          <dt class="app-detail-term">Downloaded</dt>
+          <dd class="app-detail-value">{{ download.progressLabel }}</dd>
+        </div>
+      }
+
+      @if (download.alreadyDownloaded > 0 && !download.isRunning) {
+        <div class="app-detail-row">
+          <dt class="app-detail-term">Found downloaded</dt>
+          <dd class="app-detail-value">{{ download.alreadyDownloaded.toLocaleString() }}, skipped</dd>
+        </div>
+      }
+
+      @if (download.missing > 0) {
+        <div class="app-detail-row">
+          <dt class="app-detail-term">Missing</dt>
+          <dd class="app-detail-value">{{ download.missing.toLocaleString() }}</dd>
+        </div>
+      }
+
+      @if (download.lastUpdated && !download.isRunning) {
+        <div class="app-detail-row">
+          <dt class="app-detail-term">Last updated</dt>
+          <dd class="app-detail-value">{{ download.lastUpdated }}</dd>
+        </div>
+      }
+    </dl>
+
+    @if (download.isRunning) {
+      <div class="progress">
+        <app-progress-bar [mode]="download.total > 0 ? 'determinate' : 'indeterminate'" [value]="download.progressPercent" />
+        @if (download.total > 0) {
+          <span class="progress-value">{{ download.progressPercent.toFixed(1) }}%</span>
+        }
+      </div>
+    }
+
+    @if (download.failedFiles.length > 0) {
+      <details class="failed-files">
+        <summary>
+          {{ download.failedFiles.length.toLocaleString() }} {{ download.failedFiles.length === 1 ? 'file' : 'files' }} failed to download
+        </summary>
+        <ul class="failed-files-list">
+          @for (file of download.failedFiles; track file.folder + '/' + file.fileName) {
+            <li class="failed-file">
+              <span class="failed-file-name">{{ file.folder ? file.folder + '/' + file.fileName : file.fileName }}</span>
+              <span class="failed-file-error">
+                {{ file.error }} · {{ file.attempts }} {{ file.attempts === 1 ? 'attempt' : 'attempts' }}
+              </span>
+            </li>
+          }
+        </ul>
+      </details>
+    }
+
+    @if (source.isAuthorized) {
+      <div class="app-actions subsection-actions">
+        <button
+          appButton="outline"
+          type="button"
+          [disabled]="chosenFolder && !download.isRunning && !download.folder.trim()"
+          (click)="startStopDownload(source, download)"
+        >
+          <app-icon [name]="download.isRunning ? 'pause' : 'download'" [size]="16" />
+          {{ download.action }}
+        </button>
+        @if (download.failedFiles.length > 0 && !download.isRunning) {
+          <button appButton="ghost" type="button" (click)="retryFailedDownloads(source, download)">
+            <app-icon name="restore" [size]="16" />
+            Retry failed ({{ download.failedFiles.length.toLocaleString() }})
+          </button>
+        }
+      </div>
+    }
+  </section>
+</ng-template>
