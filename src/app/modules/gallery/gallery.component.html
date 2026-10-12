@@ -87,6 +87,11 @@
             [value]="gpsFilter.selected()"
             (valueChange)="filterUpdated(gpsFilter, $event)"
           />
+
+          <label class="all-folders" title="Also show the photos outside the folders the sources are processed from">
+            <input type="checkbox" [checked]="allFolders()" (change)="allFoldersUpdated($any($event.target).checked)" />
+            <span>Photos of all folders</span>
+          </label>
         </div>
       </div>
     }

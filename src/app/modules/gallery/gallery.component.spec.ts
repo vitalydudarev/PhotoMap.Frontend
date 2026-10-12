@@ -220,6 +220,9 @@ describe('GalleryComponent', () => {
       expect(request.request.params.getAll('year')).toBeNull();
       expect(request.request.params.getAll('category')).toBeNull();
       expect(request.request.params.get('gps')).toBeNull();
+      // the photos of the other folders are left out until they are asked for
+      expect(component.allFolders()).toBe(false);
+      expect(request.request.params.get('allFolders')).toBeNull();
       expect(multiselects().map((multiselect) => multiselect.textContent)).toEqual([
         expect.stringContaining('All'),
         expect.stringContaining('All'),
@@ -347,6 +350,29 @@ describe('GalleryComponent', () => {
 
       expect(photosRequests()).toHaveLength(0);
       expect((fixture.nativeElement as HTMLElement).textContent).toContain('Neither photos with GPS nor without');
+    });
+
+    it('should ask for the photos of all folders from the first page once the box is checked, and count it', () => {
+      photosRequests();
+      flushYears();
+      openFilters();
+      component.pageIndex = 2;
+
+      const checkbox = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('.all-folders input')!;
+      expect(checkbox.checked).toBe(false);
+
+      checkbox.click();
+      fixture.detectChanges();
+
+      const [allFolders] = photosRequests();
+      expect(allFolders.request.params.get('allFolders')).toBe('true');
+      expect(allFolders.request.params.get('skip')).toBe('0');
+      expect(toggle().querySelector('.filters-count')?.textContent).toContain('1');
+
+      checkbox.click();
+
+      const [defaultFolders] = photosRequests();
+      expect(defaultFolders.request.params.get('allFolders')).toBeNull();
     });
 
     it('should hide the year filter while there are no photos to take years from', () => {

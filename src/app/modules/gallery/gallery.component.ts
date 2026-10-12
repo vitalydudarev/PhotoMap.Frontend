@@ -107,6 +107,12 @@ export class GalleryComponent implements OnInit {
       this.gpsFilter.noneSelected(),
   );
 
+  /**
+   * Whether the photos of every folder are shown, those outside the folders the sources are processed from too, such as
+   * the other folders of Yandex.Disk. Only the photos of the folders the sources are processed from until the user asks.
+   */
+  readonly allFolders = signal(false);
+
   /** The filters sit in a row of their own under the toolbar, shown on demand. */
   readonly filtersOpen = signal(this.readFiltersOpenPreference());
 
@@ -115,7 +121,7 @@ export class GalleryComponent implements OnInit {
     () =>
       [this.sourceFilter, this.yearFilter, this.categoryFilter, this.gpsFilter].filter(
         (filter) => filter.values().length > 0 || filter.noneSelected(),
-      ).length,
+      ).length + (this.allFolders() ? 1 : 0),
   );
 
   /** Whether the photos shown are the deleted ones only. */
@@ -154,6 +160,7 @@ export class GalleryComponent implements OnInit {
   private yearConst = 'year';
   private categoryConst = 'category';
   private gpsConst = 'gps';
+  private allFoldersConst = 'allFolders';
   private duplicatesConst = 'duplicates';
 
   private photosRequest?: Subscription;
@@ -187,6 +194,7 @@ export class GalleryComponent implements OnInit {
         this.yearFilter.request(params[this.yearConst]);
         this.categoryFilter.request(params[this.categoryConst]);
         this.gpsFilter.request(params[this.gpsConst]);
+        this.allFolders.set(params[this.allFoldersConst] === 'true');
         this.showDuplicates.set(params[this.duplicatesConst] === 'true');
       },
     });
@@ -225,6 +233,16 @@ export class GalleryComponent implements OnInit {
 
   filterUpdated(filter: GalleryFilter, values: readonly number[]): void {
     filter.selected.set(values);
+
+    // the other photos fill the pages differently, so the first page is the only one worth keeping
+    this.pageIndex = 0;
+
+    this.addQueryString();
+    this.setImages();
+  }
+
+  allFoldersUpdated(allFolders: boolean): void {
+    this.allFolders.set(allFolders);
 
     // the other photos fill the pages differently, so the first page is the only one worth keeping
     this.pageIndex = 0;
@@ -347,6 +365,10 @@ export class GalleryComponent implements OnInit {
       params = params.append(this.gpsConst, gps.toString());
     }
 
+    if (this.allFolders()) {
+      params = params.append(this.allFoldersConst, 'true');
+    }
+
     if (this.showDuplicates()) {
       params = params.append(this.duplicatesConst, 'true');
     }
@@ -382,6 +404,7 @@ export class GalleryComponent implements OnInit {
         years: this.yearFilter.values(),
         categories: this.categoryFilter.values() as PhotoCategory[],
         hasGps: this.hasGps(),
+        allFolders: this.allFolders(),
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({

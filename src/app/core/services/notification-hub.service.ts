@@ -13,7 +13,9 @@ import {HubError, HubProgress} from '../models/hub-notification.model';
  * source sends `VideoProgress` and `VideoError` events of the same shape, narrowed with `videoProgressFor`
  * / `videoErrorFor`, and the download of its files `DownloadProgress` and `DownloadError`, narrowed with
  * `downloadProgressFor` / `downloadErrorFor`, and that of a folder the user chooses `FolderDownloadProgress` and
- * `FolderDownloadError`, narrowed with `folderDownloadProgressFor` / `folderDownloadErrorFor`.
+ * `FolderDownloadError`, narrowed with `folderDownloadProgressFor` / `folderDownloadErrorFor`. The processing of the
+ * photos outside the folder a source is processed from sends `OtherFoldersProgress` and `OtherFoldersError`, narrowed
+ * with `otherFoldersProgressFor` / `otherFoldersErrorFor`.
  */
 @Injectable({providedIn: 'root'})
 export class NotificationHubService {
@@ -21,6 +23,8 @@ export class NotificationHubService {
   private readonly errorSubject = new Subject<HubError>();
   private readonly videoProgressSubject = new Subject<HubProgress>();
   private readonly videoErrorSubject = new Subject<HubError>();
+  private readonly otherFoldersProgressSubject = new Subject<HubProgress>();
+  private readonly otherFoldersErrorSubject = new Subject<HubError>();
   private readonly downloadProgressSubject = new Subject<HubProgress>();
   private readonly downloadErrorSubject = new Subject<HubError>();
   private readonly folderDownloadProgressSubject = new Subject<HubProgress>();
@@ -56,6 +60,14 @@ export class NotificationHubService {
     return this.videoErrorSubject.pipe(filter((error) => error.sourceId === sourceId));
   }
 
+  otherFoldersProgressFor(sourceId: number): Observable<HubProgress> {
+    return this.otherFoldersProgressSubject.pipe(filter((progress) => progress.sourceId === sourceId));
+  }
+
+  otherFoldersErrorFor(sourceId: number): Observable<HubError> {
+    return this.otherFoldersErrorSubject.pipe(filter((error) => error.sourceId === sourceId));
+  }
+
   downloadProgressFor(sourceId: number): Observable<HubProgress> {
     return this.downloadProgressSubject.pipe(filter((progress) => progress.sourceId === sourceId));
   }
@@ -82,6 +94,8 @@ export class NotificationHubService {
     connection.on('Error', (error: HubError) => this.errorSubject.next(error));
     connection.on('VideoProgress', (progress: HubProgress) => this.videoProgressSubject.next(progress));
     connection.on('VideoError', (error: HubError) => this.videoErrorSubject.next(error));
+    connection.on('OtherFoldersProgress', (progress: HubProgress) => this.otherFoldersProgressSubject.next(progress));
+    connection.on('OtherFoldersError', (error: HubError) => this.otherFoldersErrorSubject.next(error));
     connection.on('DownloadProgress', (progress: HubProgress) => this.downloadProgressSubject.next(progress));
     connection.on('DownloadError', (error: HubError) => this.downloadErrorSubject.next(error));
     connection.on('FolderDownloadProgress', (progress: HubProgress) => this.folderDownloadProgressSubject.next(progress));

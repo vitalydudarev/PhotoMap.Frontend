@@ -58,7 +58,13 @@
               </h2>
               <span class="app-badge" [class.app-badge--accent]="source.isRunning">{{ source.statusLabel }}</span>
             </div>
-            <p class="subsection-hint">Imports the photos of {{ source.name }} and keeps their locations in sync.</p>
+            <p class="subsection-hint">
+              @if (source.otherFolders) {
+                Imports the photos of the folder {{ source.name }} uploads camera photos to, from the photos themselves.
+              } @else {
+                Imports the photos of {{ source.name }} and keeps their locations in sync.
+              }
+            </p>
 
             @if (source.error) {
               <app-alert tone="danger" heading="Processing failed">{{ source.error }}</app-alert>
@@ -98,19 +104,84 @@
                   {{ source.action }}
                 </button>
               }
-              <button class="danger-action" appButton="ghost" type="button" [disabled]="source.isRunning" (click)="deleteData(source)">
+              <button
+                class="danger-action"
+                appButton="ghost"
+                type="button"
+                [disabled]="source.isRunning || source.otherFolders?.isRunning"
+                (click)="deleteData(source)"
+              >
                 <app-icon name="trash" [size]="16" />
                 Delete data
               </button>
             </div>
-
-            <div class="app-actions all-data-actions">
-              <button class="danger-action" appButton="ghost" type="button" [disabled]="isAnyRunning()" (click)="deleteAllData()">
-                <app-icon name="trash" [size]="16" />
-                Delete the data of all sources
-              </button>
-            </div>
           </section>
+
+          @if (source.otherFolders; as otherFolders) {
+            <section class="subsection other-folders" [attr.aria-labelledby]="'other-folders-' + source.id">
+              <div class="subsection-header">
+                <h2 class="subsection-title" [id]="'other-folders-' + source.id">
+                  <app-icon name="image" [size]="16" />
+                  Other folders
+                </h2>
+                <span class="app-badge" [class.app-badge--accent]="otherFolders.isRunning">{{ otherFolders.statusLabel }}</span>
+              </div>
+              <p class="subsection-hint">
+                Imports the photos of every other folder of {{ source.name }}. Their thumbnails are made from the largest preview
+                {{ source.name }} makes of each, so the photos themselves are not downloaded. Photos imported already are skipped.
+              </p>
+
+              @if (otherFolders.error) {
+                <app-alert tone="danger" heading="Processing the other folders failed">{{ otherFolders.error }}</app-alert>
+              }
+
+              @if (otherFolders.total > 0 || (otherFolders.lastUpdated && !otherFolders.isRunning)) {
+                <dl class="app-detail-list">
+                  @if (otherFolders.total > 0) {
+                    <div class="app-detail-row">
+                      <dt class="app-detail-term">Processed</dt>
+                      <dd class="app-detail-value">{{ otherFolders.progressLabel }}</dd>
+                    </div>
+                  }
+
+                  @if (otherFolders.lastUpdated && !otherFolders.isRunning) {
+                    <div class="app-detail-row">
+                      <dt class="app-detail-term">Last updated</dt>
+                      <dd class="app-detail-value">{{ otherFolders.lastUpdated }}</dd>
+                    </div>
+                  }
+                </dl>
+              }
+
+              @if (otherFolders.isRunning) {
+                <div class="progress">
+                  <app-progress-bar
+                    [mode]="otherFolders.total > 0 ? 'determinate' : 'indeterminate'"
+                    [value]="otherFolders.progressPercent"
+                  />
+                  @if (otherFolders.total > 0) {
+                    <span class="progress-value">{{ otherFolders.progressPercent.toFixed(1) }}%</span>
+                  }
+                </div>
+              }
+
+              @if (source.isAuthorized) {
+                <div class="app-actions subsection-actions">
+                  <button appButton="outline" type="button" (click)="startStopOtherFoldersProcessing(source)">
+                    <app-icon [name]="otherFolders.isRunning ? 'pause' : 'play'" [size]="16" />
+                    {{ otherFolders.action }}
+                  </button>
+                </div>
+              }
+            </section>
+          }
+
+          <div class="app-actions all-data-actions">
+            <button class="danger-action" appButton="ghost" type="button" [disabled]="isAnyRunning()" (click)="deleteAllData()">
+              <app-icon name="trash" [size]="16" />
+              Delete the data of all sources
+            </button>
+          </div>
         }
         @case ('videos') {
           @if (source.videos; as videos) {

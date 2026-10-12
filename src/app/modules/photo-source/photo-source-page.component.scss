@@ -50,6 +50,13 @@
   display: block;
 }
 
+/* The processing of the other folders comes under the one of the folder of the source, on the same tab. */
+.other-folders {
+  margin-top: var(--app-space-5);
+  padding-top: var(--app-space-4);
+  border-top: 1px solid var(--app-border);
+}
+
 .subsection-header {
   display: flex;
   align-items: center;

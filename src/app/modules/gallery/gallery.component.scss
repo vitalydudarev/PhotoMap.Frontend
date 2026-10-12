@@ -79,6 +79,31 @@
   border-top: 1px solid var(--app-border);
 }
 
+/* Sits in the row of the filters, as tall as they are. */
+.all-folders {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--app-space-2);
+  height: 38px;
+  padding: 0 var(--app-space-3);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-sunken);
+  color: var(--app-fg);
+  font-size: var(--app-text-sm);
+  cursor: pointer;
+}
+
+.all-folders:hover {
+  border-color: var(--app-border-strong);
+}
+
+.all-folders input {
+  margin: 0;
+  accent-color: var(--app-accent);
+  cursor: pointer;
+}
+
 /* The measure of `.toolbar-inner`, so the filters line up under the controls. */
 .filters-inner {
   display: flex;

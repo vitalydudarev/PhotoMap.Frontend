@@ -10,6 +10,7 @@ import {FailedDownload, SourceDownloadContent, SourceDownloadKind, SourceDownloa
 import {DataService} from '../../core/services/data.service';
 import {FailedPreviewsService} from '../../core/services/failed-previews.service';
 import {NotificationHubService} from '../../core/services/notification-hub.service';
+import {OtherFoldersProcessingCommand, OtherFoldersService} from '../../core/services/other-folders.service';
 import {PhotoSourceAuthService} from '../../core/services/photo-source-auth.service';
 import {SourceDownloadsService} from '../../core/services/source-downloads.service';
 import {VideoProcessingCommand, VideosService} from '../../core/services/videos.service';
@@ -44,6 +45,11 @@ describe('PhotoSourcePageComponent', () => {
   let deleteVideoData: ReturnType<typeof vi.fn>;
   let getVideoStatus: ReturnType<typeof vi.fn>;
   let videoSourceProgress: Record<number, PhotoSourceProgress>;
+  let otherFoldersProgress: Subject<HubProgress>;
+  let otherFoldersHubErrors: Subject<HubError>;
+  let runOtherFoldersCommand: ReturnType<typeof vi.fn>;
+  let getOtherFoldersStatus: ReturnType<typeof vi.fn>;
+  let otherFoldersSourceProgress: Record<number, PhotoSourceProgress>;
   let downloadProgress: Subject<HubProgress>;
   let downloadHubErrors: Subject<HubError>;
   let folderDownloadProgress: Subject<HubProgress>;
@@ -128,6 +134,13 @@ describe('PhotoSourcePageComponent', () => {
     getVideoStatus = vi.fn((_userId: number, sourceId: number) =>
       of(videoSourceProgress[sourceId] ?? {status: 1, totalCount: 0, processedCount: 0, failedCount: 0}),
     );
+    otherFoldersProgress = new Subject<HubProgress>();
+    otherFoldersHubErrors = new Subject<HubError>();
+    runOtherFoldersCommand = vi.fn(() => of(undefined));
+    otherFoldersSourceProgress = {};
+    getOtherFoldersStatus = vi.fn((_userId: number, sourceId: number) =>
+      of(otherFoldersSourceProgress[sourceId] ?? {status: 1, totalCount: 0, processedCount: 0, failedCount: 0}),
+    );
     downloadProgress = new Subject<HubProgress>();
     downloadHubErrors = new Subject<HubError>();
     folderDownloadProgress = new Subject<HubProgress>();
@@ -189,6 +202,8 @@ describe('PhotoSourcePageComponent', () => {
             errorFor: (sourceId: number) => hubErrors.pipe(filter((value) => value.sourceId === sourceId)),
             videoProgressFor: (sourceId: number) => videoProgress.pipe(filter((value) => value.sourceId === sourceId)),
             videoErrorFor: (sourceId: number) => videoHubErrors.pipe(filter((value) => value.sourceId === sourceId)),
+            otherFoldersProgressFor: (sourceId: number) => otherFoldersProgress.pipe(filter((value) => value.sourceId === sourceId)),
+            otherFoldersErrorFor: (sourceId: number) => otherFoldersHubErrors.pipe(filter((value) => value.sourceId === sourceId)),
             downloadProgressFor: (sourceId: number) => downloadProgress.pipe(filter((value) => value.sourceId === sourceId)),
             downloadErrorFor: (sourceId: number) => downloadHubErrors.pipe(filter((value) => value.sourceId === sourceId)),
             folderDownloadProgressFor: (sourceId: number) => folderDownloadProgress.pipe(filter((value) => value.sourceId === sourceId)),
@@ -197,6 +212,7 @@ describe('PhotoSourcePageComponent', () => {
         },
         {provide: FailedPreviewsService, useValue: {getFailedPreviews, retry: retryFailedPreviews}},
         {provide: VideosService, useValue: {runCommand: runVideoCommand, deleteData: deleteVideoData, getStatus: getVideoStatus}},
+        {provide: OtherFoldersService, useValue: {runCommand: runOtherFoldersCommand, getStatus: getOtherFoldersStatus}},
         {
           provide: SourceDownloadsService,
           useValue: {
@@ -476,6 +492,97 @@ describe('PhotoSourcePageComponent', () => {
       expect(button('Delete data', panel())?.disabled).toBe(true);
       expect(button('Delete the data of all sources', panel())?.disabled).toBe(true);
       expect(component.isAnyRunning()).toBe(true);
+    });
+  });
+
+  describe('other folders', () => {
+    const otherFoldersSection = () => panel().querySelector<HTMLElement>('section.other-folders');
+
+    it('should only offer the other folders on Yandex.Disk, on the photos tab', () => {
+      build('Dropbox');
+
+      expect(view().otherFolders).toBeUndefined();
+      expect(otherFoldersSection()).toBeNull();
+      expect(getOtherFoldersStatus).not.toHaveBeenCalled();
+
+      build('Yandex.Disk');
+
+      expect(otherFoldersSection()).toBeTruthy();
+      expect(panel().querySelector('section.photos')).toBeTruthy();
+      expect(getOtherFoldersStatus).toHaveBeenCalledWith(1, YANDEX_DISK);
+    });
+
+    it('should only offer processing the other folders once Yandex.Disk is connected', () => {
+      build('Yandex.Disk');
+
+      expect(button('Start processing other folders', otherFoldersSection()!)).toBeUndefined();
+
+      sources[1].isUserAuthorized = true;
+      build('Yandex.Disk');
+
+      expect(button('Start processing other folders', otherFoldersSection()!)).toBeTruthy();
+      // the folder of the source is still processed as it is
+      expect(button('Start processing', panel().querySelector<HTMLElement>('section.photos')!)).toBeTruthy();
+    });
+
+    it('should show the counters of the last run of the other folders, apart from the folder of the source', () => {
+      otherFoldersSourceProgress[YANDEX_DISK] = {status: 4, totalCount: 500, processedCount: 120, failedCount: 4};
+      build('Yandex.Disk');
+
+      expect(view().otherFolders!.statusLabel).toBe('Stopped');
+      expect(view().otherFolders!.progressLabel).toBe('120 of 500 · 4 failed');
+      expect(view().otherFolders!.action).toBe('Continue processing other folders');
+      expect(view().statusLabel).toBe('Not started');
+    });
+
+    it('should start and pause processing the other folders', () => {
+      sources[1].isUserAuthorized = true;
+      build('Yandex.Disk');
+
+      component.startStopOtherFoldersProcessing(view());
+      fixture.detectChanges();
+
+      expect(runOtherFoldersCommand).toHaveBeenCalledWith(1, YANDEX_DISK, OtherFoldersProcessingCommand.Start);
+      expect(view().otherFolders!.isRunning).toBe(true);
+      expect(view().isRunning).toBe(false);
+      expect(component.isAnyRunning()).toBe(true);
+      expect(component.tabs().find((tab) => tab.value === 'photos')?.busy).toBe(true);
+      // the photos it saves would be deleted underneath it
+      expect(button('Delete data', panel())?.disabled).toBe(true);
+
+      component.startStopOtherFoldersProcessing(view());
+
+      expect(runOtherFoldersCommand).toHaveBeenCalledWith(1, YANDEX_DISK, OtherFoldersProcessingCommand.Stop);
+      expect(view().otherFolders!.statusLabel).toBe('Stopped');
+      expect(view().otherFolders!.action).toBe('Continue processing other folders');
+    });
+
+    it('should follow the progress of the other folders live, apart from the folder of the source', () => {
+      build('Yandex.Disk');
+
+      otherFoldersProgress.next({sourceId: YANDEX_DISK, status: 'InProgress', processed: 30, failed: 1, total: 120});
+      fixture.detectChanges();
+
+      expect(view().otherFolders!.isRunning).toBe(true);
+      expect(view().otherFolders!.progressPercent).toBe(25);
+      expect(view().isRunning).toBe(false);
+
+      otherFoldersHubErrors.next({sourceId: YANDEX_DISK, error: 'Token expired.'});
+      fixture.detectChanges();
+
+      expect(view().otherFolders!.statusLabel).toBe('Failed');
+      expect(otherFoldersSection()!.textContent).toContain('Token expired.');
+    });
+
+    it('should show the other folders as not started once the data of the source is deleted', () => {
+      otherFoldersSourceProgress[YANDEX_DISK] = {status: 3, totalCount: 500, processedCount: 500, failedCount: 0};
+      build('Yandex.Disk');
+
+      component.deleteData(view());
+
+      expect(deleteSourceData).toHaveBeenCalledWith(1, YANDEX_DISK);
+      expect(view().otherFolders!.statusLabel).toBe('Not started');
+      expect(view().otherFolders!.total).toBe(0);
     });
   });
 

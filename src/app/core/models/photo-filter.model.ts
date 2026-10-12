@@ -12,4 +12,9 @@ export interface PhotoFilter {
   categories: readonly PhotoCategory[];
   /** Whether the photos have a GPS location; the photos with and without one when not given. */
   hasGps?: boolean;
+  /**
+   * Whether the photos outside the folders the sources are processed from are taken too, such as those of the other
+   * folders of Yandex.Disk; only the photos of those folders when not given.
+   */
+  allFolders?: boolean;
 }
