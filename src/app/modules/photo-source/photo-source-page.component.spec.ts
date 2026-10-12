@@ -728,6 +728,7 @@ describe('PhotoSourcePageComponent', () => {
       expect(folderSection()).toBeTruthy();
       expect(getDownloadStatus).toHaveBeenCalledWith(1, YANDEX_DISK, 'chosen-folder');
       expect(folderSection()!.textContent).toContain('/storage/2/folders');
+      expect(folderSection()!.textContent).toContain('and of all its subfolders');
     });
 
     it('should only start once a folder has been typed in', () => {

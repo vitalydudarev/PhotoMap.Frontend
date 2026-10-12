@@ -279,8 +279,8 @@
     </div>
     <p class="subsection-hint">
       @if (chosenFolder) {
-        Saves the original files of a folder of {{ source.name }}, without its subfolders, in the folders of its path. Files downloaded
-        already are skipped.
+        Saves the original files of a folder of {{ source.name }} and of all its subfolders, keeping the folders as they are on
+        {{ source.name }}. Files downloaded already are skipped.
       } @else {
         Saves the original files from the folder {{ source.name }} is processed from. Files downloaded already are skipped.
       }
