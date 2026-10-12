@@ -20,7 +20,7 @@ import {
   parsePhotoSourceStatus,
   photoSourceStatusLabel,
 } from '../../core/models/photo-source-status.model';
-import {HubError, HubProgress} from '../../core/models/hub-notification.model';
+import {HubError, HubProgress, HubRetry} from '../../core/models/hub-notification.model';
 import {PhotoSourceProgress} from '../../core/models/photo-source-progress.model';
 import {FailedDownload, SourceDownloadContent, SourceDownloadKind, SourceDownloadStatus} from '../../core/models/source-download.model';
 import {FailedPreview} from '../../core/models/failed-preview.model';
@@ -83,6 +83,8 @@ interface DownloadState extends ProcessingState {
 
 interface SourceState extends ProcessingState {
   source: UserPhotoSourceDto;
+  /** How far the run retrying the failed files has got, while one is going. */
+  retry?: HubRetry;
   /** Only the sources whose videos the backend imports have them processed, see `VIDEO_SOURCE_NAMES`. */
   videos?: ProcessingState;
   /**
@@ -99,6 +101,8 @@ interface ProcessingView {
   isRunning: boolean;
   statusLabel: string;
   lastUpdated?: string;
+  /** Whether the run knows how many files it takes, so that the progress bar shows how far it has got. */
+  progressKnown: boolean;
   progressPercent: number;
   progressLabel: string;
 }
@@ -116,7 +120,7 @@ export interface DownloadView extends DownloadState, ProcessingView {
   missing: number;
 }
 
-export interface SourceView extends Omit<SourceState, 'videos' | 'otherFolders' | 'download' | 'folderDownload'>, ProcessingView {
+export interface SourceView extends Omit<SourceState, 'retry' | 'videos' | 'otherFolders' | 'download' | 'folderDownload'>, ProcessingView {
   id: number;
   name: string;
   isAuthorized: boolean;
@@ -126,6 +130,11 @@ export interface SourceView extends Omit<SourceState, 'videos' | 'otherFolders' 
    */
   action: string;
   tokenExpires?: string;
+  /**
+   * How far a run retrying the failed files has got, which the progress bar shows instead of the counters of the
+   * folder: the files retried are counted in them already.
+   */
+  retryLabel?: string;
   videos?: RunView;
   otherFolders?: RunView;
   download: DownloadView;
@@ -136,6 +145,8 @@ export interface SourceView extends Omit<SourceState, 'videos' | 'otherFolders' 
 // `PhotoSourceProcessingCommands.Start` and `.Stop`.
 const START_PROCESSING = PhotoSourceProcessingCommands._1;
 const STOP_PROCESSING = PhotoSourceProcessingCommands._2;
+// the backend's `PhotoSourceProcessingCommands.RetryFailed`, which the generated enum predates
+const RETRY_FAILED_PROCESSING = 3 as PhotoSourceProcessingCommands;
 
 const DOWNLOAD_CONTENTS: Record<DownloadChoice, SourceDownloadContent> = {
   photos: SourceDownloadContent.Photos,
@@ -360,6 +371,23 @@ export class PhotoSourcePageComponent implements OnInit {
       });
   }
 
+  /**
+   * Processes again only the files of the folder of the source that failed, without listing it. The backend keeps
+   * them over all runs, and counts them as failed until they are saved.
+   */
+  retryFailedProcessing(source: SourceView): void {
+    this.usersPhotoSourcesClient
+      .sourceProcessing(USER_ID, source.id, RETRY_FAILED_PROCESSING)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.patch(source.id, {status: PhotoSourceStatus.InProgress, error: '', retry: {total: 0, retried: 0, recovered: 0}});
+          this.toastService.success(`Retrying the ${countLabel(source.failed, 'failed photo')} of ${source.name}.`);
+        },
+        error: (error) => this.toastService.error(`Failed to retry the failed photos of ${source.name}.`, error),
+      });
+  }
+
   /** The videos are processed by a run of their own, which resumes by skipping the videos saved already. */
   startStopVideoProcessing(source: SourceView): void {
     const videos = source.videos;
@@ -413,6 +441,31 @@ export class PhotoSourcePageComponent implements OnInit {
         },
         error: (error) =>
           this.toastService.error(`Failed to ${starting ? 'start' : 'pause'} processing the other folders of ${source.name}.`, error),
+      });
+  }
+
+  /**
+   * The photos of the other folders that failed are not saved, so a run started again tries them again, skipping
+   * the photos saved already; the backend keeps no list of them to retry on their own.
+   */
+  retryFailedOtherFolders(source: SourceView): void {
+    const otherFolders = source.otherFolders;
+
+    if (!otherFolders) {
+      return;
+    }
+
+    this.otherFoldersService
+      .runCommand(USER_ID, source.id, OtherFoldersProcessingCommand.Start)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.patchRun(source.id, 'otherFolders', {status: PhotoSourceStatus.InProgress, error: ''});
+          this.toastService.success(
+            `Retrying the ${countLabel(otherFolders.failed, 'failed photo')} of the other folders of ${source.name}.`,
+          );
+        },
+        error: (error) => this.toastService.error(`Failed to retry the failed photos of the other folders of ${source.name}.`, error),
       });
   }
 
@@ -741,6 +794,7 @@ export class PhotoSourcePageComponent implements OnInit {
             failed: progress.failed,
             total: progress.total,
             lastUpdatedAt: new Date().toISOString(),
+            retry: progress.retry,
           })),
         );
 
@@ -930,6 +984,7 @@ function toProcessingView({status, processed, failed, total, lastUpdatedAt}: Pro
     isRunning: isPhotoSourceRunning(status),
     statusLabel: photoSourceStatusLabel(status),
     lastUpdated: lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleString() : undefined,
+    progressKnown: total > 0,
     progressPercent: total > 0 ? (processed / total) * 100 : 0,
     progressLabel: failed > 0 ? `${progress} · ${failed.toLocaleString()} failed` : progress,
   };
@@ -949,14 +1004,27 @@ function toRunView(run: ProcessingState | undefined, noun: string): RunView | un
   return {...run, ...view, action: processingAction(view, run.status, noun)};
 }
 
+/** The progress of a run retrying the failed files, through those files rather than through the folder. */
+function toRetryView({total, retried, recovered}: HubRetry): Pick<SourceView, 'progressKnown' | 'progressPercent' | 'retryLabel'> {
+  return {
+    progressKnown: total > 0,
+    progressPercent: total > 0 ? (retried / total) * 100 : 0,
+    retryLabel:
+      total > 0
+        ? `${retried.toLocaleString()} of ${countLabel(total, 'failed photo')} · ${recovered.toLocaleString()} saved`
+        : 'Failed photos',
+  };
+}
+
 function toView(state: SourceState): SourceView {
-  const {source, videos, otherFolders, download, folderDownload, ...photos} = state;
+  const {source, retry, videos, otherFolders, download, folderDownload, ...photos} = state;
   const view = toProcessingView(photos);
 
   return {
     source,
     ...photos,
     ...view,
+    ...(view.isRunning && retry ? toRetryView(retry) : {}),
     id: source.photoSourceId!,
     name: source.photoSourceName ?? `Source #${source.photoSourceId}`,
     isAuthorized: source.isUserAuthorized === true,

@@ -70,8 +70,15 @@
               <app-alert tone="danger" heading="Processing failed">{{ source.error }}</app-alert>
             }
 
-            @if (source.total > 0 || (source.lastUpdated && !source.isRunning)) {
+            @if (source.total > 0 || source.retryLabel || (source.lastUpdated && !source.isRunning)) {
               <dl class="app-detail-list">
+                @if (source.retryLabel) {
+                  <div class="app-detail-row">
+                    <dt class="app-detail-term">Retrying</dt>
+                    <dd class="app-detail-value">{{ source.retryLabel }}</dd>
+                  </div>
+                }
+
                 @if (source.total > 0) {
                   <div class="app-detail-row">
                     <dt class="app-detail-term">Processed</dt>
@@ -90,8 +97,8 @@
 
             @if (source.isRunning) {
               <div class="progress">
-                <app-progress-bar [mode]="source.total > 0 ? 'determinate' : 'indeterminate'" [value]="source.progressPercent" />
-                @if (source.total > 0) {
+                <app-progress-bar [mode]="source.progressKnown ? 'determinate' : 'indeterminate'" [value]="source.progressPercent" />
+                @if (source.progressKnown) {
                   <span class="progress-value">{{ source.progressPercent.toFixed(1) }}%</span>
                 }
               </div>
@@ -103,6 +110,12 @@
                   <app-icon [name]="source.isRunning ? 'pause' : 'play'" [size]="16" />
                   {{ source.action }}
                 </button>
+                @if (source.failed > 0 && !source.isRunning) {
+                  <button appButton="ghost" type="button" (click)="retryFailedProcessing(source)">
+                    <app-icon name="restore" [size]="16" />
+                    Retry failed ({{ source.failed.toLocaleString() }})
+                  </button>
+                }
               }
               <button
                 class="danger-action"
@@ -171,6 +184,12 @@
                     <app-icon [name]="otherFolders.isRunning ? 'pause' : 'play'" [size]="16" />
                     {{ otherFolders.action }}
                   </button>
+                  @if (otherFolders.failed > 0 && !otherFolders.isRunning) {
+                    <button appButton="ghost" type="button" (click)="retryFailedOtherFolders(source)">
+                      <app-icon name="restore" [size]="16" />
+                      Retry failed ({{ otherFolders.failed.toLocaleString() }})
+                    </button>
+                  }
                 </div>
               }
             </section>

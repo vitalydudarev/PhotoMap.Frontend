@@ -432,6 +432,74 @@ describe('PhotoSourcePageComponent', () => {
       expect(view().action).toBe('Continue processing');
     });
 
+    it('should retry only the photos that failed, once the run has ended', () => {
+      sourceProgress[DROPBOX] = {status: 3, totalCount: 200, processedCount: 197, failedCount: 3};
+      build('Dropbox');
+
+      button('Retry failed (3)', panel())!.click();
+      fixture.detectChanges();
+
+      expect(sourceProcessing).toHaveBeenLastCalledWith(1, DROPBOX, 3);
+      expect(view().isRunning).toBe(true);
+      expect(button('Retry failed (3)', panel())).toBeUndefined();
+    });
+
+    it('should show the progress through the failed photos while they are retried, apart from the folder', () => {
+      sourceProgress[DROPBOX] = {status: 3, totalCount: 200, processedCount: 197, failedCount: 3};
+      build('Dropbox');
+
+      component.retryFailedProcessing(view());
+      fixture.detectChanges();
+
+      // the failed photos are not known yet
+      expect(view().progressKnown).toBe(false);
+      expect(panel().textContent).toContain('Retrying');
+
+      progress.next({
+        sourceId: DROPBOX,
+        status: 'InProgress',
+        processed: 198,
+        failed: 2,
+        total: 200,
+        retry: {total: 3, retried: 2, recovered: 1},
+      });
+      fixture.detectChanges();
+
+      expect(view().progressPercent).toBeCloseTo(66.7, 1);
+      expect(view().retryLabel).toBe('2 of 3 failed photos · 1 saved');
+      expect(view().progressLabel).toBe('198 of 200 · 2 failed');
+
+      progress.next({
+        sourceId: DROPBOX,
+        status: 'Done',
+        processed: 198,
+        failed: 2,
+        total: 200,
+        retry: {total: 3, retried: 3, recovered: 1},
+      });
+      fixture.detectChanges();
+
+      expect(view().retryLabel).toBeUndefined();
+      expect(view().progressPercent).toBe(99);
+    });
+
+    it('should show the progress through the folder for a run that lists it', () => {
+      build('Dropbox');
+
+      progress.next({sourceId: DROPBOX, status: 'InProgress', processed: 50, failed: 0, total: 200});
+      fixture.detectChanges();
+
+      expect(view().retryLabel).toBeUndefined();
+      expect(view().progressPercent).toBe(25);
+    });
+
+    it('should not offer to retry when no photos have failed', () => {
+      sourceProgress[DROPBOX] = {status: 3, totalCount: 200, processedCount: 200, failedCount: 0};
+      build('Dropbox');
+
+      expect(button('Retry failed', panel())).toBeUndefined();
+    });
+
     it('should track live progress from the notification hub, of the source of the page only', () => {
       build('Yandex.Disk');
 
@@ -555,6 +623,22 @@ describe('PhotoSourcePageComponent', () => {
       expect(runOtherFoldersCommand).toHaveBeenCalledWith(1, YANDEX_DISK, OtherFoldersProcessingCommand.Stop);
       expect(view().otherFolders!.statusLabel).toBe('Stopped');
       expect(view().otherFolders!.action).toBe('Continue processing other folders');
+    });
+
+    it('should retry the photos of the other folders that failed by running them again', () => {
+      sources[1].isUserAuthorized = true;
+      otherFoldersSourceProgress[YANDEX_DISK] = {status: 3, totalCount: 500, processedCount: 496, failedCount: 4};
+      build('Yandex.Disk');
+
+      button('Retry failed (4)', otherFoldersSection()!)!.click();
+      fixture.detectChanges();
+
+      expect(runOtherFoldersCommand).toHaveBeenCalledWith(1, YANDEX_DISK, OtherFoldersProcessingCommand.Start);
+      expect(view().otherFolders!.isRunning).toBe(true);
+      expect(view().isRunning).toBe(false);
+      expect(button('Retry failed (4)', otherFoldersSection()!)).toBeUndefined();
+      // the folder of the source has no photos failed of its own to retry
+      expect(button('Retry failed', panel().querySelector<HTMLElement>('section.photos')!)).toBeUndefined();
     });
 
     it('should follow the progress of the other folders live, apart from the folder of the source', () => {
