@@ -140,8 +140,8 @@
                 <span class="app-badge" [class.app-badge--accent]="otherFolders.isRunning">{{ otherFolders.statusLabel }}</span>
               </div>
               <p class="subsection-hint">
-                Imports the photos of every other folder of {{ source.name }}. Their thumbnails are made from the largest preview
-                {{ source.name }} makes of each, so the photos themselves are not downloaded. Photos imported already are skipped.
+                Imports the photos of every other folder of {{ source.name }}, downloading each to read its EXIF. Photos imported
+                already are skipped.
               </p>
 
               @if (otherFolders.error) {

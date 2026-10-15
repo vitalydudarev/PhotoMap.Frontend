@@ -13,8 +13,7 @@ export enum OtherFoldersProcessingCommand {
 
 /**
  * The processing of the photos of a source outside the folder it is processed from, which runs apart from the one of
- * that folder: their thumbnails are made from the largest preview the source makes of each, rather than from the photo
- * itself. Only Yandex.Disk sources have their other folders processed.
+ * that folder. Only Yandex.Disk sources have their other folders processed.
  */
 @Injectable({providedIn: 'root'})
 export class OtherFoldersService {

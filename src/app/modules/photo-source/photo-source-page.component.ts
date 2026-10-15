@@ -413,8 +413,8 @@ export class PhotoSourcePageComponent implements OnInit {
   }
 
   /**
-   * The photos outside the folder the source is processed from are processed by a run of their own, from the previews the
-   * source makes of them, which resumes by skipping the photos saved already.
+   * The photos outside the folder the source is processed from are processed by a run of their own, which resumes by skipping
+   * the photos saved already.
    */
   startStopOtherFoldersProcessing(source: SourceView): void {
     const otherFolders = source.otherFolders;
