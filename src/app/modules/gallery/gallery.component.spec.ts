@@ -375,6 +375,123 @@ describe('GalleryComponent', () => {
       expect(defaultFolders.request.params.get('allFolders')).toBeNull();
     });
 
+    describe('by tags', () => {
+      const flushTags = (
+        tags = [
+          {id: 4, name: 'Family', photoCount: 3},
+          {id: 9, name: 'Paris', photoCount: 1},
+        ],
+      ) => {
+        http()
+          .expectOne((request) => request.url.endsWith('/users/1/photos/tags'))
+          .flush(tags);
+        fixture.detectChanges();
+      };
+
+      it('should offer the tags of the user, and the photos with none, all of them selected', () => {
+        const [request] = photosRequests();
+        flushYears();
+        flushTags();
+        openFilters();
+
+        expect(component.tagFilter.options().map((option) => option.label)).toEqual(['Family', 'Paris', 'Untagged']);
+        expect(component.tagFilter.selected()).toEqual([4, 9, 0]);
+        expect(request.request.params.getAll('tag')).toBeNull();
+        expect(request.request.params.get('untagged')).toBeNull();
+        expect(multiselects().at(-1)?.textContent).toContain('Tags');
+      });
+
+      it('should offer no tag filter while the user has no tags', () => {
+        photosRequests();
+        flushYears();
+        flushTags([]);
+        openFilters();
+
+        expect(multiselects().map((multiselect) => multiselect.textContent)).not.toContainEqual(expect.stringContaining('Tags'));
+      });
+
+      it('should ask for the photos of the selected tags, and the untagged ones, from the first page', () => {
+        photosRequests();
+        flushYears();
+        flushTags();
+        component.pageIndex = 2;
+
+        component.filterUpdated(component.tagFilter, [9]);
+        const [paris] = photosRequests();
+        component.filterUpdated(component.tagFilter, [4, 0]);
+        const [familyOrUntagged] = photosRequests();
+        component.filterUpdated(component.tagFilter, [0]);
+        const [untagged] = photosRequests();
+
+        expect(paris.request.params.getAll('tag')).toEqual(['9']);
+        expect(paris.request.params.get('untagged')).toBeNull();
+        expect(paris.request.params.get('skip')).toBe('0');
+        expect(familyOrUntagged.request.params.getAll('tag')).toEqual(['4']);
+        expect(familyOrUntagged.request.params.get('untagged')).toBe('true');
+        expect(untagged.request.params.getAll('tag')).toBeNull();
+        expect(untagged.request.params.get('untagged')).toBe('true');
+      });
+
+      it('should not ask for photos when no tag is selected', () => {
+        photosRequests();
+        flushYears();
+        flushTags();
+
+        component.filterUpdated(component.tagFilter, []);
+        fixture.detectChanges();
+
+        expect(photosRequests()).toHaveLength(0);
+        expect((fixture.nativeElement as HTMLElement).textContent).toContain('No tags are selected');
+      });
+
+      it('should keep the photo, with its new tags, and the tags picked, once its tags are saved', () => {
+        photosRequests();
+        flushYears();
+        flushTags();
+        component.photos.set([
+          {
+            id: '1',
+            photoUrl: '',
+            thumbnailSmallUrl: '',
+            thumbnailLargeUrl: '',
+            dateTimeTaken: new Date(),
+            fileName: 'a.jpg',
+            tags: ['Paris'],
+          },
+        ]);
+        component.filterUpdated(component.tagFilter, [9]);
+        photosRequests();
+
+        component.tagsUpdated({photo: component.photos()[0], tags: ['Beach', 'Paris']});
+
+        expect(component.photos()[0].tags).toEqual(['Beach', 'Paris']);
+        flushTags([
+          {id: 4, name: 'Family', photoCount: 3},
+          {id: 12, name: 'Beach', photoCount: 1},
+          {id: 9, name: 'Paris', photoCount: 1},
+        ]);
+
+        // the new tag is not picked, as not every tag was, and the photos are not asked for again
+        expect(component.tagFilter.selected()).toEqual([9]);
+        expect(photosRequests()).toHaveLength(0);
+      });
+
+      it('should pick a tag made since, while every tag is picked', () => {
+        photosRequests();
+        flushYears();
+        flushTags();
+
+        component.tagsUpdated({photo: {id: '1'} as never, tags: ['Beach']});
+        flushTags([
+          {id: 4, name: 'Family', photoCount: 3},
+          {id: 12, name: 'Beach', photoCount: 1},
+        ]);
+
+        expect(component.tagFilter.selected()).toEqual([4, 12, 0]);
+        expect(photosRequests()).toHaveLength(0);
+      });
+    });
+
     it('should hide the year filter while there are no photos to take years from', () => {
       photosRequests();
       flushYears([]);

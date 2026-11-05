@@ -3,6 +3,7 @@ import {ChangeDetectionStrategy, Component, input} from '@angular/core';
 export type IconName =
   | 'alert-triangle'
   | 'box'
+  | 'calendar'
   | 'check'
   | 'check-circle'
   | 'chevron-down'
@@ -29,11 +30,13 @@ export type IconName =
   | 'pause'
   | 'restore'
   | 'play'
+  | 'plus'
   | 'share'
   | 'shield-check'
   | 'sort-asc'
   | 'sort-desc'
   | 'sun'
+  | 'tag'
   | 'trash'
   | 'video'
   | 'x';

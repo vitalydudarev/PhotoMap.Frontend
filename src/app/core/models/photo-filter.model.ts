@@ -17,4 +17,8 @@ export interface PhotoFilter {
    * folders of Yandex.Disk; only the photos of those folders when not given.
    */
   allFolders?: boolean;
+  /** The tags the photos have, any of them; the photos with and without tags when neither this nor untagged is given. */
+  tagIds?: readonly number[];
+  /** Whether the photos with no tag are taken, along with those of the tags; only they are when no tag is given. */
+  untagged?: boolean;
 }

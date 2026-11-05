@@ -6,6 +6,7 @@ import {ActivatedRoute, Router} from '@angular/router';
 import {Observable, Subscription} from 'rxjs';
 import {PhotoCategory} from 'src/app/core/models/photo-category.model';
 import {PhotoSortOrder} from 'src/app/core/models/photo-sort-order.model';
+import {PhotoTag} from 'src/app/core/models/photo-tag.model';
 import {Photo, PhotoDuplicateGroup} from 'src/app/core/models/photo.model';
 import {UsersPhotoSourcesClient} from 'src/app/shared/models/photomap-backend.swagger';
 import {ButtonDirective} from 'src/app/shared/ui/button/button.directive';
@@ -18,7 +19,7 @@ import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
 import {ToastService} from '../../core/services/toast.service';
 import {UserPhotosService} from '../../core/services/user-photos.service';
 import {PhotosMapViewComponent} from '../shared/photos-map-view/photos-map-view.component';
-import {PhotosThumbViewComponent} from '../shared/photos-thumb-view/photos-thumb-view.component';
+import {PhotoTagsChange, PhotosThumbViewComponent} from '../shared/photos-thumb-view/photos-thumb-view.component';
 import {GalleryFilter} from './gallery-filter';
 import {PhotoDuplicatesComponent} from './photo-duplicates/photo-duplicates.component';
 
@@ -46,6 +47,12 @@ const GPS_OPTIONS: readonly MultiselectOption<number>[] = [
   {value: WITH_GPS, label: 'With GPS'},
   {value: WITHOUT_GPS, label: 'Without GPS'},
 ];
+
+/**
+ * The photos with no tag are an option of the tags too, so that picking every tag still leaves no photo out. The
+ * IDs of the tags start at 1.
+ */
+const UNTAGGED = 0;
 
 @Component({
   selector: 'app-gallery-page',
@@ -99,13 +106,18 @@ export class GalleryComponent implements OnInit {
   readonly yearFilter = new GalleryFilter();
   readonly categoryFilter = new GalleryFilter<number>([PhotoCategory.Deleted]);
   readonly gpsFilter = new GalleryFilter();
+  readonly tagFilter = new GalleryFilter();
   readonly nothingSelected = computed(
     () =>
       this.sourceFilter.noneSelected() ||
       this.yearFilter.noneSelected() ||
       this.categoryFilter.noneSelected() ||
-      this.gpsFilter.noneSelected(),
+      this.gpsFilter.noneSelected() ||
+      this.tagFilter.noneSelected(),
   );
+
+  /** The tags of the user, to give the photos and to filter them by; null until they are loaded. */
+  readonly tags = signal<PhotoTag[] | null>(null);
 
   /**
    * Whether the photos of every folder are shown, those outside the folders the sources are processed from too, such as
@@ -119,7 +131,7 @@ export class GalleryComponent implements OnInit {
   /** How many filters narrow the photos down, so that a filter hidden with the row is not forgotten. */
   readonly activeFilterCount = computed(
     () =>
-      [this.sourceFilter, this.yearFilter, this.categoryFilter, this.gpsFilter].filter(
+      [this.sourceFilter, this.yearFilter, this.categoryFilter, this.gpsFilter, this.tagFilter].filter(
         (filter) => filter.values().length > 0 || filter.noneSelected(),
       ).length + (this.allFolders() ? 1 : 0),
   );
@@ -160,6 +172,7 @@ export class GalleryComponent implements OnInit {
   private yearConst = 'year';
   private categoryConst = 'category';
   private gpsConst = 'gps';
+  private tagConst = 'tag';
   private allFoldersConst = 'allFolders';
   private duplicatesConst = 'duplicates';
 
@@ -194,6 +207,7 @@ export class GalleryComponent implements OnInit {
         this.yearFilter.request(params[this.yearConst]);
         this.categoryFilter.request(params[this.categoryConst]);
         this.gpsFilter.request(params[this.gpsConst]);
+        this.tagFilter.request(params[this.tagConst]);
         this.allFolders.set(params[this.allFoldersConst] === 'true');
         this.showDuplicates.set(params[this.duplicatesConst] === 'true');
       },
@@ -207,6 +221,7 @@ export class GalleryComponent implements OnInit {
     this.addQueryString();
     this.loadSources();
     this.loadYears();
+    this.loadTags();
   }
 
   pageUpdated(event: PageEvent) {
@@ -291,9 +306,22 @@ export class GalleryComponent implements OnInit {
     this.changeDeleted(photo, this.userPhotosService.restorePhoto(this.userId, photo.id), null, 'Could not restore the photo.');
   }
 
+  /**
+   * Takes the tags the server saved for the photo. The photo stays in place, even when the tags it is now given are
+   * not the ones the photos are filtered by, so that it does not vanish while its tags are being edited.
+   */
+  tagsUpdated({photo, tags}: PhotoTagsChange): void {
+    this.photos.update((photos) => photos.map((shown) => (shown.id === photo.id ? {...shown, tags} : shown)));
+
+    // a tag may have been made, or taken off its last photo, and the counts have changed
+    this.loadTags(true);
+  }
+
   /** Whether the photos are narrowed down by any of the filters. */
   isFiltered(): boolean {
-    return this.sourceFilter.values().length > 0 || this.yearFilter.values().length > 0 || this.categoryFilter.values().length > 0;
+    return [this.sourceFilter, this.yearFilter, this.categoryFilter, this.gpsFilter, this.tagFilter].some(
+      (filter) => filter.values().length > 0,
+    );
   }
 
   private loadSources(): void {
@@ -326,6 +354,40 @@ export class GalleryComponent implements OnInit {
         error: (error) => {
           this.yearFilter.setOptions([]);
           this.toastService.error('Could not load the years to filter the photos by.', error);
+        },
+      });
+  }
+
+  /**
+   * @param keepSelection Whether the tags picked are kept, rather than the ones the address asked for: a tag made
+   * since is then picked only when all of them were, and the photos are left as they are unless a tag picked is gone.
+   */
+  private loadTags(keepSelection = false): void {
+    this.userPhotosService
+      .getUserPhotoTags(this.userId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (tags) => {
+          this.tags.set(tags);
+
+          if (keepSelection) {
+            this.tagFilter.request(this.tagFilter.values().map(String));
+          }
+
+          // with no tag at all, there is nothing to filter by
+          this.setFilterOptions(
+            this.tagFilter,
+            tags.length === 0 ? [] : [...tags.map((tag) => ({value: tag.id, label: tag.name})), {value: UNTAGGED, label: 'Untagged'}],
+          );
+        },
+        error: (error) => {
+          // the photos can still be tagged, with new tags
+          this.tags.update((tags) => tags ?? []);
+
+          if (!keepSelection) {
+            this.tagFilter.setOptions([]);
+            this.toastService.error('Could not load the tags to filter the photos by.', error);
+          }
         },
       });
   }
@@ -363,6 +425,10 @@ export class GalleryComponent implements OnInit {
 
     for (const gps of this.gpsFilter.values()) {
       params = params.append(this.gpsConst, gps.toString());
+    }
+
+    for (const tag of this.tagFilter.values()) {
+      params = params.append(this.tagConst, tag.toString());
     }
 
     if (this.allFolders()) {
@@ -405,6 +471,8 @@ export class GalleryComponent implements OnInit {
         categories: this.categoryFilter.values() as PhotoCategory[],
         hasGps: this.hasGps(),
         allFolders: this.allFolders(),
+        tagIds: this.tagFilter.values().filter((tag) => tag !== UNTAGGED),
+        untagged: this.tagFilter.values().includes(UNTAGGED),
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({

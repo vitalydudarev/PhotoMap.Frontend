@@ -1,6 +1,8 @@
 :host {
   /* Same measure as `.app-page`, so the grid lines up with the header and toolbar. */
   display: block;
+  /* The tag editor is placed from the top left corner of the grid. */
+  position: relative;
   /* The gallery lays the page out as a flex column, where the auto margins would shrink this to
      its content, and the grid would then fit a single column. */
   width: 100%;
@@ -103,7 +105,8 @@
 }
 
 .thumb:hover .action,
-.thumb:focus-within .action {
+.thumb:focus-within .action,
+.thumb--editing .action {
   opacity: 1;
 }
 
@@ -111,9 +114,80 @@
   background: rgb(0 0 0 / 80%);
 }
 
+/* Next to the delete button, so that the corner across from the GPS badge holds what the photo can be done with. */
+.tag-button {
+  left: calc(var(--app-space-2) + 28px + var(--app-space-1));
+  gap: 2px;
+  width: auto;
+  min-width: 28px;
+  padding-inline: 7px;
+  border-radius: var(--app-radius-pill);
+}
+
+.tag-count {
+  font-size: var(--app-text-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.thumb--editing .tag-button {
+  background: var(--app-accent);
+}
+
+/* The tags of the photo, listed over its bottom edge while it is pointed at. They keep a dark backing whatever the
+   theme, for the same reason as the GPS badge. */
+.tags {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  padding: var(--app-space-5) var(--app-space-2) var(--app-space-2);
+  background: linear-gradient(to top, rgb(0 0 0 / 70%), rgb(0 0 0 / 0%));
+  opacity: 0;
+  transition: opacity var(--app-transition);
+  pointer-events: none;
+}
+
+/* Two rows at most, so the photo itself stays in view; the tag button counts them all. The rows are clipped whole,
+   by the list rather than the padded box around it, so that no row peeks out half cut. */
+.tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-1);
+  max-height: calc(2 * 20px + var(--app-space-1));
+  overflow: hidden;
+}
+
+.thumb:hover .tags,
+.thumb:focus-within .tags,
+.thumb--editing .tags {
+  opacity: 1;
+}
+
+.tag {
+  max-width: 100%;
+  padding: 0 var(--app-space-2);
+  overflow: hidden;
+  border-radius: var(--app-radius-pill);
+  background: rgb(255 255 255 / 22%);
+  color: #fff;
+  font-size: var(--app-text-xs);
+  font-weight: 500;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Over the thumbnails, but under the toolbar and the header, which stay in view as the page scrolls. */
+.tag-editor {
+  position: absolute;
+  z-index: 20;
+}
+
 /* Nothing to point at on a touch screen, so the button stays in view there. */
 @media (hover: none) {
-  .action {
+  .action,
+  .tags {
     opacity: 1;
   }
 }
@@ -123,7 +197,7 @@
   opacity: 0.45;
 }
 
-.thumb--deleted .action {
+.thumb--deleted .action:not(.tag-button) {
   opacity: 1;
 }
 

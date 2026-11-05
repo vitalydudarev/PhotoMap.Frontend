@@ -13,6 +13,8 @@ export interface Photo {
   path?: string | null;
   /** When the user marked the photo as deleted, none while it is not. */
   deletedOn?: Date | null;
+  /** The names of the tags of the photo, by name. Only the photos of the gallery tell them. */
+  tags?: string[];
 }
 
 /** Mirrors the backend's `PhotoDuplicateGroupDto`: photos that are copies of one another, of the same contents to the byte. */

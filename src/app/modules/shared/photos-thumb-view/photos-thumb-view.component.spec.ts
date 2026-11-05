@@ -1,8 +1,11 @@
+import {provideHttpClient} from '@angular/common/http';
+import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {beforeEach, describe, expect, it} from 'vitest';
+import {UserPhotosService} from 'src/app/core/services/user-photos.service';
 import {Photo} from 'src/app/core/models/photo.model';
 
-import {PhotosThumbViewComponent} from './photos-thumb-view.component';
+import {PhotoTagsChange, PhotosThumbViewComponent} from './photos-thumb-view.component';
 
 describe('PhotosThumbViewComponent', () => {
   let fixture: ComponentFixture<PhotosThumbViewComponent>;
@@ -21,7 +24,10 @@ describe('PhotosThumbViewComponent', () => {
   const badges = () => [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('.thumb .gps')];
 
   beforeEach(async () => {
-    await TestBed.configureTestingModule({imports: [PhotosThumbViewComponent]}).compileComponents();
+    await TestBed.configureTestingModule({
+      imports: [PhotosThumbViewComponent],
+      providers: [provideHttpClient(), provideHttpClientTesting(), UserPhotosService],
+    }).compileComponents();
 
     fixture = TestBed.createComponent(PhotosThumbViewComponent);
   });
@@ -57,5 +63,83 @@ describe('PhotosThumbViewComponent', () => {
 
     expect(marked.map((photo) => photo.id)).toEqual(['1']);
     expect(restored).toEqual([deleted]);
+  });
+
+  describe('tags', () => {
+    const element = () => fixture.nativeElement as HTMLElement;
+    const tagButtons = () => [...element().querySelectorAll<HTMLButtonElement>('.thumb .tag-button')];
+    const editor = () => element().querySelector('app-photo-tag-editor');
+
+    beforeEach(() => {
+      fixture.componentInstance.photos = [{...photo('1'), tags: ['Family', 'Paris']}, photo('2')];
+      fixture.componentRef.setInput('tagOptions', [{id: 1, name: 'Family', photoCount: 1}]);
+      fixture.detectChanges();
+    });
+
+    it('should list the tags of a photo over its thumbnail', () => {
+      const lists = [...element().querySelectorAll('.thumb')].map((thumb) =>
+        [...thumb.querySelectorAll('.tags .tag')].map((tag) => tag.textContent?.trim()),
+      );
+
+      expect(lists).toEqual([['Family', 'Paris'], []]);
+    });
+
+    it('should tell the tags of a photo on its tag button, and how many there are', () => {
+      expect(tagButtons().map((button) => button.getAttribute('aria-label'))).toEqual([
+        'Tags of IMG_1.jpg: Family, Paris',
+        'Add tags to IMG_2.jpg',
+      ]);
+      expect(tagButtons()[0].querySelector('.tag-count')?.textContent).toBe('2');
+      expect(tagButtons()[1].querySelector('.tag-count')).toBeNull();
+    });
+
+    it('should offer no tag button where the photos cannot be tagged', () => {
+      fixture.componentRef.setInput('tagOptions', null);
+      fixture.detectChanges();
+
+      expect(tagButtons()).toHaveLength(0);
+    });
+
+    it('should open the tag editor of the photo, and close it on a second click or a click elsewhere', () => {
+      tagButtons()[1].click();
+      fixture.detectChanges();
+
+      expect(editor()?.getAttribute('aria-label')).toBe('Tags of IMG_2.jpg');
+      expect(tagButtons()[1].getAttribute('aria-expanded')).toBe('true');
+
+      tagButtons()[1].click();
+      fixture.detectChanges();
+      expect(editor()).toBeNull();
+
+      tagButtons()[0].click();
+      fixture.detectChanges();
+      expect(editor()?.getAttribute('aria-label')).toBe('Tags of IMG_1.jpg');
+
+      // a click within the editor keeps it open
+      editor()!.querySelector<HTMLElement>('.title')!.click();
+      fixture.detectChanges();
+      expect(editor()).not.toBeNull();
+
+      document.body.click();
+      fixture.detectChanges();
+      expect(editor()).toBeNull();
+    });
+
+    it('should tell the tags saved for the photo', () => {
+      const changes: PhotoTagsChange[] = [];
+      fixture.componentInstance.tagsChange.subscribe((change) => changes.push(change));
+
+      tagButtons()[1].click();
+      fixture.detectChanges();
+
+      const http = TestBed.inject(HttpTestingController);
+      http.expectOne((request) => request.url.endsWith('/photos/2/tags/suggestions')).flush([]);
+      fixture.detectChanges();
+
+      element().querySelector<HTMLElement>('.option')!.click();
+      http.expectOne((request) => request.method === 'PUT' && request.url.endsWith('/photos/2/tags')).flush(['Family']);
+
+      expect(changes.map((change) => [change.photo.id, change.tags])).toEqual([['2', ['Family']]]);
+    });
   });
 });

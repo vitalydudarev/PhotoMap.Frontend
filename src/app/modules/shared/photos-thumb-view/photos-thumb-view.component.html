@@ -1,7 +1,9 @@
 <section class="grid">
   @for (photo of photos; track photo.id; let index = $index) {
     @let deleted = isDeleted(photo);
-    <div class="thumb" [class.thumb--deleted]="deleted">
+    @let tags = photo.tags ?? [];
+    @let editing = editingId() === photo.id;
+    <div class="thumb" [class.thumb--deleted]="deleted" [class.thumb--editing]="editing">
       <button class="open" type="button" [title]="photo.fileName" (click)="open(index)">
         <img
           [src]="photo.thumbnailLargeUrl"
@@ -22,6 +24,17 @@
         >
           <app-icon [name]="gps ? 'map-pin' : 'map-pin-off'" [size]="14" />
         </span>
+
+        @if (tags.length > 0) {
+          <!-- the tag button tells them to a screen reader, so this list is for the eyes only -->
+          <span class="tags" aria-hidden="true">
+            <span class="tags-list">
+              @for (tag of tags; track tag) {
+                <span class="tag">{{ tag }}</span>
+              }
+            </span>
+          </span>
+        }
       </button>
 
       @let label = (deleted ? 'Restore ' : 'Delete ') + photo.fileName;
@@ -35,8 +48,39 @@
       >
         <app-icon [name]="deleted ? 'restore' : 'trash'" [size]="14" />
       </button>
+
+      @if (taggable()) {
+        <button
+          #tagButton
+          class="action tag-button"
+          type="button"
+          aria-haspopup="dialog"
+          [attr.aria-expanded]="editing"
+          [attr.aria-label]="tagsLabel(photo)"
+          [title]="tags.length > 0 ? 'Edit tags' : 'Add tags'"
+          (click)="toggleTags(photo, tagButton)"
+        >
+          <app-icon name="tag" [size]="14" />
+          @if (tags.length > 0) {
+            <span class="tag-count">{{ tags.length }}</span>
+          }
+        </button>
+      }
     </div>
   }
 </section>
+
+@if (editingPhoto(); as photo) {
+  <app-photo-tag-editor
+    class="tag-editor"
+    [style.top.px]="editorPosition().top"
+    [style.left.px]="editorPosition().left"
+    [photo]="photo"
+    [userId]="userId()"
+    [existingTags]="tagOptions() ?? []"
+    (saved)="onTagsSaved(photo, $event)"
+    (closed)="closeTags()"
+  />
+}
 
 <app-scroll-control></app-scroll-control>

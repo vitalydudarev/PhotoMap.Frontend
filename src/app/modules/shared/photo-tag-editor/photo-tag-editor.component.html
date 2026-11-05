@@ -1,0 +1,94 @@
+<div class="header">
+  <span class="title">Tags</span>
+  @if (saving()) {
+    <span class="status" aria-live="polite">Saving…</span>
+  }
+  <button class="close" type="button" aria-label="Close" title="Close" (click)="closed.emit()">
+    <app-icon name="x" [size]="16" />
+  </button>
+</div>
+
+<ul class="chips" aria-label="Tags of the photo">
+  @for (tag of tags(); track tag) {
+    <li class="chip">
+      <span class="chip-name">{{ tag }}</span>
+      <button class="chip-remove" type="button" [attr.aria-label]="'Remove ' + tag" [title]="'Remove ' + tag" (click)="remove(tag)">
+        <app-icon name="x" [size]="12" />
+      </button>
+    </li>
+  } @empty {
+    <li class="empty">No tags yet.</li>
+  }
+</ul>
+
+<input
+  #input
+  class="input"
+  type="text"
+  role="combobox"
+  autocomplete="off"
+  aria-autocomplete="list"
+  [attr.aria-controls]="listId"
+  [attr.aria-expanded]="options().length > 0"
+  [attr.aria-activedescendant]="query().trim() && options().length > 0 ? optionId(activeIndex()) : null"
+  [maxLength]="maxLength"
+  [disabled]="full()"
+  [placeholder]="full() ? 'A photo has ' + maxTags + ' tags at most' : 'Add a tag…'"
+  [value]="query()"
+  (input)="onInput($any($event.target).value)"
+  (keydown)="onKeydown($event)"
+/>
+
+@if (options().length > 0) {
+  <ul class="options" role="listbox" [id]="listId" aria-label="Tags to add">
+    @for (option of options(); track option.name; let index = $index) {
+      <li
+        class="option"
+        role="option"
+        [id]="optionId(index)"
+        [class.option--active]="query().trim() && index === activeIndex()"
+        [attr.aria-selected]="query().trim() !== '' && index === activeIndex()"
+        tabindex="-1"
+        (mousedown)="$event.preventDefault()"
+        (click)="add(option.name)"
+        (keydown.enter)="add(option.name)"
+      >
+        @if (option.isNew) {
+          <app-icon name="plus" [size]="14" />
+          <span class="option-name">Create “{{ option.name }}”</span>
+        } @else {
+          <app-icon name="tag" [size]="14" />
+          <span class="option-name">{{ option.name }}</span>
+          <span class="option-count">{{ option.photoCount }}</span>
+        }
+      </li>
+    }
+  </ul>
+}
+
+<div class="suggestions">
+  <span class="section-title">Suggested</span>
+  @if (suggestions() === null) {
+    <p class="hint">Looking at the photos taken around the same time and place…</p>
+  } @else if (shownSuggestions().length === 0) {
+    <p class="hint">{{ suggestionsFailed() ? 'Could not load the suggestions.' : 'Nothing more to suggest.' }}</p>
+  } @else {
+    <ul class="chips">
+      @for (suggestion of shownSuggestions(); track suggestion.name) {
+        <li>
+          <button
+            class="suggestion"
+            type="button"
+            [title]="suggestionReason(suggestion)"
+            [attr.aria-label]="'Add ' + suggestion.name + ': ' + suggestionReason(suggestion)"
+            [disabled]="full()"
+            (click)="add(suggestion.name)"
+          >
+            <app-icon [name]="suggestion.byLocation ? 'map-pin' : 'calendar'" [size]="12" />
+            <span>{{ suggestion.name }}</span>
+          </button>
+        </li>
+      }
+    </ul>
+  }
+</div>
