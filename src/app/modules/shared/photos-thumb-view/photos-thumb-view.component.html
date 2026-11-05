@@ -25,6 +25,14 @@
           <app-icon [name]="gps ? 'map-pin' : 'map-pin-off'" [size]="14" />
         </span>
 
+        @let copies = duplicates().get(photo.id) ?? 0;
+        @if (copies > 0) {
+          @let copiesLabel = copies === 1 ? 'Has a duplicate' : 'Has ' + copies + ' duplicates';
+          <span class="duplicate" role="img" [attr.aria-label]="copiesLabel" [title]="copiesLabel">
+            <app-icon name="copy" [size]="14" />
+          </span>
+        }
+
         @if (tags.length > 0) {
           <!-- the tag button tells them to a screen reader, so this list is for the eyes only -->
           <span class="tags" aria-hidden="true">

@@ -161,6 +161,7 @@
       [fullWidth]="isFullWidth()"
       [busy]="busyPhotoIds()"
       [tagOptions]="tags()"
+      [duplicates]="duplicateCopies()"
       (markAsDeleted)="markPhotoAsDeleted($event)"
       (restore)="restorePhoto($event)"
       (tagsChange)="tagsUpdated($event)"

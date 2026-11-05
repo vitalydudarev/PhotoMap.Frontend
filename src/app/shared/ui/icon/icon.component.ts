@@ -13,6 +13,7 @@ export type IconName =
   | 'chevrons-left'
   | 'chevrons-right'
   | 'cloud'
+  | 'copy'
   | 'download'
   | 'external-link'
   | 'filter'

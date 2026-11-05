@@ -619,8 +619,17 @@ describe('GalleryComponent', () => {
       path,
     });
 
+    /** The groups the page loads on start, to mark the photos that have copies. */
+    const flushMarks = (groups: unknown[] = []) => {
+      http()
+        .expectOne((request) => request.url.endsWith('/users/1/photos/duplicates'))
+        .flush(groups);
+      fixture.detectChanges();
+    };
+
     const showDuplicates = () => {
       flushPhotos(3);
+      flushMarks();
       vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
 
       component.toggleDuplicates();
@@ -658,8 +667,31 @@ describe('GalleryComponent', () => {
       expect(copies()).toHaveLength(3);
     });
 
+    it('should mark the photos that have copies in the grid', () => {
+      flushPhotos(3);
+      flushMarks([{id: '0', photos: [photo('0', '/a/IMG_1.jpg'), photo('2', '/b/IMG_1.jpg')]}]);
+
+      const marks = [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('app-photos-thumb-view .thumb')].map(
+        (thumb) => thumb.querySelector('.duplicate') !== null,
+      );
+      expect(marks).toEqual([true, false, true]);
+    });
+
+    it('should show the photos unmarked when the copies could not be loaded', () => {
+      flushPhotos(3);
+      http()
+        .expectOne((request) => request.url.endsWith('/users/1/photos/duplicates'))
+        .flush('Server error', {status: 500, statusText: 'Server Error'});
+      fixture.detectChanges();
+
+      const element = fixture.nativeElement as HTMLElement;
+      expect(element.querySelectorAll('app-photos-thumb-view .thumb')).toHaveLength(3);
+      expect(element.querySelector('.duplicate')).toBeNull();
+    });
+
     it('should say so when there are no duplicates', () => {
       flushPhotos(3);
+      flushMarks();
       vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
 
       component.toggleDuplicates();

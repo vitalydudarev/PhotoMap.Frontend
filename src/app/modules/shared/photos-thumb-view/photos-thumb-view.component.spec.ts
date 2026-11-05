@@ -46,6 +46,23 @@ describe('PhotosThumbViewComponent', () => {
     expect(badges().map((badge) => badge.classList.contains('gps--off'))).toEqual([false, true, false, true]);
   });
 
+  it('should mark the thumbnails of the photos that have copies, with how many', () => {
+    fixture.componentInstance.photos = [photo('1'), photo('2'), photo('3')];
+    fixture.componentRef.setInput(
+      'duplicates',
+      new Map([
+        ['1', 1],
+        ['3', 2],
+      ]),
+    );
+    fixture.detectChanges();
+
+    const marks = [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('.thumb')].map(
+      (thumb) => thumb.querySelector('.duplicate')?.getAttribute('aria-label') ?? null,
+    );
+    expect(marks).toEqual(['Has a duplicate', null, 'Has 2 duplicates']);
+  });
+
   it('should offer to delete a photo, and to restore a deleted one', () => {
     const deleted = {...photo('2'), deletedOn: new Date()};
     fixture.componentInstance.photos = [photo('1'), deleted];

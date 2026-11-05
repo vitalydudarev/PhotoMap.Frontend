@@ -81,6 +81,21 @@
   color: rgb(255 255 255 / 70%);
 }
 
+/* Next to the GPS badge, and like it, as it tells about the photo rather than doing something with it. */
+.duplicate {
+  position: absolute;
+  top: var(--app-space-2);
+  right: calc(var(--app-space-2) + 24px + var(--app-space-1));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 55%);
+  color: #fff;
+}
+
 /* Shows on the thumbnail being pointed at or tabbed to, so that a grid of photos does not turn into a
    grid of bins. Same dark backing as the GPS badge, for the same reason. */
 .action {

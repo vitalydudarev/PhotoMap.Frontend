@@ -48,6 +48,9 @@ export class PhotosThumbViewComponent {
   /** The tags of the user to pick from, or null when the photos cannot be tagged here. */
   readonly tagOptions = input<readonly PhotoTag[] | null>(null);
 
+  /** How many copies each photo that has any has, besides itself, by the ID of the photo. */
+  readonly duplicates = input<ReadonlyMap<string, number>>(new Map());
+
   /** The user the photos belong to, whose tags they are given. */
   readonly userId = input(1);
 

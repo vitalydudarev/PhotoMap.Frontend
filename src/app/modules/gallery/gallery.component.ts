@@ -148,6 +148,19 @@ export class GalleryComponent implements OnInit {
   readonly duplicateGroups = signal<PhotoDuplicateGroup[]>([]);
   readonly duplicateCount = computed(() => this.duplicateGroups().reduce((count, group) => count + group.photos.length, 0));
 
+  /** How many copies each photo that has any has, besides itself, by the ID of the photo, to mark it in the grid. */
+  readonly duplicateCopies = computed(() => {
+    const copies = new Map<string, number>();
+
+    for (const group of this.duplicateGroups()) {
+      for (const photo of group.photos) {
+        copies.set(photo.id, group.photos.length - 1);
+      }
+    }
+
+    return copies;
+  });
+
   /** The photos being deleted or restored. */
   readonly busyPhotoIds = signal<ReadonlySet<string>>(new Set());
 
@@ -222,6 +235,11 @@ export class GalleryComponent implements OnInit {
     this.loadSources();
     this.loadYears();
     this.loadTags();
+
+    // the duplicates list loads them itself
+    if (!this.showDuplicates()) {
+      this.loadDuplicateMarks();
+    }
   }
 
   pageUpdated(event: PageEvent) {
@@ -508,6 +526,18 @@ export class GalleryComponent implements OnInit {
           this.showSpinner.set(false);
           this.toastService.error('Could not load the duplicate photos.', error);
         },
+      });
+  }
+
+  /** Loads the groups of copies to mark the photos that have any, with no spinner, as the photos are what is waited for. */
+  private loadDuplicateMarks(): void {
+    this.userPhotosService
+      .getUserPhotoDuplicates(this.userId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (groups) => this.duplicateGroups.set(groups),
+        // the photos are shown all the same, only unmarked
+        error: () => undefined,
       });
   }
 
