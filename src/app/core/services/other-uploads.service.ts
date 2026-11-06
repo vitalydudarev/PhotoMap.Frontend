@@ -3,6 +3,7 @@ import {Injectable, inject} from '@angular/core';
 import {Observable} from 'rxjs';
 import {environment} from 'src/environments/environment';
 
+import {FailedFile} from '../models/failed-file.model';
 import {PhotoSourceProgress} from '../models/photo-source-progress.model';
 
 /** The backend's `PhotoSourceProcessingCommands`. */
@@ -35,5 +36,10 @@ export class OtherUploadsService {
   /** Deletes the other uploads imported from the source, leaving its camera uploads. */
   deleteData(userId: number, sourceId: number): Observable<void> {
     return this.httpClient.delete<void>(`${this.url}/${userId}/photo-sources/${sourceId}/other-uploads/data`);
+  }
+
+  /** The other uploads of the source that failed and are not saved yet, in the order they first failed. */
+  getFailedFiles(userId: number, sourceId: number): Observable<FailedFile[]> {
+    return this.httpClient.get<FailedFile[]>(`${this.url}/${userId}/photo-sources/${sourceId}/other-uploads/failed-files`);
   }
 }

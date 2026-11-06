@@ -23,6 +23,7 @@ import {
 import {HubError, HubProgress, HubRetry} from '../../core/models/hub-notification.model';
 import {PhotoSourceProgress} from '../../core/models/photo-source-progress.model';
 import {FailedDownload, SourceDownloadContent, SourceDownloadKind, SourceDownloadStatus} from '../../core/models/source-download.model';
+import {FailedFile} from '../../core/models/failed-file.model';
 import {FailedPreview} from '../../core/models/failed-preview.model';
 import {CameraUploadsProcessingCommand, CameraUploadsService} from '../../core/services/camera-uploads.service';
 import {DataService} from '../../core/services/data.service';
@@ -88,12 +89,16 @@ interface DownloadState extends ProcessingState {
 interface RunState extends ProcessingState {
   /** How far the run retrying the failed photos has got, while one is going; only the other uploads retry them. */
   retry?: HubRetry;
+  /** The photos that failed and are not saved yet, which a retry takes; only the other uploads keep them. */
+  failedFiles?: readonly FailedFile[];
 }
 
 interface SourceState extends ProcessingState {
   source: UserPhotoSourceDto;
   /** How far the run retrying the failed files has got, while one is going. */
   retry?: HubRetry;
+  /** The camera uploads that failed and are not saved yet, which a retry takes. */
+  failedFiles: readonly FailedFile[];
   /** Only the sources whose videos the backend imports have them processed, see `VIDEO_SOURCE_NAMES`. */
   videos?: RunState;
   /**
@@ -582,7 +587,7 @@ export class PhotoSourcePageComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.patch(source.id, {...initialProcessingState(PhotoSourceStatus.NotStarted), retry: undefined});
+          this.patch(source.id, {...initialProcessingState(PhotoSourceStatus.NotStarted), retry: undefined, failedFiles: []});
           this.toastService.success(`Deleted the camera uploads of ${source.name}.`);
         },
         error: (error) => this.toastService.error(`Failed to delete the camera uploads of ${source.name}.`, error),
@@ -600,7 +605,11 @@ export class PhotoSourcePageComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.patchRun(source.id, 'otherUploads', {...initialProcessingState(PhotoSourceStatus.NotStarted), retry: undefined});
+          this.patchRun(source.id, 'otherUploads', {
+            ...initialProcessingState(PhotoSourceStatus.NotStarted),
+            retry: undefined,
+            failedFiles: [],
+          });
           this.toastService.success(`Deleted the other uploads of ${source.name}.`);
         },
         error: (error) => this.toastService.error(`Failed to delete the other uploads of ${source.name}.`, error),
@@ -636,8 +645,10 @@ export class PhotoSourcePageComponent implements OnInit {
 
           const progress = [
             ...sources.map((source) => this.loadProgress(source.photoSourceId!)),
+            ...sources.map((source) => this.loadFailedFiles(source.photoSourceId!)),
             ...sources.filter(supportsVideos).map((source) => this.loadVideoProgress(source.photoSourceId!)),
             ...sources.filter(supportsOtherUploads).map((source) => this.loadOtherUploadsProgress(source.photoSourceId!)),
+            ...sources.filter(supportsOtherUploads).map((source) => this.loadOtherUploadsFailedFiles(source.photoSourceId!)),
             ...sources.map((source) => this.loadDownloadStatus(source.photoSourceId!, 'processing-folder')),
             ...sources.filter(supportsFolderDownloads).map((source) => this.loadDownloadStatus(source.photoSourceId!, 'chosen-folder')),
           ];
@@ -682,6 +693,30 @@ export class PhotoSourcePageComponent implements OnInit {
       map((progress) => this.applyRunProgress(sourceId, 'videos', progress)),
       catchError((error) => {
         this.toastService.error('Could not load the processing status of the videos of a photo source.', error);
+
+        return of(undefined);
+      }),
+    );
+  }
+
+  /** The camera uploads that failed, kept in the database over all runs until they are saved. */
+  private loadFailedFiles(sourceId: number): Observable<void> {
+    return this.cameraUploadsService.getFailedFiles(USER_ID, sourceId).pipe(
+      map((failedFiles) => this.patch(sourceId, {failedFiles})),
+      catchError((error) => {
+        this.toastService.error('Could not load the failed camera uploads of a photo source.', error);
+
+        return of(undefined);
+      }),
+    );
+  }
+
+  /** The other uploads that failed, kept in the database over all runs until they are saved. */
+  private loadOtherUploadsFailedFiles(sourceId: number): Observable<void> {
+    return this.otherUploadsService.getFailedFiles(USER_ID, sourceId).pipe(
+      map((failedFiles) => this.patchRun(sourceId, 'otherUploads', {failedFiles})),
+      catchError((error) => {
+        this.toastService.error('Could not load the failed other uploads of a photo source.', error);
 
         return of(undefined);
       }),
@@ -818,7 +853,9 @@ export class PhotoSourcePageComponent implements OnInit {
       this.hubService
         .progressFor(sourceId)
         .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe((progress) =>
+        .subscribe((progress) => {
+          const wasRunning = isPhotoSourceRunning(this.stateOf(sourceId)?.status);
+
           this.patch(sourceId, (state) => ({
             status: parsePhotoSourceStatus(progress.status) ?? state.status,
             processed: progress.processed,
@@ -826,8 +863,13 @@ export class PhotoSourcePageComponent implements OnInit {
             total: progress.total,
             lastUpdatedAt: new Date().toISOString(),
             retry: progress.retry,
-          })),
-        );
+          }));
+
+          // once a run has ended, the photos it has failed, or saved after all, are reloaded
+          if (wasRunning && !isPhotoSourceRunning(parsePhotoSourceStatus(progress.status))) {
+            this.loadFailedFiles(sourceId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
+          }
+        });
 
       this.hubService
         .errorFor(sourceId)
@@ -850,13 +892,23 @@ export class PhotoSourcePageComponent implements OnInit {
           'otherUploads',
           this.hubService.otherUploadsProgressFor(sourceId),
           this.hubService.otherUploadsErrorFor(sourceId),
+          () => this.loadOtherUploadsFailedFiles(sourceId),
         );
       }
     }
   }
 
-  private listenForRun(sourceId: number, key: RunKey, progress$: Observable<HubProgress>, error$: Observable<HubError>): void {
-    progress$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((progress) =>
+  /** @param reloadOnEnd What is reloaded once a run has ended, such as the photos it has failed. */
+  private listenForRun(
+    sourceId: number,
+    key: RunKey,
+    progress$: Observable<HubProgress>,
+    error$: Observable<HubError>,
+    reloadOnEnd?: () => Observable<void>,
+  ): void {
+    progress$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((progress) => {
+      const wasRunning = isPhotoSourceRunning(this.stateOf(sourceId)?.[key]?.status);
+
       this.patchRun(sourceId, key, (run) => ({
         status: parsePhotoSourceStatus(progress.status) ?? run.status,
         processed: progress.processed,
@@ -864,12 +916,20 @@ export class PhotoSourcePageComponent implements OnInit {
         total: progress.total,
         lastUpdatedAt: new Date().toISOString(),
         retry: progress.retry,
-      })),
-    );
+      }));
+
+      if (reloadOnEnd && wasRunning && !isPhotoSourceRunning(parsePhotoSourceStatus(progress.status))) {
+        reloadOnEnd().pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
+      }
+    });
 
     error$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((error) => this.patchRun(sourceId, key, {error: error.error, status: PhotoSourceStatus.Failed}));
+  }
+
+  private stateOf(sourceId: number): SourceState | undefined {
+    return this.states().find((state) => state.source.photoSourceId === sourceId);
   }
 
   private patch(sourceId: number, change: Partial<SourceState> | ((state: SourceState) => Partial<SourceState>)): void {
@@ -886,7 +946,7 @@ export class PhotoSourcePageComponent implements OnInit {
     const error$ = chosenFolder ? this.hubService.folderDownloadErrorFor(sourceId) : this.hubService.downloadErrorFor(sourceId);
 
     progress$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((progress) => {
-      const state = this.states().find((candidate) => candidate.source.photoSourceId === sourceId);
+      const state = this.stateOf(sourceId);
       const wasRunning = isPhotoSourceRunning((chosenFolder ? state?.folderDownload : state?.download)?.status);
 
       this.patchDownload(sourceId, kind, (download) => ({
@@ -998,9 +1058,10 @@ function initialProcessingState(status: PhotoSourceStatus | undefined): Processi
 function initialState(source: UserPhotoSourceDto): SourceState {
   return {
     source,
+    failedFiles: [],
     ...initialProcessingState(parsePhotoSourceStatus(source.status)),
     videos: supportsVideos(source) ? initialProcessingState(PhotoSourceStatus.NotStarted) : undefined,
-    otherUploads: supportsOtherUploads(source) ? initialProcessingState(PhotoSourceStatus.NotStarted) : undefined,
+    otherUploads: supportsOtherUploads(source) ? {...initialProcessingState(PhotoSourceStatus.NotStarted), failedFiles: []} : undefined,
     download: initialDownloadState('processing-folder'),
     folderDownload: supportsFolderDownloads(source) ? initialDownloadState('chosen-folder') : undefined,
   };

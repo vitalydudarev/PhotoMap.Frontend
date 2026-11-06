@@ -3,6 +3,7 @@ import {ActivatedRoute, Router, convertToParamMap, provideRouter} from '@angular
 import {Observable, Subject, filter, of} from 'rxjs';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 
+import {FailedFile} from '../../core/models/failed-file.model';
 import {FailedPreview} from '../../core/models/failed-preview.model';
 import {HubError, HubProgress} from '../../core/models/hub-notification.model';
 import {PhotoSourceProgress} from '../../core/models/photo-source-progress.model';
@@ -52,6 +53,10 @@ describe('PhotoSourcePageComponent', () => {
   let getOtherUploadsStatus: ReturnType<typeof vi.fn>;
   let deleteOtherUploadsData: ReturnType<typeof vi.fn>;
   let otherUploadsSourceProgress: Record<number, PhotoSourceProgress>;
+  let failedFiles: Record<number, FailedFile[]>;
+  let otherUploadsFailedFiles: Record<number, FailedFile[]>;
+  let getFailedFiles: ReturnType<typeof vi.fn>;
+  let getOtherUploadsFailedFiles: ReturnType<typeof vi.fn>;
   let downloadProgress: Subject<HubProgress>;
   let downloadHubErrors: Subject<HubError>;
   let folderDownloadProgress: Subject<HubProgress>;
@@ -96,6 +101,23 @@ describe('PhotoSourcePageComponent', () => {
     fixture.detectChanges();
   };
 
+  const failedFile = (fileName: string, overrides: Partial<FailedFile> = {}): FailedFile => ({
+    externalId: fileName,
+    path: `disk:/Photos/${fileName}`,
+    fileName,
+    stage: 'Processing',
+    error: 'Failed to decode the image.',
+    attempts: 1,
+    failedAt: '2026-11-06T10:00:00Z',
+    ...overrides,
+  });
+  const failedFiles3 = () => [failedFile('a.jpg'), failedFile('b.jpg'), failedFile('c.jpg')];
+  const failedPhotosTable = (container: HTMLElement) => container.querySelector<HTMLTableElement>('table.failed-photos-table');
+  const tableRows = (container: HTMLElement) =>
+    [...(failedPhotosTable(container)?.querySelectorAll('tbody tr') ?? [])].map((row) =>
+      [...row.querySelectorAll('td')].map((cell) => cell.textContent?.trim()),
+    );
+
   const failedDownload = (fileName: string, attempts = 1, folder = ''): FailedDownload => ({
     folder,
     fileName,
@@ -120,6 +142,10 @@ describe('PhotoSourcePageComponent', () => {
     deleteCameraUploadsData = vi.fn(() => of(undefined));
     deleteAllData = vi.fn(() => of(undefined));
     sourceProgress = {};
+    failedFiles = {};
+    otherUploadsFailedFiles = {};
+    getFailedFiles = vi.fn((_userId: number, sourceId: number) => of(failedFiles[sourceId] ?? []));
+    getOtherUploadsFailedFiles = vi.fn((_userId: number, sourceId: number) => of(otherUploadsFailedFiles[sourceId] ?? []));
     getCameraUploadsStatus = vi.fn((_userId: number, sourceId: number) => {
       const source = sources.find((candidate) => candidate.photoSourceId === sourceId);
 
@@ -196,7 +222,12 @@ describe('PhotoSourcePageComponent', () => {
         },
         {
           provide: CameraUploadsService,
-          useValue: {runCommand: runCameraUploadsCommand, getStatus: getCameraUploadsStatus, deleteData: deleteCameraUploadsData},
+          useValue: {
+            runCommand: runCameraUploadsCommand,
+            getStatus: getCameraUploadsStatus,
+            deleteData: deleteCameraUploadsData,
+            getFailedFiles,
+          },
         },
         {provide: PhotoSourceAuthService, useValue: {startAuthorization, completeAuthorization}},
         {provide: DataService, useValue: {deleteAllData}},
@@ -220,7 +251,12 @@ describe('PhotoSourcePageComponent', () => {
         {provide: VideosService, useValue: {runCommand: runVideoCommand, deleteData: deleteVideoData, getStatus: getVideoStatus}},
         {
           provide: OtherUploadsService,
-          useValue: {runCommand: runOtherUploadsCommand, getStatus: getOtherUploadsStatus, deleteData: deleteOtherUploadsData},
+          useValue: {
+            runCommand: runOtherUploadsCommand,
+            getStatus: getOtherUploadsStatus,
+            deleteData: deleteOtherUploadsData,
+            getFailedFiles: getOtherUploadsFailedFiles,
+          },
         },
         {
           provide: SourceDownloadsService,
@@ -462,6 +498,7 @@ describe('PhotoSourcePageComponent', () => {
 
     it('should retry only the photos that failed, once the run has ended', () => {
       sourceProgress[DROPBOX] = {status: 3, totalCount: 200, processedCount: 197, failedCount: 3};
+      failedFiles[DROPBOX] = failedFiles3();
       build('Dropbox');
 
       button('Retry failed (3)', panel())!.click();
@@ -526,6 +563,54 @@ describe('PhotoSourcePageComponent', () => {
       build('Dropbox');
 
       expect(button('Retry failed', panel())).toBeUndefined();
+      expect(failedPhotosTable(panel())).toBeNull();
+    });
+
+    it('should list the failed photos in a table under the actions, with Retry failed under it', () => {
+      sourceProgress[DROPBOX] = {status: 3, totalCount: 200, processedCount: 198, failedCount: 2};
+      failedFiles[DROPBOX] = [
+        failedFile('a.jpg', {path: '/Camera Uploads/a.jpg', stage: 'Download', error: 'The connection was reset.', attempts: 2}),
+        failedFile('b.jpg', {path: undefined, error: ''}),
+      ];
+      build('Dropbox');
+
+      expect(getFailedFiles).toHaveBeenCalledWith(1, DROPBOX);
+      expect(tableRows(panel())).toEqual([
+        ['/Camera Uploads/a.jpg', 'Download', 'The connection was reset.', '2'],
+        ['b.jpg', 'Processing', '—', '1'],
+      ]);
+      expect(failedPhotosTable(panel())!.caption?.textContent).toContain('2 photos failed');
+
+      // Start processing, then the table, then Retry failed
+      const section = panel().querySelector<HTMLElement>('section.camera-uploads')!;
+      const start = button('Start processing', section)!;
+      const table = failedPhotosTable(section)!;
+      const retry = button('Retry failed (2)', section)!;
+      expect(start.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(table.compareDocumentPosition(retry) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('should reload the failed photos once a run has ended', () => {
+      build('Dropbox');
+
+      progress.next({sourceId: DROPBOX, status: 'InProgress', processed: 1, failed: 0, total: 2});
+      failedFiles[DROPBOX] = [failedFile('a.jpg')];
+      progress.next({sourceId: DROPBOX, status: 'Done', processed: 1, failed: 1, total: 2});
+      fixture.detectChanges();
+
+      expect(getFailedFiles).toHaveBeenCalledTimes(2);
+      expect(tableRows(panel()).length).toBe(1);
+      expect(button('Retry failed (1)', panel())).toBeTruthy();
+    });
+
+    it('should clear the failed photos once the camera uploads are deleted', () => {
+      failedFiles[DROPBOX] = [failedFile('a.jpg')];
+      build('Dropbox');
+
+      component.deleteCameraUploadsData(view());
+      fixture.detectChanges();
+
+      expect(failedPhotosTable(panel())).toBeNull();
     });
 
     it('should track live progress from the notification hub, of the source of the page only', () => {
@@ -672,6 +757,7 @@ describe('PhotoSourcePageComponent', () => {
     it('should retry only the other uploads that failed, once the run has ended', () => {
       sources[1].isUserAuthorized = true;
       otherUploadsSourceProgress[YANDEX_DISK] = {status: 3, totalCount: 500, processedCount: 496, failedCount: 4};
+      otherUploadsFailedFiles[YANDEX_DISK] = [...failedFiles3(), failedFile('d.jpg')];
       build('Yandex.Disk', 'other-uploads');
 
       button('Retry failed (4)', otherUploadsSection()!)!.click();
@@ -722,7 +808,49 @@ describe('PhotoSourcePageComponent', () => {
 
       expect(view().otherUploads!.retryLabel).toBeUndefined();
       expect(view().otherUploads!.progressPercent).toBeCloseTo(99.6, 1);
-      expect(button('Retry failed (2)', otherUploadsSection()!)).toBeTruthy();
+    });
+
+    it('should list the failed other uploads in a table, apart from the camera uploads, and reload them after a run', () => {
+      sources[1].isUserAuthorized = true;
+      failedFiles[YANDEX_DISK] = [failedFile('camera.jpg')];
+      otherUploadsFailedFiles[YANDEX_DISK] = [
+        failedFile('a.jpg', {stage: 'Download', error: 'The connection was reset.'}),
+        failedFile('b.jpg'),
+      ];
+      build('Yandex.Disk', 'other-uploads');
+
+      expect(getOtherUploadsFailedFiles).toHaveBeenCalledWith(1, YANDEX_DISK);
+      expect(tableRows(otherUploadsSection()!)).toEqual([
+        ['disk:/Photos/a.jpg', 'Download', 'The connection was reset.', '1'],
+        ['disk:/Photos/b.jpg', 'Processing', 'Failed to decode the image.', '1'],
+      ]);
+      const table = failedPhotosTable(otherUploadsSection()!)!;
+      const retry = button('Retry failed (2)', otherUploadsSection()!)!;
+      expect(table.compareDocumentPosition(retry) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+      component.retryFailedOtherUploads(view());
+      fixture.detectChanges();
+
+      // no retrying while a run goes, the table stays
+      expect(button('Retry failed', otherUploadsSection()!)).toBeUndefined();
+      expect(failedPhotosTable(otherUploadsSection()!)).toBeTruthy();
+
+      otherUploadsFailedFiles[YANDEX_DISK] = [failedFile('b.jpg')];
+      otherUploadsProgress.next({sourceId: YANDEX_DISK, status: 'Done', processed: 1, failed: 1, total: 2});
+      fixture.detectChanges();
+
+      expect(tableRows(otherUploadsSection()!).length).toBe(1);
+      expect(button('Retry failed (1)', otherUploadsSection()!)).toBeTruthy();
+    });
+
+    it('should clear the failed other uploads once they are deleted', () => {
+      otherUploadsFailedFiles[YANDEX_DISK] = [failedFile('a.jpg')];
+      build('Yandex.Disk', 'other-uploads');
+
+      component.deleteOtherUploadsData(view());
+      fixture.detectChanges();
+
+      expect(failedPhotosTable(otherUploadsSection()!)).toBeNull();
     });
 
     it('should follow the progress of the other uploads live, apart from the camera uploads', () => {
