@@ -617,12 +617,12 @@ describe('PhotoSourcePageComponent', () => {
     it('should only offer processing the other uploads once Yandex.Disk is connected', () => {
       build('Yandex.Disk', 'other-uploads');
 
-      expect(button('Start processing other uploads', otherUploadsSection()!)).toBeUndefined();
+      expect(button('Start processing', otherUploadsSection()!)).toBeUndefined();
 
       sources[1].isUserAuthorized = true;
       build('Yandex.Disk', 'other-uploads');
 
-      expect(button('Start processing other uploads', otherUploadsSection()!)).toBeTruthy();
+      expect(button('Start processing', otherUploadsSection()!)).toBeTruthy();
     });
 
     it('should show the counters of the last run of the other uploads, apart from the camera uploads', () => {
@@ -631,7 +631,7 @@ describe('PhotoSourcePageComponent', () => {
 
       expect(view().otherUploads!.statusLabel).toBe('Stopped');
       expect(view().otherUploads!.progressLabel).toBe('120 of 500 · 4 failed');
-      expect(view().otherUploads!.action).toBe('Continue processing other uploads');
+      expect(view().otherUploads!.action).toBe('Continue processing');
       expect(view().statusLabel).toBe('Not started');
     });
 
@@ -655,7 +655,7 @@ describe('PhotoSourcePageComponent', () => {
 
       expect(runOtherUploadsCommand).toHaveBeenCalledWith(1, YANDEX_DISK, OtherUploadsProcessingCommand.Stop);
       expect(view().otherUploads!.statusLabel).toBe('Stopped');
-      expect(view().otherUploads!.action).toBe('Continue processing other uploads');
+      expect(view().otherUploads!.action).toBe('Continue processing');
     });
 
     it('should still offer to delete the camera uploads while the other uploads are being processed', () => {

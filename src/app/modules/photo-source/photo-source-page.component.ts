@@ -1052,7 +1052,7 @@ function toView(state: SourceState): SourceView {
     action: processingAction(view, photos.status, 'processing'),
     tokenExpires: source.tokenExpiresOn ? new Date(source.tokenExpiresOn).toLocaleString() : undefined,
     videos: toRunView(videos, 'processing videos'),
-    otherUploads: toRunView(otherUploads, 'processing other uploads'),
+    otherUploads: toRunView(otherUploads, 'processing'),
     download: toDownloadView(download),
     folderDownload: folderDownload ? toDownloadView(folderDownload) : undefined,
   };
