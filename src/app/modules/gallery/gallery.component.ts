@@ -121,7 +121,7 @@ export class GalleryComponent implements OnInit {
 
   /**
    * Whether the photos of every folder are shown, those outside the folders the sources are processed from too, such as
-   * the other folders of Yandex.Disk. Only the photos of the folders the sources are processed from until the user asks.
+   * the other uploads of Yandex.Disk. Only the photos of the folders the sources are processed from until the user asks.
    */
   readonly allFolders = signal(false);
 

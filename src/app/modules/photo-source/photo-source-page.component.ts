@@ -837,8 +837,8 @@ export class PhotoSourcePageComponent implements OnInit {
         this.listenForRun(
           sourceId,
           'otherUploads',
-          this.hubService.otherFoldersProgressFor(sourceId),
-          this.hubService.otherFoldersErrorFor(sourceId),
+          this.hubService.otherUploadsProgressFor(sourceId),
+          this.hubService.otherUploadsErrorFor(sourceId),
         );
       }
     }

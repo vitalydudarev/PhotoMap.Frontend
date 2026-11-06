@@ -220,7 +220,7 @@ describe('GalleryComponent', () => {
       expect(request.request.params.getAll('year')).toBeNull();
       expect(request.request.params.getAll('category')).toBeNull();
       expect(request.request.params.get('gps')).toBeNull();
-      // the photos of the other folders are left out until they are asked for
+      // the photos of the other uploads are left out until they are asked for
       expect(component.allFolders()).toBe(false);
       expect(request.request.params.get('allFolders')).toBeNull();
       expect(multiselects().map((multiselect) => multiselect.textContent)).toEqual([
