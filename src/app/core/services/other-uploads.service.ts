@@ -5,10 +5,12 @@ import {environment} from 'src/environments/environment';
 
 import {PhotoSourceProgress} from '../models/photo-source-progress.model';
 
-/** The backend's `PhotoSourceProcessingCommands.Start` and `.Stop`, the only ones the other uploads of a source take. */
+/** The backend's `PhotoSourceProcessingCommands`. */
 export enum OtherUploadsProcessingCommand {
   Start = 1,
   Stop = 2,
+  /** Processes again only the photos that failed, without listing the disk. */
+  RetryFailed = 3,
 }
 
 /**

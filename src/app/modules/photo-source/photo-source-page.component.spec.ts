@@ -669,7 +669,7 @@ describe('PhotoSourcePageComponent', () => {
       expect(button('Delete the data of all sources', panel())?.disabled).toBe(true);
     });
 
-    it('should retry the other uploads that failed by running them again', () => {
+    it('should retry only the other uploads that failed, once the run has ended', () => {
       sources[1].isUserAuthorized = true;
       otherUploadsSourceProgress[YANDEX_DISK] = {status: 3, totalCount: 500, processedCount: 496, failedCount: 4};
       build('Yandex.Disk', 'other-uploads');
@@ -677,10 +677,52 @@ describe('PhotoSourcePageComponent', () => {
       button('Retry failed (4)', otherUploadsSection()!)!.click();
       fixture.detectChanges();
 
-      expect(runOtherUploadsCommand).toHaveBeenCalledWith(1, YANDEX_DISK, OtherUploadsProcessingCommand.Start);
+      expect(runOtherUploadsCommand).toHaveBeenLastCalledWith(1, YANDEX_DISK, OtherUploadsProcessingCommand.RetryFailed);
       expect(view().otherUploads!.isRunning).toBe(true);
       expect(view().isRunning).toBe(false);
       expect(button('Retry failed (4)', otherUploadsSection()!)).toBeUndefined();
+    });
+
+    it('should show the progress through the failed other uploads while they are retried', () => {
+      sources[1].isUserAuthorized = true;
+      otherUploadsSourceProgress[YANDEX_DISK] = {status: 3, totalCount: 500, processedCount: 496, failedCount: 4};
+      build('Yandex.Disk', 'other-uploads');
+
+      component.retryFailedOtherUploads(view());
+      fixture.detectChanges();
+
+      // the failed photos are not known yet
+      expect(view().otherUploads!.progressKnown).toBe(false);
+      expect(otherUploadsSection()!.textContent).toContain('Retrying');
+
+      otherUploadsProgress.next({
+        sourceId: YANDEX_DISK,
+        status: 'InProgress',
+        processed: 497,
+        failed: 3,
+        total: 500,
+        retry: {total: 4, retried: 2, recovered: 1},
+      });
+      fixture.detectChanges();
+
+      expect(view().otherUploads!.progressPercent).toBe(50);
+      expect(view().otherUploads!.retryLabel).toBe('2 of 4 failed photos · 1 saved');
+      expect(view().otherUploads!.progressLabel).toBe('497 of 500 · 3 failed');
+      expect(otherUploadsSection()!.textContent).toContain('2 of 4 failed photos · 1 saved');
+
+      otherUploadsProgress.next({
+        sourceId: YANDEX_DISK,
+        status: 'Done',
+        processed: 498,
+        failed: 2,
+        total: 500,
+        retry: {total: 4, retried: 4, recovered: 2},
+      });
+      fixture.detectChanges();
+
+      expect(view().otherUploads!.retryLabel).toBeUndefined();
+      expect(view().otherUploads!.progressPercent).toBeCloseTo(99.6, 1);
+      expect(button('Retry failed (2)', otherUploadsSection()!)).toBeTruthy();
     });
 
     it('should follow the progress of the other uploads live, apart from the camera uploads', () => {

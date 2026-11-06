@@ -152,8 +152,15 @@
                 <app-alert tone="danger" heading="Processing the other uploads failed">{{ otherUploads.error }}</app-alert>
               }
 
-              @if (otherUploads.total > 0 || (otherUploads.lastUpdated && !otherUploads.isRunning)) {
+              @if (otherUploads.total > 0 || otherUploads.retryLabel || (otherUploads.lastUpdated && !otherUploads.isRunning)) {
                 <dl class="app-detail-list">
+                  @if (otherUploads.retryLabel) {
+                    <div class="app-detail-row">
+                      <dt class="app-detail-term">Retrying</dt>
+                      <dd class="app-detail-value">{{ otherUploads.retryLabel }}</dd>
+                    </div>
+                  }
+
                   @if (otherUploads.total > 0) {
                     <div class="app-detail-row">
                       <dt class="app-detail-term">Processed</dt>
@@ -173,10 +180,10 @@
               @if (otherUploads.isRunning) {
                 <div class="progress">
                   <app-progress-bar
-                    [mode]="otherUploads.total > 0 ? 'determinate' : 'indeterminate'"
+                    [mode]="otherUploads.progressKnown ? 'determinate' : 'indeterminate'"
                     [value]="otherUploads.progressPercent"
                   />
-                  @if (otherUploads.total > 0) {
+                  @if (otherUploads.progressKnown) {
                     <span class="progress-value">{{ otherUploads.progressPercent.toFixed(1) }}%</span>
                   }
                 </div>

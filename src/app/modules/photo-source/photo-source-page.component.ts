@@ -84,17 +84,23 @@ interface DownloadState extends ProcessingState {
   failedFiles: readonly FailedDownload[];
 }
 
+/** A run of its own apart from the processing of the camera uploads: of the videos or of the other uploads. */
+interface RunState extends ProcessingState {
+  /** How far the run retrying the failed photos has got, while one is going; only the other uploads retry them. */
+  retry?: HubRetry;
+}
+
 interface SourceState extends ProcessingState {
   source: UserPhotoSourceDto;
   /** How far the run retrying the failed files has got, while one is going. */
   retry?: HubRetry;
   /** Only the sources whose videos the backend imports have them processed, see `VIDEO_SOURCE_NAMES`. */
-  videos?: ProcessingState;
+  videos?: RunState;
   /**
    * The other uploads, the photos outside the folder of the camera uploads, processed by a run of their own; only the
    * sources whose other uploads the backend imports have them, see `OTHER_UPLOADS_SOURCE_NAMES`.
    */
-  otherUploads?: ProcessingState;
+  otherUploads?: RunState;
   download: DownloadState;
   /** Only the sources whose folders can be chosen have them downloaded, see `FOLDER_DOWNLOAD_SOURCE_NAMES`. */
   folderDownload?: DownloadState;
@@ -110,9 +116,10 @@ interface ProcessingView {
   progressLabel: string;
 }
 
-/** A run of its own apart from the processing of the camera uploads: of the videos or of the other uploads. */
-export interface RunView extends ProcessingState, ProcessingView {
+export interface RunView extends Omit<RunState, 'retry'>, ProcessingView {
   action: string;
+  /** How far a run retrying the failed photos has got, which the progress bar shows instead of the counters. */
+  retryLabel?: string;
 }
 
 export interface DownloadView extends DownloadState, ProcessingView {
@@ -455,8 +462,8 @@ export class PhotoSourcePageComponent implements OnInit {
   }
 
   /**
-   * The other uploads that failed are not saved, so a run started again tries them again, skipping the photos saved
-   * already; the backend keeps no list of them to retry on their own.
+   * Processes again only the other uploads that failed, without listing the disk. The backend keeps them over all runs,
+   * and counts them as failed until they are saved.
    */
   retryFailedOtherUploads(source: SourceView): void {
     const otherUploads = source.otherUploads;
@@ -466,11 +473,15 @@ export class PhotoSourcePageComponent implements OnInit {
     }
 
     this.otherUploadsService
-      .runCommand(USER_ID, source.id, OtherUploadsProcessingCommand.Start)
+      .runCommand(USER_ID, source.id, OtherUploadsProcessingCommand.RetryFailed)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.patchRun(source.id, 'otherUploads', {status: PhotoSourceStatus.InProgress, error: ''});
+          this.patchRun(source.id, 'otherUploads', {
+            status: PhotoSourceStatus.InProgress,
+            error: '',
+            retry: {total: 0, retried: 0, recovered: 0},
+          });
           this.toastService.success(
             `Retrying the ${countLabel(otherUploads.failed, 'failed photo')} of the other uploads of ${source.name}.`,
           );
@@ -589,7 +600,7 @@ export class PhotoSourcePageComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.patchRun(source.id, 'otherUploads', initialProcessingState(PhotoSourceStatus.NotStarted));
+          this.patchRun(source.id, 'otherUploads', {...initialProcessingState(PhotoSourceStatus.NotStarted), retry: undefined});
           this.toastService.success(`Deleted the other uploads of ${source.name}.`);
         },
         error: (error) => this.toastService.error(`Failed to delete the other uploads of ${source.name}.`, error),
@@ -852,6 +863,7 @@ export class PhotoSourcePageComponent implements OnInit {
         failed: progress.failed,
         total: progress.total,
         lastUpdatedAt: new Date().toISOString(),
+        retry: progress.retry,
       })),
     );
 
@@ -910,11 +922,7 @@ export class PhotoSourcePageComponent implements OnInit {
     });
   }
 
-  private patchRun(
-    sourceId: number,
-    key: RunKey,
-    change: Partial<ProcessingState> | ((run: ProcessingState) => Partial<ProcessingState>),
-  ): void {
+  private patchRun(sourceId: number, key: RunKey, change: Partial<RunState> | ((run: RunState) => Partial<RunState>)): void {
     this.patch(sourceId, (state) => {
       const run = state[key];
 
@@ -1015,18 +1023,24 @@ function processingAction(view: ProcessingView, status: PhotoSourceStatus | unde
   return view.isRunning ? `Pause ${noun}` : isPhotoSourceResumable(status) ? `Continue ${noun}` : `Start ${noun}`;
 }
 
-function toRunView(run: ProcessingState | undefined, noun: string): RunView | undefined {
-  if (!run) {
+function toRunView(state: RunState | undefined, noun: string): RunView | undefined {
+  if (!state) {
     return undefined;
   }
 
+  const {retry, ...run} = state;
   const view = toProcessingView(run);
 
-  return {...run, ...view, action: processingAction(view, run.status, noun)};
+  return {
+    ...run,
+    ...view,
+    ...(view.isRunning && retry ? toRetryView(retry) : {}),
+    action: processingAction(view, run.status, noun),
+  };
 }
 
 /** The progress of a run retrying the failed files, through those files rather than through the folder. */
-function toRetryView({total, retried, recovered}: HubRetry): Pick<SourceView, 'progressKnown' | 'progressPercent' | 'retryLabel'> {
+function toRetryView({total, retried, recovered}: HubRetry): Pick<RunView, 'progressKnown' | 'progressPercent' | 'retryLabel'> {
   return {
     progressKnown: total > 0,
     progressPercent: total > 0 ? (retried / total) * 100 : 0,
