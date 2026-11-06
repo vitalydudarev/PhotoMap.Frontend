@@ -121,24 +121,39 @@
 
             @if (source.failedFiles.length > 0) {
               <ng-container *ngTemplateOutlet="failedFilesTable; context: {$implicit: source.failedFiles}" />
+            }
 
-              @if (source.isAuthorized && !source.isRunning) {
-                <div class="app-actions failed-files-actions">
+            @if (source.isAuthorized && !source.isRunning && (source.failedFiles.length > 0 || source.hasRun)) {
+              <div class="app-actions failed-files-actions">
+                @if (source.failedFiles.length > 0) {
                   <button appButton="outline" type="button" (click)="retryFailedProcessing(source)">
                     <app-icon name="restore" [size]="16" />
                     Retry failed ({{ source.failedFiles.length.toLocaleString() }})
                   </button>
-                </div>
-              }
+                }
+                @if (source.hasRun) {
+                  <button
+                    appButton="outline"
+                    type="button"
+                    title="Download the photos uploaded before the last run that are neither imported nor failed"
+                    (click)="syncCameraUploads(source)"
+                  >
+                    <app-icon name="sync" [size]="16" />
+                    Sync
+                  </button>
+                }
+              </div>
             }
           </section>
 
+          <!-- Hidden for now: deletes the data of every source, not only of this page's.
           <div class="app-actions all-data-actions">
             <button class="danger-action" appButton="ghost" type="button" [disabled]="isAnyRunning()" (click)="deleteAllData()">
               <app-icon name="trash" [size]="16" />
               Delete the data of all sources
             </button>
           </div>
+          -->
         }
         @case ('other-uploads') {
           @if (source.otherUploads; as otherUploads) {
@@ -217,15 +232,28 @@
 
               @if (otherUploads.failedFiles?.length) {
                 <ng-container *ngTemplateOutlet="failedFilesTable; context: {$implicit: otherUploads.failedFiles}" />
+              }
 
-                @if (source.isAuthorized && !otherUploads.isRunning) {
-                  <div class="app-actions failed-files-actions">
+              @if (source.isAuthorized && !otherUploads.isRunning && (otherUploads.failedFiles?.length || otherUploads.hasRun)) {
+                <div class="app-actions failed-files-actions">
+                  @if (otherUploads.failedFiles?.length) {
                     <button appButton="outline" type="button" (click)="retryFailedOtherUploads(source)">
                       <app-icon name="restore" [size]="16" />
                       Retry failed ({{ otherUploads.failedFiles!.length.toLocaleString() }})
                     </button>
-                  </div>
-                }
+                  }
+                  @if (otherUploads.hasRun) {
+                    <button
+                      appButton="outline"
+                      type="button"
+                      title="Download the photos uploaded before the last run that are neither imported nor failed"
+                      (click)="syncOtherUploads(source)"
+                    >
+                      <app-icon name="sync" [size]="16" />
+                      Sync
+                    </button>
+                  }
+                </div>
               }
             </section>
           }
@@ -529,6 +557,7 @@
 
 <!-- The photos of the camera uploads or of the other uploads that failed, which Retry failed takes. -->
 <ng-template #failedFilesTable let-files>
+  <hr class="failed-photos-separator" />
   <div class="failed-photos" role="region" aria-label="Failed photos" tabindex="0">
     <table class="failed-photos-table">
       <caption>
@@ -542,6 +571,7 @@
       </caption>
       <thead>
         <tr>
+          <th scope="col" class="numeric"><abbr title="Number">No.</abbr></th>
           <th scope="col">File</th>
           <th scope="col">Failed at</th>
           <th scope="col">Error</th>
@@ -549,8 +579,9 @@
         </tr>
       </thead>
       <tbody>
-        @for (file of files; track file.externalId) {
+        @for (file of files; track file.externalId; let index = $index) {
           <tr>
+            <td class="numeric">{{ (index + 1).toLocaleString() }}</td>
             <td class="failed-photo-name">{{ file.path || file.fileName }}</td>
             <td>{{ file.stage === 'Download' ? 'Download' : 'Processing' }}</td>
             <td class="failed-photo-error">{{ file.error || '—' }}</td>

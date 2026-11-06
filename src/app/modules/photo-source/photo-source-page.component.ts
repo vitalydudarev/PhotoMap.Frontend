@@ -113,6 +113,8 @@ interface SourceState extends ProcessingState {
 
 interface ProcessingView {
   isRunning: boolean;
+  /** Whether the uploads have been processed before, so that there are files to sync. */
+  hasRun: boolean;
   statusLabel: string;
   lastUpdated?: string;
   /** Whether the run knows how many files it takes, so that the progress bar shows how far it has got. */
@@ -410,6 +412,23 @@ export class PhotoSourcePageComponent implements OnInit {
       });
   }
 
+  /**
+   * Checks the camera uploads the runs have been through, the ones uploaded before the last run that has listed them,
+   * and downloads those that are neither saved nor failed. The ones uploaded since are left to Start processing.
+   */
+  syncCameraUploads(source: SourceView): void {
+    this.cameraUploadsService
+      .runCommand(USER_ID, source.id, CameraUploadsProcessingCommand.Sync)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.patch(source.id, {status: PhotoSourceStatus.InProgress, error: '', retry: undefined});
+          this.toastService.success(`Syncing the camera uploads of ${source.name}.`);
+        },
+        error: (error) => this.toastService.error(`Failed to sync the camera uploads of ${source.name}.`, error),
+      });
+  }
+
   /** The videos are processed by a run of their own, which resumes by skipping the videos saved already. */
   startStopVideoProcessing(source: SourceView): void {
     const videos = source.videos;
@@ -492,6 +511,20 @@ export class PhotoSourcePageComponent implements OnInit {
           );
         },
         error: (error) => this.toastService.error(`Failed to retry the failed photos of the other uploads of ${source.name}.`, error),
+      });
+  }
+
+  /** Checks the other uploads the runs have been through, as `syncCameraUploads` does the camera uploads. */
+  syncOtherUploads(source: SourceView): void {
+    this.otherUploadsService
+      .runCommand(USER_ID, source.id, OtherUploadsProcessingCommand.Sync)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.patchRun(source.id, 'otherUploads', {status: PhotoSourceStatus.InProgress, error: '', retry: undefined});
+          this.toastService.success(`Syncing the other uploads of ${source.name}.`);
+        },
+        error: (error) => this.toastService.error(`Failed to sync the other uploads of ${source.name}.`, error),
       });
   }
 
@@ -1072,6 +1105,7 @@ function toProcessingView({status, processed, failed, total, lastUpdatedAt}: Pro
 
   return {
     isRunning: isPhotoSourceRunning(status),
+    hasRun: status !== undefined && status !== PhotoSourceStatus.NotStarted,
     statusLabel: photoSourceStatusLabel(status),
     lastUpdated: lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleString() : undefined,
     progressKnown: total > 0,

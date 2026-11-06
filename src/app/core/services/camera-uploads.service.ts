@@ -12,6 +12,11 @@ export enum CameraUploadsProcessingCommand {
   Stop = 2,
   /** Processes again only the files that failed, without listing the folder. */
   RetryFailed = 3,
+  /**
+   * Downloads the files uploaded before the last run that has listed the source and are neither saved nor failed: the
+   * files the runs have missed. The files uploaded since are left to Start processing.
+   */
+  Sync = 4,
 }
 
 /**

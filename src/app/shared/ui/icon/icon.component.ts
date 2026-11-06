@@ -37,6 +37,7 @@ export type IconName =
   | 'sort-asc'
   | 'sort-desc'
   | 'sun'
+  | 'sync'
   | 'tag'
   | 'trash'
   | 'video'

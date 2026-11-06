@@ -149,9 +149,15 @@
 }
 
 /* The failed photos of a run, under its actions, with Retry failed under them. */
+/* Sets the failed photos apart from the actions of the run above them. */
+.failed-photos-separator {
+  margin: var(--app-space-5) 0 var(--app-space-4);
+  border: none;
+  border-top: 1px solid var(--app-border);
+}
+
 .failed-photos {
   max-height: 320px;
-  margin-top: var(--app-space-4);
   overflow: auto;
   border: 1px solid var(--app-border);
   border-radius: var(--app-radius);

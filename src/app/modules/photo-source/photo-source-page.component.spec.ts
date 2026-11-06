@@ -576,8 +576,8 @@ describe('PhotoSourcePageComponent', () => {
 
       expect(getFailedFiles).toHaveBeenCalledWith(1, DROPBOX);
       expect(tableRows(panel())).toEqual([
-        ['/Camera Uploads/a.jpg', 'Download', 'The connection was reset.', '2'],
-        ['b.jpg', 'Processing', '—', '1'],
+        ['1', '/Camera Uploads/a.jpg', 'Download', 'The connection was reset.', '2'],
+        ['2', 'b.jpg', 'Processing', '—', '1'],
       ]);
       expect(failedPhotosTable(panel())!.caption?.textContent).toContain('2 photos failed');
 
@@ -588,6 +588,44 @@ describe('PhotoSourcePageComponent', () => {
       const retry = button('Retry failed (2)', section)!;
       expect(start.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(table.compareDocumentPosition(retry) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('should offer to sync next to Retry failed, once the camera uploads have been processed', () => {
+      sourceProgress[DROPBOX] = {status: 3, totalCount: 200, processedCount: 198, failedCount: 2};
+      failedFiles[DROPBOX] = [failedFile('a.jpg'), failedFile('b.jpg')];
+      build('Dropbox');
+
+      const sync = button('Sync', panel())!;
+      expect(sync.parentElement).toBe(button('Retry failed (2)', panel())!.parentElement);
+
+      sync.click();
+      fixture.detectChanges();
+
+      expect(runCameraUploadsCommand).toHaveBeenLastCalledWith(1, DROPBOX, CameraUploadsProcessingCommand.Sync);
+      expect(view().isRunning).toBe(true);
+      // no syncing or retrying while a run goes
+      expect(button('Sync', panel())).toBeUndefined();
+      expect(button('Retry failed', panel())).toBeUndefined();
+    });
+
+    it('should offer to sync without failed photos as well', () => {
+      sourceProgress[DROPBOX] = {status: 3, totalCount: 200, processedCount: 200, failedCount: 0};
+      build('Dropbox');
+
+      expect(failedPhotosTable(panel())).toBeNull();
+      expect(button('Sync', panel())).toBeTruthy();
+    });
+
+    it('should not offer to sync camera uploads never processed, or of a source not connected', () => {
+      sourceProgress[DROPBOX] = {status: 1, totalCount: 0, processedCount: 0, failedCount: 0};
+      build('Dropbox');
+
+      expect(button('Sync', panel())).toBeUndefined();
+
+      sourceProgress[YANDEX_DISK] = {status: 3, totalCount: 10, processedCount: 10, failedCount: 0};
+      build('Yandex.Disk');
+
+      expect(button('Sync', panel())).toBeUndefined();
     });
 
     it('should reload the failed photos once a run has ended', () => {
@@ -647,10 +685,16 @@ describe('PhotoSourcePageComponent', () => {
       expect(view().progressPercent).toBe(0);
     });
 
+    it('should not offer to delete the data of all the sources for now', () => {
+      build('Dropbox');
+
+      expect(button('Delete the data of all sources')).toBeUndefined();
+    });
+
     it('should delete the data of all the sources', () => {
       build('Dropbox');
 
-      button('Delete the data of all sources', panel())!.click();
+      component.deleteAllData();
 
       expect(deleteAllData).toHaveBeenCalled();
     });
@@ -671,7 +715,6 @@ describe('PhotoSourcePageComponent', () => {
       build('Dropbox');
 
       expect(button('Delete data', panel())?.disabled).toBe(true);
-      expect(button('Delete the data of all sources', panel())?.disabled).toBe(true);
       expect(component.isAnyRunning()).toBe(true);
     });
   });
@@ -751,7 +794,7 @@ describe('PhotoSourcePageComponent', () => {
       fixture.detectChanges();
 
       expect(button('Delete data', panel())?.disabled).toBe(false);
-      expect(button('Delete the data of all sources', panel())?.disabled).toBe(true);
+      expect(component.isAnyRunning()).toBe(true);
     });
 
     it('should retry only the other uploads that failed, once the run has ended', () => {
@@ -821,8 +864,8 @@ describe('PhotoSourcePageComponent', () => {
 
       expect(getOtherUploadsFailedFiles).toHaveBeenCalledWith(1, YANDEX_DISK);
       expect(tableRows(otherUploadsSection()!)).toEqual([
-        ['disk:/Photos/a.jpg', 'Download', 'The connection was reset.', '1'],
-        ['disk:/Photos/b.jpg', 'Processing', 'Failed to decode the image.', '1'],
+        ['1', 'disk:/Photos/a.jpg', 'Download', 'The connection was reset.', '1'],
+        ['2', 'disk:/Photos/b.jpg', 'Processing', 'Failed to decode the image.', '1'],
       ]);
       const table = failedPhotosTable(otherUploadsSection()!)!;
       const retry = button('Retry failed (2)', otherUploadsSection()!)!;
@@ -841,6 +884,21 @@ describe('PhotoSourcePageComponent', () => {
 
       expect(tableRows(otherUploadsSection()!).length).toBe(1);
       expect(button('Retry failed (1)', otherUploadsSection()!)).toBeTruthy();
+    });
+
+    it('should sync the other uploads, apart from the camera uploads', () => {
+      sources[1].isUserAuthorized = true;
+      otherUploadsSourceProgress[YANDEX_DISK] = {status: 3, totalCount: 500, processedCount: 500, failedCount: 0};
+      build('Yandex.Disk', 'other-uploads');
+
+      button('Sync', otherUploadsSection()!)!.click();
+      fixture.detectChanges();
+
+      expect(runOtherUploadsCommand).toHaveBeenLastCalledWith(1, YANDEX_DISK, OtherUploadsProcessingCommand.Sync);
+      expect(runCameraUploadsCommand).not.toHaveBeenCalled();
+      expect(view().otherUploads!.isRunning).toBe(true);
+      expect(view().isRunning).toBe(false);
+      expect(button('Sync', otherUploadsSection()!)).toBeUndefined();
     });
 
     it('should clear the failed other uploads once they are deleted', () => {
