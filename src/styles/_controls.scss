@@ -144,8 +144,9 @@
   padding: var(--app-space-5) var(--app-space-5) var(--app-space-7);
 }
 
+/* The pages of the photo sources: their panels are 1000px wide, the page's side padding comes on top. */
 .app-page--narrow {
-  max-width: 760px;
+  max-width: calc(1000px + 2 * var(--app-space-5));
 }
 
 .app-page-title {
