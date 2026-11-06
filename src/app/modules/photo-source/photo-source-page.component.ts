@@ -3,7 +3,7 @@ import {Component, DestroyRef, OnInit, computed, inject, signal} from '@angular/
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {ActivatedRoute, Router} from '@angular/router';
 import {EMPTY, Observable, catchError, forkJoin, from, map, of, switchMap} from 'rxjs';
-import {PhotoSourceProcessingCommands, UserPhotoSourceDto, UsersPhotoSourcesClient} from 'src/app/shared/models/photomap-backend.swagger';
+import {UserPhotoSourceDto, UsersPhotoSourcesClient} from 'src/app/shared/models/photomap-backend.swagger';
 import {AlertComponent} from 'src/app/shared/ui/alert/alert.component';
 import {ButtonDirective} from 'src/app/shared/ui/button/button.directive';
 import {CardComponent} from 'src/app/shared/ui/card/card.component';
@@ -24,10 +24,11 @@ import {HubError, HubProgress, HubRetry} from '../../core/models/hub-notificatio
 import {PhotoSourceProgress} from '../../core/models/photo-source-progress.model';
 import {FailedDownload, SourceDownloadContent, SourceDownloadKind, SourceDownloadStatus} from '../../core/models/source-download.model';
 import {FailedPreview} from '../../core/models/failed-preview.model';
+import {CameraUploadsProcessingCommand, CameraUploadsService} from '../../core/services/camera-uploads.service';
 import {DataService} from '../../core/services/data.service';
 import {FailedPreviewsService} from '../../core/services/failed-previews.service';
 import {NotificationHubService} from '../../core/services/notification-hub.service';
-import {OtherFoldersProcessingCommand, OtherFoldersService} from '../../core/services/other-folders.service';
+import {OtherUploadsProcessingCommand, OtherUploadsService} from '../../core/services/other-uploads.service';
 import {PhotoSourceAuthService} from '../../core/services/photo-source-auth.service';
 import {SourceDownloadsService} from '../../core/services/source-downloads.service';
 import {ToastService} from '../../core/services/toast.service';
@@ -42,10 +43,12 @@ export interface PhotoSourcePageConfig {
 }
 
 /**
- * The tabs of the page: the processing of the photos and of the videos, and the downloads of the files, each running
- * apart from the others. A source has the tabs of what it supports.
+ * The tabs of the page: the processing of the camera uploads, of the other uploads and of the videos, and the downloads
+ * of the files, each running apart from the others. A source has the tabs of what it supports.
  */
-export type SourceTab = 'photos' | 'videos' | 'download' | 'folder-download' | 'failed-previews';
+export type SourceTab = 'camera-uploads' | 'other-uploads' | 'videos' | 'download' | 'folder-download' | 'failed-previews';
+
+const SOURCE_TABS: readonly SourceTab[] = ['camera-uploads', 'other-uploads', 'videos', 'download', 'folder-download', 'failed-previews'];
 
 const TAB_PARAM = 'tab';
 const TABS_ID_PREFIX = 'source';
@@ -88,10 +91,10 @@ interface SourceState extends ProcessingState {
   /** Only the sources whose videos the backend imports have them processed, see `VIDEO_SOURCE_NAMES`. */
   videos?: ProcessingState;
   /**
-   * The photos outside the folder the source is processed from, processed by a run of their own; only the sources
-   * whose other folders the backend imports have them, see `OTHER_FOLDERS_SOURCE_NAMES`.
+   * The other uploads, the photos outside the folder of the camera uploads, processed by a run of their own; only the
+   * sources whose other uploads the backend imports have them, see `OTHER_UPLOADS_SOURCE_NAMES`.
    */
-  otherFolders?: ProcessingState;
+  otherUploads?: ProcessingState;
   download: DownloadState;
   /** Only the sources whose folders can be chosen have them downloaded, see `FOLDER_DOWNLOAD_SOURCE_NAMES`. */
   folderDownload?: DownloadState;
@@ -107,7 +110,7 @@ interface ProcessingView {
   progressLabel: string;
 }
 
-/** A run of its own apart from the processing of the folder of the source, of the videos or of the other folders. */
+/** A run of its own apart from the processing of the camera uploads: of the videos or of the other uploads. */
 export interface RunView extends ProcessingState, ProcessingView {
   action: string;
 }
@@ -120,7 +123,7 @@ export interface DownloadView extends DownloadState, ProcessingView {
   missing: number;
 }
 
-export interface SourceView extends Omit<SourceState, 'retry' | 'videos' | 'otherFolders' | 'download' | 'folderDownload'>, ProcessingView {
+export interface SourceView extends Omit<SourceState, 'retry' | 'videos' | 'otherUploads' | 'download' | 'folderDownload'>, ProcessingView {
   id: number;
   name: string;
   isAuthorized: boolean;
@@ -136,17 +139,10 @@ export interface SourceView extends Omit<SourceState, 'retry' | 'videos' | 'othe
    */
   retryLabel?: string;
   videos?: RunView;
-  otherFolders?: RunView;
+  otherUploads?: RunView;
   download: DownloadView;
   folderDownload?: DownloadView;
 }
-
-// The generated enum names its members after their values; these are the backend's
-// `PhotoSourceProcessingCommands.Start` and `.Stop`.
-const START_PROCESSING = PhotoSourceProcessingCommands._1;
-const STOP_PROCESSING = PhotoSourceProcessingCommands._2;
-// the backend's `PhotoSourceProcessingCommands.RetryFailed`, which the generated enum predates
-const RETRY_FAILED_PROCESSING = 3 as PhotoSourceProcessingCommands;
 
 const DOWNLOAD_CONTENTS: Record<DownloadChoice, SourceDownloadContent> = {
   photos: SourceDownloadContent.Photos,
@@ -166,10 +162,10 @@ const DOWNLOAD_CHOICE_LABELS: Record<DownloadChoice, string> = {
 /** The sources the backend imports the videos of, by `photoSourceName`. */
 const VIDEO_SOURCE_NAMES: readonly string[] = ['Yandex.Disk'];
 
-/** The sources the backend imports the photos of outside the folder they are processed from, by `photoSourceName`. */
-const OTHER_FOLDERS_SOURCE_NAMES: readonly string[] = ['Yandex.Disk'];
+/** The sources the backend imports the other uploads of, the photos outside the camera uploads, by `photoSourceName`. */
+const OTHER_UPLOADS_SOURCE_NAMES: readonly string[] = ['Yandex.Disk'];
 
-type RunKey = 'videos' | 'otherFolders';
+type RunKey = 'videos' | 'otherUploads';
 
 // TODO: take the user ID from cookies
 const USER_ID = 1;
@@ -221,13 +217,13 @@ export class PhotoSourcePageComponent implements OnInit {
 
   readonly sources = computed(() => this.states().map(toView));
   readonly isAnyRunning = computed(() =>
-    this.sources().some((source) => source.isRunning || source.videos?.isRunning || source.otherFolders?.isRunning),
+    this.sources().some((source) => source.isRunning || source.videos?.isRunning || source.otherUploads?.isRunning),
   );
 
   /** The source of the page, undefined until it has loaded or when the backend has no source of its name. */
   readonly source = computed<SourceView | undefined>(() => this.sources()[0]);
 
-  private readonly requestedTab = signal<SourceTab>('photos');
+  private readonly requestedTab = signal<SourceTab>('camera-uploads');
 
   /** The tabs of what the source supports, marked while their runs are going. */
   readonly tabs = computed<readonly TabOption<SourceTab>[]>(() => {
@@ -238,7 +234,17 @@ export class PhotoSourcePageComponent implements OnInit {
     }
 
     return [
-      {value: 'photos', label: 'Photos', icon: 'image', busy: source.isRunning || source.otherFolders?.isRunning === true},
+      {value: 'camera-uploads', label: 'Photos (camera uploads)', icon: 'image', busy: source.isRunning},
+      ...(source.otherUploads
+        ? [
+            {
+              value: 'other-uploads' as const,
+              label: 'Photos (other uploads)',
+              icon: 'image' as const,
+              busy: source.otherUploads.isRunning,
+            },
+          ]
+        : []),
       ...(source.videos ? [{value: 'videos' as const, label: 'Videos', icon: 'video' as const, busy: source.videos.isRunning}] : []),
       {value: 'download', label: 'Download', icon: 'download', busy: source.download.isRunning},
       ...(source.folderDownload
@@ -255,11 +261,11 @@ export class PhotoSourcePageComponent implements OnInit {
     ];
   });
 
-  /** The tab asked for, or the photos when the source has no such tab. */
+  /** The tab asked for, or the camera uploads when the source has no such tab. */
   readonly tab = computed<SourceTab>(() => {
     const requestedTab = this.requestedTab();
 
-    return this.tabs().some((tab) => tab.value === requestedTab) ? requestedTab : 'photos';
+    return this.tabs().some((tab) => tab.value === requestedTab) ? requestedTab : 'camera-uploads';
   });
 
   private readonly destroyRef = inject(DestroyRef);
@@ -270,8 +276,9 @@ export class PhotoSourcePageComponent implements OnInit {
   private readonly authService = inject(PhotoSourceAuthService);
   private readonly hubService = inject(NotificationHubService);
   private readonly usersPhotoSourcesClient = inject(UsersPhotoSourcesClient);
+  private readonly cameraUploadsService = inject(CameraUploadsService);
   private readonly videosService = inject(VideosService);
-  private readonly otherFoldersService = inject(OtherFoldersService);
+  private readonly otherUploadsService = inject(OtherUploadsService);
   private readonly sourceDownloadsService = inject(SourceDownloadsService);
   private readonly failedPreviewsService = inject(FailedPreviewsService);
 
@@ -359,32 +366,35 @@ export class PhotoSourcePageComponent implements OnInit {
     const starting = !source.isRunning;
     const resuming = starting && isPhotoSourceResumable(source.status);
 
-    this.usersPhotoSourcesClient
-      .sourceProcessing(USER_ID, source.id, starting ? START_PROCESSING : STOP_PROCESSING)
+    this.cameraUploadsService
+      .runCommand(USER_ID, source.id, starting ? CameraUploadsProcessingCommand.Start : CameraUploadsProcessingCommand.Stop)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
           this.patch(source.id, {status: starting ? PhotoSourceStatus.InProgress : PhotoSourceStatus.Stopped, error: ''});
-          this.toastService.success(`${starting ? (resuming ? 'Resumed' : 'Started') : 'Paused'} processing ${source.name}.`);
+          this.toastService.success(
+            `${starting ? (resuming ? 'Resumed' : 'Started') : 'Paused'} processing the camera uploads of ${source.name}.`,
+          );
         },
-        error: (error) => this.toastService.error(`Failed to ${starting ? 'start' : 'pause'} processing ${source.name}.`, error),
+        error: (error) =>
+          this.toastService.error(`Failed to ${starting ? 'start' : 'pause'} processing the camera uploads of ${source.name}.`, error),
       });
   }
 
   /**
-   * Processes again only the files of the folder of the source that failed, without listing it. The backend keeps
-   * them over all runs, and counts them as failed until they are saved.
+   * Processes again only the camera uploads that failed, without listing their folder. The backend keeps them over all
+   * runs, and counts them as failed until they are saved.
    */
   retryFailedProcessing(source: SourceView): void {
-    this.usersPhotoSourcesClient
-      .sourceProcessing(USER_ID, source.id, RETRY_FAILED_PROCESSING)
+    this.cameraUploadsService
+      .runCommand(USER_ID, source.id, CameraUploadsProcessingCommand.RetryFailed)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
           this.patch(source.id, {status: PhotoSourceStatus.InProgress, error: '', retry: {total: 0, retried: 0, recovered: 0}});
-          this.toastService.success(`Retrying the ${countLabel(source.failed, 'failed photo')} of ${source.name}.`);
+          this.toastService.success(`Retrying the ${countLabel(source.failed, 'failed photo')} of the camera uploads of ${source.name}.`);
         },
-        error: (error) => this.toastService.error(`Failed to retry the failed photos of ${source.name}.`, error),
+        error: (error) => this.toastService.error(`Failed to retry the failed photos of the camera uploads of ${source.name}.`, error),
       });
   }
 
@@ -413,59 +423,59 @@ export class PhotoSourcePageComponent implements OnInit {
   }
 
   /**
-   * The photos outside the folder the source is processed from are processed by a run of their own, which resumes by skipping
-   * the photos saved already.
+   * The other uploads, the photos outside the folder of the camera uploads, are processed by a run of their own, which
+   * resumes by skipping the photos saved already.
    */
-  startStopOtherFoldersProcessing(source: SourceView): void {
-    const otherFolders = source.otherFolders;
+  startStopOtherUploadsProcessing(source: SourceView): void {
+    const otherUploads = source.otherUploads;
 
-    if (!otherFolders) {
+    if (!otherUploads) {
       return;
     }
 
-    const starting = !otherFolders.isRunning;
-    const resuming = starting && isPhotoSourceResumable(otherFolders.status);
+    const starting = !otherUploads.isRunning;
+    const resuming = starting && isPhotoSourceResumable(otherUploads.status);
 
-    this.otherFoldersService
-      .runCommand(USER_ID, source.id, starting ? OtherFoldersProcessingCommand.Start : OtherFoldersProcessingCommand.Stop)
+    this.otherUploadsService
+      .runCommand(USER_ID, source.id, starting ? OtherUploadsProcessingCommand.Start : OtherUploadsProcessingCommand.Stop)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.patchRun(source.id, 'otherFolders', {
+          this.patchRun(source.id, 'otherUploads', {
             status: starting ? PhotoSourceStatus.InProgress : PhotoSourceStatus.Stopped,
             error: '',
           });
           this.toastService.success(
-            `${starting ? (resuming ? 'Resumed' : 'Started') : 'Paused'} processing the other folders of ${source.name}.`,
+            `${starting ? (resuming ? 'Resumed' : 'Started') : 'Paused'} processing the other uploads of ${source.name}.`,
           );
         },
         error: (error) =>
-          this.toastService.error(`Failed to ${starting ? 'start' : 'pause'} processing the other folders of ${source.name}.`, error),
+          this.toastService.error(`Failed to ${starting ? 'start' : 'pause'} processing the other uploads of ${source.name}.`, error),
       });
   }
 
   /**
-   * The photos of the other folders that failed are not saved, so a run started again tries them again, skipping
-   * the photos saved already; the backend keeps no list of them to retry on their own.
+   * The other uploads that failed are not saved, so a run started again tries them again, skipping the photos saved
+   * already; the backend keeps no list of them to retry on their own.
    */
-  retryFailedOtherFolders(source: SourceView): void {
-    const otherFolders = source.otherFolders;
+  retryFailedOtherUploads(source: SourceView): void {
+    const otherUploads = source.otherUploads;
 
-    if (!otherFolders) {
+    if (!otherUploads) {
       return;
     }
 
-    this.otherFoldersService
-      .runCommand(USER_ID, source.id, OtherFoldersProcessingCommand.Start)
+    this.otherUploadsService
+      .runCommand(USER_ID, source.id, OtherUploadsProcessingCommand.Start)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.patchRun(source.id, 'otherFolders', {status: PhotoSourceStatus.InProgress, error: ''});
+          this.patchRun(source.id, 'otherUploads', {status: PhotoSourceStatus.InProgress, error: ''});
           this.toastService.success(
-            `Retrying the ${countLabel(otherFolders.failed, 'failed photo')} of the other folders of ${source.name}.`,
+            `Retrying the ${countLabel(otherUploads.failed, 'failed photo')} of the other uploads of ${source.name}.`,
           );
         },
-        error: (error) => this.toastService.error(`Failed to retry the failed photos of the other folders of ${source.name}.`, error),
+        error: (error) => this.toastService.error(`Failed to retry the failed photos of the other uploads of ${source.name}.`, error),
       });
   }
 
@@ -548,31 +558,41 @@ export class PhotoSourcePageComponent implements OnInit {
   }
 
   /**
-   * Deletes what has been imported from one source so far, from its folder and from the other folders. The backend
-   * keeps the authorization, so the source can be imported again from the beginning.
+   * Deletes the camera uploads imported from one source so far, leaving its other uploads. The backend keeps the
+   * authorization, so they can be imported again from the beginning.
    */
-  deleteData(source: SourceView): void {
-    if (!confirm(`Delete the photos imported from ${source.name} and start over?`)) {
+  deleteCameraUploadsData(source: SourceView): void {
+    if (!confirm(`Delete the camera uploads imported from ${source.name} and start over?`)) {
       return;
     }
 
-    this.dataService
-      .deleteSourceData(USER_ID, source.id)
+    this.cameraUploadsService
+      .deleteData(USER_ID, source.id)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.patch(source.id, {
-            status: PhotoSourceStatus.NotStarted,
-            error: '',
-            processed: 0,
-            failed: 0,
-            total: 0,
-            lastUpdatedAt: undefined,
-          });
-          this.patchRun(source.id, 'otherFolders', initialProcessingState(PhotoSourceStatus.NotStarted));
-          this.toastService.success(`Deleted the data of ${source.name}.`);
+          this.patch(source.id, {...initialProcessingState(PhotoSourceStatus.NotStarted), retry: undefined});
+          this.toastService.success(`Deleted the camera uploads of ${source.name}.`);
         },
-        error: (error) => this.toastService.error(`Failed to delete the data of ${source.name}.`, error),
+        error: (error) => this.toastService.error(`Failed to delete the camera uploads of ${source.name}.`, error),
+      });
+  }
+
+  /** Deletes the other uploads imported from one source so far, leaving its camera uploads. */
+  deleteOtherUploadsData(source: SourceView): void {
+    if (!confirm(`Delete the other uploads imported from ${source.name} and start over?`)) {
+      return;
+    }
+
+    this.otherUploadsService
+      .deleteData(USER_ID, source.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.patchRun(source.id, 'otherUploads', initialProcessingState(PhotoSourceStatus.NotStarted));
+          this.toastService.success(`Deleted the other uploads of ${source.name}.`);
+        },
+        error: (error) => this.toastService.error(`Failed to delete the other uploads of ${source.name}.`, error),
       });
   }
 
@@ -606,7 +626,7 @@ export class PhotoSourcePageComponent implements OnInit {
           const progress = [
             ...sources.map((source) => this.loadProgress(source.photoSourceId!)),
             ...sources.filter(supportsVideos).map((source) => this.loadVideoProgress(source.photoSourceId!)),
-            ...sources.filter(supportsOtherFolders).map((source) => this.loadOtherFoldersProgress(source.photoSourceId!)),
+            ...sources.filter(supportsOtherUploads).map((source) => this.loadOtherUploadsProgress(source.photoSourceId!)),
             ...sources.map((source) => this.loadDownloadStatus(source.photoSourceId!, 'processing-folder')),
             ...sources.filter(supportsFolderDownloads).map((source) => this.loadDownloadStatus(source.photoSourceId!, 'chosen-folder')),
           ];
@@ -636,10 +656,10 @@ export class PhotoSourcePageComponent implements OnInit {
    * the source usable, just without them.
    */
   private loadProgress(sourceId: number): Observable<void> {
-    return this.dataService.getSourceStatus(USER_ID, sourceId).pipe(
+    return this.cameraUploadsService.getStatus(USER_ID, sourceId).pipe(
       map((progress) => this.applyProgress(sourceId, progress)),
       catchError((error) => {
-        this.toastService.error('Could not load the processing status of a photo source.', error);
+        this.toastService.error('Could not load the processing status of the camera uploads of a photo source.', error);
 
         return of(undefined);
       }),
@@ -657,11 +677,11 @@ export class PhotoSourcePageComponent implements OnInit {
     );
   }
 
-  private loadOtherFoldersProgress(sourceId: number): Observable<void> {
-    return this.otherFoldersService.getStatus(USER_ID, sourceId).pipe(
-      map((progress) => this.applyRunProgress(sourceId, 'otherFolders', progress)),
+  private loadOtherUploadsProgress(sourceId: number): Observable<void> {
+    return this.otherUploadsService.getStatus(USER_ID, sourceId).pipe(
+      map((progress) => this.applyRunProgress(sourceId, 'otherUploads', progress)),
       catchError((error) => {
-        this.toastService.error('Could not load the processing status of the other folders of a photo source.', error);
+        this.toastService.error('Could not load the processing status of the other uploads of a photo source.', error);
 
         return of(undefined);
       }),
@@ -813,10 +833,10 @@ export class PhotoSourcePageComponent implements OnInit {
         this.listenForRun(sourceId, 'videos', this.hubService.videoProgressFor(sourceId), this.hubService.videoErrorFor(sourceId));
       }
 
-      if (supportsOtherFolders(source)) {
+      if (supportsOtherUploads(source)) {
         this.listenForRun(
           sourceId,
-          'otherFolders',
+          'otherUploads',
           this.hubService.otherFoldersProgressFor(sourceId),
           this.hubService.otherFoldersErrorFor(sourceId),
         );
@@ -903,8 +923,9 @@ export class PhotoSourcePageComponent implements OnInit {
   }
 }
 
+/** A tab the page does not have, the photos tab of before among them, opens the camera uploads. */
 function toSourceTab(value: string | null): SourceTab {
-  return value === 'videos' || value === 'download' || value === 'folder-download' || value === 'failed-previews' ? value : 'photos';
+  return SOURCE_TABS.find((tab) => tab === value) ?? 'camera-uploads';
 }
 
 function countLabel(count: number, noun: string): string {
@@ -958,8 +979,8 @@ function supportsVideos(source: UserPhotoSourceDto): boolean {
   return VIDEO_SOURCE_NAMES.includes(source.photoSourceName ?? '');
 }
 
-function supportsOtherFolders(source: UserPhotoSourceDto): boolean {
-  return OTHER_FOLDERS_SOURCE_NAMES.includes(source.photoSourceName ?? '');
+function supportsOtherUploads(source: UserPhotoSourceDto): boolean {
+  return OTHER_UPLOADS_SOURCE_NAMES.includes(source.photoSourceName ?? '');
 }
 
 function initialProcessingState(status: PhotoSourceStatus | undefined): ProcessingState {
@@ -971,7 +992,7 @@ function initialState(source: UserPhotoSourceDto): SourceState {
     source,
     ...initialProcessingState(parsePhotoSourceStatus(source.status)),
     videos: supportsVideos(source) ? initialProcessingState(PhotoSourceStatus.NotStarted) : undefined,
-    otherFolders: supportsOtherFolders(source) ? initialProcessingState(PhotoSourceStatus.NotStarted) : undefined,
+    otherUploads: supportsOtherUploads(source) ? initialProcessingState(PhotoSourceStatus.NotStarted) : undefined,
     download: initialDownloadState('processing-folder'),
     folderDownload: supportsFolderDownloads(source) ? initialDownloadState('chosen-folder') : undefined,
   };
@@ -1017,7 +1038,7 @@ function toRetryView({total, retried, recovered}: HubRetry): Pick<SourceView, 'p
 }
 
 function toView(state: SourceState): SourceView {
-  const {source, retry, videos, otherFolders, download, folderDownload, ...photos} = state;
+  const {source, retry, videos, otherUploads, download, folderDownload, ...photos} = state;
   const view = toProcessingView(photos);
 
   return {
@@ -1031,7 +1052,7 @@ function toView(state: SourceState): SourceView {
     action: processingAction(view, photos.status, 'processing'),
     tokenExpires: source.tokenExpiresOn ? new Date(source.tokenExpiresOn).toLocaleString() : undefined,
     videos: toRunView(videos, 'processing videos'),
-    otherFolders: toRunView(otherFolders, 'processing other folders'),
+    otherUploads: toRunView(otherUploads, 'processing other uploads'),
     download: toDownloadView(download),
     folderDownload: folderDownload ? toDownloadView(folderDownload) : undefined,
   };

@@ -49,21 +49,17 @@
 
     <app-card class="panel" role="tabpanel" [id]="tabPanelId(tabsIdPrefix, tab())" [attr.aria-labelledby]="tabId(tabsIdPrefix, tab())">
       @switch (tab()) {
-        @case ('photos') {
-          <section class="subsection photos" [attr.aria-labelledby]="'photos-' + source.id">
+        @case ('camera-uploads') {
+          <section class="subsection camera-uploads" [attr.aria-labelledby]="'camera-uploads-' + source.id">
             <div class="subsection-header">
-              <h2 class="subsection-title" [id]="'photos-' + source.id">
+              <h2 class="subsection-title" [id]="'camera-uploads-' + source.id">
                 <app-icon name="image" [size]="16" />
-                Photos
+                Camera uploads
               </h2>
               <span class="app-badge" [class.app-badge--accent]="source.isRunning">{{ source.statusLabel }}</span>
             </div>
             <p class="subsection-hint">
-              @if (source.otherFolders) {
-                Imports the photos of the folder {{ source.name }} uploads camera photos to, from the photos themselves.
-              } @else {
-                Imports the photos of {{ source.name }} and keeps their locations in sync.
-              }
+              Imports the photos of the folder {{ source.name }} uploads camera photos to, and keeps their locations in sync.
             </p>
 
             @if (source.error) {
@@ -121,8 +117,8 @@
                 class="danger-action"
                 appButton="ghost"
                 type="button"
-                [disabled]="source.isRunning || source.otherFolders?.isRunning"
-                (click)="deleteData(source)"
+                [disabled]="source.isRunning"
+                (click)="deleteCameraUploadsData(source)"
               >
                 <app-icon name="trash" [size]="16" />
                 Delete data
@@ -130,77 +126,88 @@
             </div>
           </section>
 
-          @if (source.otherFolders; as otherFolders) {
-            <section class="subsection other-folders" [attr.aria-labelledby]="'other-folders-' + source.id">
-              <div class="subsection-header">
-                <h2 class="subsection-title" [id]="'other-folders-' + source.id">
-                  <app-icon name="image" [size]="16" />
-                  Other folders
-                </h2>
-                <span class="app-badge" [class.app-badge--accent]="otherFolders.isRunning">{{ otherFolders.statusLabel }}</span>
-              </div>
-              <p class="subsection-hint">
-                Imports the photos of every other folder of {{ source.name }}, downloading each to read its EXIF. Photos imported
-                already are skipped.
-              </p>
-
-              @if (otherFolders.error) {
-                <app-alert tone="danger" heading="Processing the other folders failed">{{ otherFolders.error }}</app-alert>
-              }
-
-              @if (otherFolders.total > 0 || (otherFolders.lastUpdated && !otherFolders.isRunning)) {
-                <dl class="app-detail-list">
-                  @if (otherFolders.total > 0) {
-                    <div class="app-detail-row">
-                      <dt class="app-detail-term">Processed</dt>
-                      <dd class="app-detail-value">{{ otherFolders.progressLabel }}</dd>
-                    </div>
-                  }
-
-                  @if (otherFolders.lastUpdated && !otherFolders.isRunning) {
-                    <div class="app-detail-row">
-                      <dt class="app-detail-term">Last updated</dt>
-                      <dd class="app-detail-value">{{ otherFolders.lastUpdated }}</dd>
-                    </div>
-                  }
-                </dl>
-              }
-
-              @if (otherFolders.isRunning) {
-                <div class="progress">
-                  <app-progress-bar
-                    [mode]="otherFolders.total > 0 ? 'determinate' : 'indeterminate'"
-                    [value]="otherFolders.progressPercent"
-                  />
-                  @if (otherFolders.total > 0) {
-                    <span class="progress-value">{{ otherFolders.progressPercent.toFixed(1) }}%</span>
-                  }
-                </div>
-              }
-
-              @if (source.isAuthorized) {
-                <div class="app-actions subsection-actions">
-                  <button appButton="outline" type="button" (click)="startStopOtherFoldersProcessing(source)">
-                    <app-icon [name]="otherFolders.isRunning ? 'pause' : 'play'" [size]="16" />
-                    {{ otherFolders.action }}
-                  </button>
-                  @if (otherFolders.failed > 0 && !otherFolders.isRunning) {
-                    <button appButton="ghost" type="button" (click)="retryFailedOtherFolders(source)">
-                      <app-icon name="restore" [size]="16" />
-                      Retry failed ({{ otherFolders.failed.toLocaleString() }})
-                    </button>
-                  }
-                </div>
-              }
-            </section>
-          }
-
           <div class="app-actions all-data-actions">
             <button class="danger-action" appButton="ghost" type="button" [disabled]="isAnyRunning()" (click)="deleteAllData()">
               <app-icon name="trash" [size]="16" />
               Delete the data of all sources
             </button>
           </div>
+        }
+        @case ('other-uploads') {
+          @if (source.otherUploads; as otherUploads) {
+            <section class="subsection other-uploads" [attr.aria-labelledby]="'other-uploads-' + source.id">
+              <div class="subsection-header">
+                <h2 class="subsection-title" [id]="'other-uploads-' + source.id">
+                  <app-icon name="image" [size]="16" />
+                  Other uploads
+                </h2>
+                <span class="app-badge" [class.app-badge--accent]="otherUploads.isRunning">{{ otherUploads.statusLabel }}</span>
+              </div>
+              <p class="subsection-hint">
+                Imports the photos of every folder of {{ source.name }} but the one of the camera uploads, downloading each to read its
+                EXIF. Photos imported already are skipped.
+              </p>
+
+              @if (otherUploads.error) {
+                <app-alert tone="danger" heading="Processing the other uploads failed">{{ otherUploads.error }}</app-alert>
+              }
+
+              @if (otherUploads.total > 0 || (otherUploads.lastUpdated && !otherUploads.isRunning)) {
+                <dl class="app-detail-list">
+                  @if (otherUploads.total > 0) {
+                    <div class="app-detail-row">
+                      <dt class="app-detail-term">Processed</dt>
+                      <dd class="app-detail-value">{{ otherUploads.progressLabel }}</dd>
+                    </div>
+                  }
+
+                  @if (otherUploads.lastUpdated && !otherUploads.isRunning) {
+                    <div class="app-detail-row">
+                      <dt class="app-detail-term">Last updated</dt>
+                      <dd class="app-detail-value">{{ otherUploads.lastUpdated }}</dd>
+                    </div>
+                  }
+                </dl>
+              }
+
+              @if (otherUploads.isRunning) {
+                <div class="progress">
+                  <app-progress-bar
+                    [mode]="otherUploads.total > 0 ? 'determinate' : 'indeterminate'"
+                    [value]="otherUploads.progressPercent"
+                  />
+                  @if (otherUploads.total > 0) {
+                    <span class="progress-value">{{ otherUploads.progressPercent.toFixed(1) }}%</span>
+                  }
+                </div>
+              }
+
+              <div class="app-actions subsection-actions">
+                @if (source.isAuthorized) {
+                  <button appButton="filled" type="button" (click)="startStopOtherUploadsProcessing(source)">
+                    <app-icon [name]="otherUploads.isRunning ? 'pause' : 'play'" [size]="16" />
+                    {{ otherUploads.action }}
+                  </button>
+                  @if (otherUploads.failed > 0 && !otherUploads.isRunning) {
+                    <button appButton="ghost" type="button" (click)="retryFailedOtherUploads(source)">
+                      <app-icon name="restore" [size]="16" />
+                      Retry failed ({{ otherUploads.failed.toLocaleString() }})
+                    </button>
+                  }
+                }
+                <button
+                  class="danger-action"
+                  appButton="ghost"
+                  type="button"
+                  [disabled]="otherUploads.isRunning"
+                  (click)="deleteOtherUploadsData(source)"
+                >
+                  <app-icon name="trash" [size]="16" />
+                  Delete data
+                </button>
+              </div>
+            </section>
+          }
         }
         @case ('videos') {
           @if (source.videos; as videos) {

@@ -587,8 +587,8 @@ export class UsersPhotoSourcesClient {
      * @param body (optional) 
      * @return OK
      */
-    sourceProcessing(userId: number, sourceId: number, body: PhotoSourceProcessingCommands | undefined): Observable<void> {
-        let url_ = this.baseUrl + "/api/users/{userId}/photo-sources/{sourceId}";
+    cameraUploadsProcessing(userId: number, sourceId: number, body: PhotoSourceProcessingCommands | undefined): Observable<void> {
+        let url_ = this.baseUrl + "/api/users/{userId}/photo-sources/{sourceId}/camera-uploads";
         if (userId === undefined || userId === null)
             throw new globalThis.Error("The parameter 'userId' must be defined.");
         url_ = url_.replace("{userId}", encodeURIComponent("" + userId));
@@ -609,11 +609,11 @@ export class UsersPhotoSourcesClient {
         };
 
         return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processSourceProcessing(response_);
+            return this.processCameraUploadsProcessing(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processSourceProcessing(response_ as any);
+                    return this.processCameraUploadsProcessing(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<void>;
                 }
@@ -622,7 +622,7 @@ export class UsersPhotoSourcesClient {
         }));
     }
 
-    protected processSourceProcessing(response: HttpResponseBase): Observable<void> {
+    protected processCameraUploadsProcessing(response: HttpResponseBase): Observable<void> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
