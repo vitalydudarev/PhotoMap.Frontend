@@ -5,6 +5,7 @@ import {filter} from 'rxjs/operators';
 import {environment} from 'src/environments/environment';
 
 import {HubError, HubProgress} from '../models/hub-notification.model';
+import {ProcessingAvailability} from '../models/processing-availability.model';
 
 /**
  * Client for the backend's single `/notifications` hub. Clients join a per-user group by passing
@@ -15,7 +16,8 @@ import {HubError, HubProgress} from '../models/hub-notification.model';
  * `downloadProgressFor` / `downloadErrorFor`, and that of a folder the user chooses `FolderDownloadProgress` and
  * `FolderDownloadError`, narrowed with `folderDownloadProgressFor` / `folderDownloadErrorFor`. The processing of the
  * photos outside the folder a source is processed from sends `OtherUploadsProgress` and `OtherUploadsError`, narrowed
- * with `otherUploadsProgressFor` / `otherUploadsErrorFor`.
+ * with `otherUploadsProgressFor` / `otherUploadsErrorFor`. Whether photos and videos can be processed at all, the same for
+ * every user, comes as `ProcessingAvailability`, read with `processingAvailability`.
  */
 @Injectable({providedIn: 'root'})
 export class NotificationHubService {
@@ -29,6 +31,7 @@ export class NotificationHubService {
   private readonly downloadErrorSubject = new Subject<HubError>();
   private readonly folderDownloadProgressSubject = new Subject<HubProgress>();
   private readonly folderDownloadErrorSubject = new Subject<HubError>();
+  private readonly processingAvailabilitySubject = new Subject<ProcessingAvailability>();
 
   private connection?: HubConnection;
   private connecting?: Promise<void>;
@@ -84,6 +87,10 @@ export class NotificationHubService {
     return this.folderDownloadErrorSubject.pipe(filter((error) => error.sourceId === sourceId));
   }
 
+  processingAvailability(): Observable<ProcessingAvailability> {
+    return this.processingAvailabilitySubject.asObservable();
+  }
+
   private open(userId: number): Promise<void> {
     const connection = new HubConnectionBuilder()
       .withUrl(`${environment.notificationHub}?userId=${userId}`)
@@ -100,6 +107,9 @@ export class NotificationHubService {
     connection.on('DownloadError', (error: HubError) => this.downloadErrorSubject.next(error));
     connection.on('FolderDownloadProgress', (progress: HubProgress) => this.folderDownloadProgressSubject.next(progress));
     connection.on('FolderDownloadError', (error: HubError) => this.folderDownloadErrorSubject.next(error));
+    connection.on('ProcessingAvailability', (availability: ProcessingAvailability) =>
+      this.processingAvailabilitySubject.next(availability),
+    );
 
     this.connection = connection;
 

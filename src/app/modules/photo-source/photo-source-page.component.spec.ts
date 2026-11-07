@@ -1,3 +1,4 @@
+import {WritableSignal, computed, signal} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {ActivatedRoute, Router, convertToParamMap, provideRouter} from '@angular/router';
 import {Observable, Subject, filter, of} from 'rxjs';
@@ -14,6 +15,7 @@ import {FailedPreviewsService} from '../../core/services/failed-previews.service
 import {NotificationHubService} from '../../core/services/notification-hub.service';
 import {OtherUploadsProcessingCommand, OtherUploadsService} from '../../core/services/other-uploads.service';
 import {PhotoSourceAuthService} from '../../core/services/photo-source-auth.service';
+import {ProcessingAvailabilityService} from '../../core/services/processing-availability.service';
 import {SourceDownloadsService} from '../../core/services/source-downloads.service';
 import {VideoProcessingCommand, VideosService} from '../../core/services/videos.service';
 import {UserPhotoSourceDto, UserPhotoSourceStatusDto, UsersPhotoSourcesClient} from '../../shared/models/photomap-backend.swagger';
@@ -74,6 +76,8 @@ describe('PhotoSourcePageComponent', () => {
   let failedPreviews: Record<number, FailedPreview[]>;
   let getFailedPreviews: ReturnType<typeof vi.fn>;
   let retryFailedPreviews: ReturnType<typeof vi.fn>;
+  let processingAvailable: WritableSignal<boolean>;
+  let refreshProcessingAvailability: ReturnType<typeof vi.fn>;
 
   const page = () => fixture.nativeElement as HTMLElement;
   const text = () => page().textContent ?? '';
@@ -202,10 +206,21 @@ describe('PhotoSourcePageComponent', () => {
       }),
     );
 
+    processingAvailable = signal(true);
+    refreshProcessingAvailability = vi.fn();
+
     TestBed.configureTestingModule({
       imports: [PhotoSourcePageComponent],
       providers: [
         provideRouter([]),
+        {
+          provide: ProcessingAvailabilityService,
+          useValue: {
+            available: processingAvailable.asReadonly(),
+            reason: computed(() => (processingAvailable() ? '' : 'Kafka cannot be reached, so photos and videos cannot be processed.')),
+            refresh: refreshProcessingAvailability,
+          },
+        },
         {
           provide: ActivatedRoute,
           useValue: {
@@ -1382,6 +1397,79 @@ describe('PhotoSourcePageComponent', () => {
       fixture.detectChanges();
 
       expect(previewCards().length).toBe(1);
+    });
+  });
+
+  describe('processing availability', () => {
+    const notice = () => page().querySelector<HTMLElement>('app-alert.processing-unavailable');
+    const videosSection = () => panel().querySelector<HTMLElement>('section.videos');
+    const otherUploadsSection = () => panel().querySelector<HTMLElement>('section.other-uploads');
+
+    it('should ask the backend whether processing is available when the page opens', () => {
+      build('Dropbox');
+
+      expect(refreshProcessingAvailability).toHaveBeenCalled();
+      expect(notice()).toBeNull();
+      expect(button('Start processing', panel())?.disabled).toBe(false);
+    });
+
+    it('should say why processing is unavailable, and offer no way to start it', () => {
+      processingAvailable.set(false);
+      sourceProgress[DROPBOX] = {status: 3, totalCount: 200, processedCount: 197, failedCount: 3};
+      failedFiles[DROPBOX] = failedFiles3();
+      sources[0].status = UserPhotoSourceStatusDto._3;
+      build('Dropbox');
+
+      expect(notice()?.textContent).toContain('Processing unavailable');
+      expect(notice()?.textContent).toContain('Kafka cannot be reached');
+      expect(button('Start processing', panel())?.disabled).toBe(true);
+      expect(button('Retry failed (3)', panel())?.disabled).toBe(true);
+      expect(button('Sync', panel())?.disabled).toBe(true);
+    });
+
+    it('should still pause a run while processing is unavailable', () => {
+      processingAvailable.set(false);
+      sources[0].status = UserPhotoSourceStatusDto._2;
+      build('Dropbox');
+
+      const pause = button('Pause processing', panel())!;
+      expect(pause.disabled).toBe(false);
+
+      pause.click();
+
+      expect(runCameraUploadsCommand).toHaveBeenLastCalledWith(1, DROPBOX, CameraUploadsProcessingCommand.Stop);
+    });
+
+    it('should offer no way to start the other uploads nor the videos while processing is unavailable', () => {
+      processingAvailable.set(false);
+      sources[1].isUserAuthorized = true;
+      build('Yandex.Disk', 'other-uploads');
+
+      expect(button('Start processing', otherUploadsSection()!)?.disabled).toBe(true);
+
+      selectTab('videos');
+
+      expect(button('Start processing videos', videosSection()!)?.disabled).toBe(true);
+    });
+
+    it('should leave the downloads available while processing is unavailable', () => {
+      processingAvailable.set(false);
+      build('Dropbox', 'download');
+
+      expect(button('Start download', panel())?.disabled).toBe(false);
+    });
+
+    it('should offer processing again as soon as it is available', () => {
+      processingAvailable.set(false);
+      build('Dropbox');
+
+      expect(button('Start processing', panel())?.disabled).toBe(true);
+
+      processingAvailable.set(true);
+      fixture.detectChanges();
+
+      expect(notice()).toBeNull();
+      expect(button('Start processing', panel())?.disabled).toBe(false);
     });
   });
 });

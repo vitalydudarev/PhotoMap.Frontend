@@ -39,6 +39,12 @@
       </div>
     </app-card>
 
+    @if (!processingAvailable()) {
+      <app-alert class="processing-unavailable" tone="warning" heading="Processing unavailable">
+        {{ processingUnavailableReason() }}
+      </app-alert>
+    }
+
     <app-tabs
       [attr.aria-label]="sourceName()"
       [idPrefix]="tabsIdPrefix"
@@ -102,7 +108,12 @@
 
             <div class="app-actions subsection-actions">
               @if (source.isAuthorized) {
-                <button appButton="filled" type="button" (click)="startStopProcessing(source)">
+                <button
+                  appButton="filled"
+                  type="button"
+                  [disabled]="!source.isRunning && !processingAvailable()"
+                  (click)="startStopProcessing(source)"
+                >
                   <app-icon [name]="source.isRunning ? 'pause' : 'play'" [size]="16" />
                   {{ source.action }}
                 </button>
@@ -126,7 +137,7 @@
             @if (source.isAuthorized && !source.isRunning && (source.failedFiles.length > 0 || source.hasRun)) {
               <div class="app-actions failed-files-actions">
                 @if (source.failedFiles.length > 0) {
-                  <button appButton="outline" type="button" (click)="retryFailedProcessing(source)">
+                  <button appButton="outline" type="button" [disabled]="!processingAvailable()" (click)="retryFailedProcessing(source)">
                     <app-icon name="restore" [size]="16" />
                     Retry failed ({{ source.failedFiles.length.toLocaleString() }})
                   </button>
@@ -136,6 +147,7 @@
                     appButton="outline"
                     type="button"
                     title="Download the photos uploaded before the last run that are neither imported nor failed"
+                    [disabled]="!processingAvailable()"
                     (click)="syncCameraUploads(source)"
                   >
                     <app-icon name="sync" [size]="16" />
@@ -213,7 +225,12 @@
 
               <div class="app-actions subsection-actions">
                 @if (source.isAuthorized) {
-                  <button appButton="filled" type="button" (click)="startStopOtherUploadsProcessing(source)">
+                  <button
+                    appButton="filled"
+                    type="button"
+                    [disabled]="!otherUploads.isRunning && !processingAvailable()"
+                    (click)="startStopOtherUploadsProcessing(source)"
+                  >
                     <app-icon [name]="otherUploads.isRunning ? 'pause' : 'play'" [size]="16" />
                     {{ otherUploads.action }}
                   </button>
@@ -237,7 +254,7 @@
               @if (source.isAuthorized && !otherUploads.isRunning && (otherUploads.failedFiles?.length || otherUploads.hasRun)) {
                 <div class="app-actions failed-files-actions">
                   @if (otherUploads.failedFiles?.length) {
-                    <button appButton="outline" type="button" (click)="retryFailedOtherUploads(source)">
+                    <button appButton="outline" type="button" [disabled]="!processingAvailable()" (click)="retryFailedOtherUploads(source)">
                       <app-icon name="restore" [size]="16" />
                       Retry failed ({{ otherUploads.failedFiles!.length.toLocaleString() }})
                     </button>
@@ -247,6 +264,7 @@
                       appButton="outline"
                       type="button"
                       title="Download the photos uploaded before the last run that are neither imported nor failed"
+                      [disabled]="!processingAvailable()"
                       (click)="syncOtherUploads(source)"
                     >
                       <app-icon name="sync" [size]="16" />
@@ -305,7 +323,12 @@
 
               <div class="app-actions subsection-actions">
                 @if (source.isAuthorized) {
-                  <button appButton="outline" type="button" (click)="startStopVideoProcessing(source)">
+                  <button
+                    appButton="outline"
+                    type="button"
+                    [disabled]="!videos.isRunning && !processingAvailable()"
+                    (click)="startStopVideoProcessing(source)"
+                  >
                     <app-icon [name]="videos.isRunning ? 'pause' : 'play'" [size]="16" />
                     {{ videos.action }}
                   </button>

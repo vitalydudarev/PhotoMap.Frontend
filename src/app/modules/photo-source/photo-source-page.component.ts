@@ -30,6 +30,7 @@ import {DataService} from '../../core/services/data.service';
 import {FailedPreviewsService} from '../../core/services/failed-previews.service';
 import {NotificationHubService} from '../../core/services/notification-hub.service';
 import {OtherUploadsProcessingCommand, OtherUploadsService} from '../../core/services/other-uploads.service';
+import {ProcessingAvailabilityService} from '../../core/services/processing-availability.service';
 import {PhotoSourceAuthService} from '../../core/services/photo-source-auth.service';
 import {SourceDownloadsService} from '../../core/services/source-downloads.service';
 import {ToastService} from '../../core/services/toast.service';
@@ -295,6 +296,14 @@ export class PhotoSourcePageComponent implements OnInit {
   private readonly otherUploadsService = inject(OtherUploadsService);
   private readonly sourceDownloadsService = inject(SourceDownloadsService);
   private readonly failedPreviewsService = inject(FailedPreviewsService);
+  private readonly processingAvailability = inject(ProcessingAvailabilityService);
+
+  /**
+   * Whether photos and videos can be processed: while they cannot, e.g. with Kafka down, the page says why and offers
+   * no way to start processing, only to pause what still runs. Everything else on the page works.
+   */
+  readonly processingAvailable = this.processingAvailability.available;
+  readonly processingUnavailableReason = this.processingAvailability.reason;
 
   ngOnInit(): void {
     const config = this.route.snapshot.data['config'] as PhotoSourcePageConfig;
@@ -302,6 +311,7 @@ export class PhotoSourcePageComponent implements OnInit {
 
     this.sourceName.set(config.sourceName);
     this.requestedTab.set(toSourceTab(snapshot.queryParamMap.get(TAB_PARAM)));
+    this.processingAvailability.refresh();
 
     // the provider redirects back onto the page of the source: the flow is finished before the page loads
     if (snapshot.queryParamMap.has('code') || snapshot.fragment?.includes('access_token')) {
