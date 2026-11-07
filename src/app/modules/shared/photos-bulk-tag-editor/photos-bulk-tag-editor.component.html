@@ -1,0 +1,76 @@
+<div class="header">
+  <span class="title">{{ title() }}</span>
+  @if (saving()) {
+    <span class="status" aria-live="polite">Saving…</span>
+  }
+  <button class="close" type="button" aria-label="Close" title="Close" (click)="closed.emit()">
+    <app-icon name="x" [size]="16" />
+  </button>
+</div>
+
+<ul class="chips" aria-label="Tags to add">
+  @for (name of names(); track name) {
+    <li class="chip">
+      <span class="chip-name">{{ name }}</span>
+      <button class="chip-remove" type="button" [attr.aria-label]="'Remove ' + name" [title]="'Remove ' + name" (click)="remove(name)">
+        <app-icon name="x" [size]="12" />
+      </button>
+    </li>
+  } @empty {
+    <li class="empty">Pick or type the tags to add.</li>
+  }
+</ul>
+
+<input
+  #input
+  class="input"
+  type="text"
+  role="combobox"
+  autocomplete="off"
+  aria-autocomplete="list"
+  [attr.aria-controls]="listId"
+  [attr.aria-expanded]="options().length > 0"
+  [attr.aria-activedescendant]="query().trim() && options().length > 0 ? optionId(activeIndex()) : null"
+  [maxLength]="maxLength"
+  [disabled]="full() || saving()"
+  [placeholder]="full() ? 'A photo has ' + maxTags + ' tags at most' : 'Add a tag…'"
+  [value]="query()"
+  (input)="onInput($any($event.target).value)"
+  (keydown)="onKeydown($event)"
+/>
+
+@if (options().length > 0) {
+  <ul class="options" role="listbox" [id]="listId" aria-label="Tags to pick">
+    @for (option of options(); track option.name; let index = $index) {
+      <li
+        class="option"
+        role="option"
+        [id]="optionId(index)"
+        [class.option--active]="query().trim() && index === activeIndex()"
+        [attr.aria-selected]="query().trim() !== '' && index === activeIndex()"
+        tabindex="-1"
+        (mousedown)="$event.preventDefault()"
+        (click)="add(option.name)"
+        (keydown.enter)="add(option.name)"
+      >
+        @if (option.isNew) {
+          <app-icon name="plus" [size]="14" />
+          <span class="option-name">Create “{{ option.name }}”</span>
+        } @else {
+          <app-icon name="tag" [size]="14" />
+          <span class="option-name">{{ option.name }}</span>
+          <span class="option-count">{{ option.photoCount }}</span>
+        }
+      </li>
+    }
+  </ul>
+}
+
+<p class="hint">The photos keep the tags they have.</p>
+
+<div class="footer">
+  <button appButton="ghost" size="sm" type="button" (click)="closed.emit()">Cancel</button>
+  <button appButton="filled" size="sm" type="button" class="submit" [disabled]="names().length === 0 || saving()" (click)="submit()">
+    {{ saving() ? 'Adding…' : 'Add tags' }}
+  </button>
+</div>

@@ -3,8 +3,15 @@
     @let deleted = isDeleted(photo);
     @let tags = photo.tags ?? [];
     @let editing = editingId() === photo.id;
-    <div class="thumb" [class.thumb--deleted]="deleted" [class.thumb--editing]="editing">
-      <button class="open" type="button" [title]="photo.fileName" (click)="open(index)">
+    @let selected = isSelected(photo);
+    <div class="thumb" [class.thumb--deleted]="deleted" [class.thumb--editing]="editing" [class.thumb--selected]="selected">
+      <button
+        class="open"
+        type="button"
+        [title]="photo.fileName"
+        [attr.aria-pressed]="selecting() ? selected : null"
+        (click)="onThumbClick(index, $event)"
+      >
         <img
           [src]="photo.thumbnailLargeUrl"
           [alt]="photo.fileName"
@@ -43,36 +50,46 @@
             </span>
           </span>
         }
+
+        @if (selecting()) {
+          <span class="select-mark" aria-hidden="true">
+            @if (selected) {
+              <app-icon name="check" [size]="14" />
+            }
+          </span>
+        }
       </button>
 
-      @let label = (deleted ? 'Restore ' : 'Delete ') + photo.fileName;
-      <button
-        class="action"
-        type="button"
-        [attr.aria-label]="label"
-        [title]="deleted ? 'Restore' : 'Delete'"
-        [disabled]="busy().has(photo.id)"
-        (click)="deleted ? restore.emit(photo) : markAsDeleted.emit(photo)"
-      >
-        <app-icon [name]="deleted ? 'restore' : 'trash'" [size]="14" />
-      </button>
-
-      @if (taggable()) {
+      @if (!selecting()) {
+        @let label = (deleted ? 'Restore ' : 'Delete ') + photo.fileName;
         <button
-          #tagButton
-          class="action tag-button"
+          class="action"
           type="button"
-          aria-haspopup="dialog"
-          [attr.aria-expanded]="editing"
-          [attr.aria-label]="tagsLabel(photo)"
-          [title]="tags.length > 0 ? 'Edit tags' : 'Add tags'"
-          (click)="toggleTags(photo, tagButton)"
+          [attr.aria-label]="label"
+          [title]="deleted ? 'Restore' : 'Delete'"
+          [disabled]="busy().has(photo.id)"
+          (click)="deleted ? restore.emit(photo) : markAsDeleted.emit(photo)"
         >
-          <app-icon name="tag" [size]="14" />
-          @if (tags.length > 0) {
-            <span class="tag-count">{{ tags.length }}</span>
-          }
+          <app-icon [name]="deleted ? 'restore' : 'trash'" [size]="14" />
         </button>
+
+        @if (taggable()) {
+          <button
+            #tagButton
+            class="action tag-button"
+            type="button"
+            aria-haspopup="dialog"
+            [attr.aria-expanded]="editing"
+            [attr.aria-label]="tagsLabel(photo)"
+            [title]="tags.length > 0 ? 'Edit tags' : 'Add tags'"
+            (click)="toggleTags(photo, tagButton)"
+          >
+            <app-icon name="tag" [size]="14" />
+            @if (tags.length > 0) {
+              <span class="tag-count">{{ tags.length }}</span>
+            }
+          </button>
+        }
       }
     </div>
   }
@@ -89,6 +106,50 @@
     (saved)="onTagsSaved(photo, $event)"
     (closed)="closeTags()"
   />
+}
+
+@if (selecting()) {
+  @if (bulkTagging() && selectedCount() > 0) {
+    <app-photos-bulk-tag-editor
+      class="bulk-tag-editor"
+      [photoIds]="selectedPhotoIds()"
+      [userId]="userId()"
+      [existingTags]="tagOptions() ?? []"
+      (saved)="onBulkTagsSaved($event)"
+      (closed)="bulkTagging.set(false)"
+    />
+  }
+
+  <div class="selection-bar" role="toolbar" aria-label="Selected photos">
+    <span class="selection-count" aria-live="polite">
+      {{ selectedCount() === 0 ? 'Select photos' : selectedCount() + ' selected' }}
+    </span>
+
+    @if (selectedCount() < photos.length) {
+      <button appButton="ghost" size="sm" type="button" (click)="selectAll()">Select all</button>
+    } @else {
+      <button appButton="ghost" size="sm" type="button" (click)="clearSelection()">Clear</button>
+    }
+
+    @if (taggable()) {
+      <button
+        appButton="filled"
+        size="sm"
+        type="button"
+        aria-haspopup="dialog"
+        [attr.aria-expanded]="bulkTagging()"
+        [disabled]="selectedCount() === 0"
+        (click)="bulkTagging.set(!bulkTagging())"
+      >
+        <app-icon name="tag" [size]="14" />
+        Add tags
+      </button>
+    }
+
+    <button appButton="ghost" size="sm" type="button" iconOnly aria-label="Done selecting" title="Done" (click)="selecting.set(false)">
+      <app-icon name="x" [size]="16" />
+    </button>
+  </div>
 }
 
 <app-scroll-control></app-scroll-control>

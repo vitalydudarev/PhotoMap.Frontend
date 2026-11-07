@@ -3,6 +3,7 @@ import {HttpTestingController, provideHttpClientTesting} from '@angular/common/h
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {beforeEach, describe, expect, it} from 'vitest';
 import {UserPhotosService} from 'src/app/core/services/user-photos.service';
+import {PhotoTags} from 'src/app/core/models/photo-tag.model';
 import {Photo} from 'src/app/core/models/photo.model';
 
 import {PhotoTagsChange, PhotosThumbViewComponent} from './photos-thumb-view.component';
@@ -157,6 +158,110 @@ describe('PhotosThumbViewComponent', () => {
       http.expectOne((request) => request.method === 'PUT' && request.url.endsWith('/photos/2/tags')).flush(['Family']);
 
       expect(changes.map((change) => [change.photo.id, change.tags])).toEqual([['2', ['Family']]]);
+    });
+  });
+
+  describe('selection', () => {
+    const element = () => fixture.nativeElement as HTMLElement;
+    const thumbs = () => [...element().querySelectorAll<HTMLButtonElement>('.thumb .open')];
+    const selected = () => thumbs().map((thumb) => thumb.getAttribute('aria-pressed') === 'true');
+    const bar = () => element().querySelector<HTMLElement>('.selection-bar');
+    const barButton = (text: string) =>
+      [...bar()!.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent?.includes(text))!;
+    const shiftClick = (thumb: HTMLElement) => thumb.dispatchEvent(new MouseEvent('click', {bubbles: true, shiftKey: true}));
+
+    beforeEach(() => {
+      fixture.componentInstance.photos = [photo('1'), photo('2'), photo('3'), photo('4')];
+      fixture.componentRef.setInput('tagOptions', [{id: 1, name: 'Family', photoCount: 1}]);
+      fixture.componentRef.setInput('selecting', true);
+      fixture.detectChanges();
+    });
+
+    it('should select a photo on a click instead of opening it, and hide the buttons of the thumbnails', () => {
+      thumbs()[1].click();
+      fixture.detectChanges();
+
+      expect(selected()).toEqual([false, true, false, false]);
+      expect(element().querySelectorAll('.thumb .action')).toHaveLength(0);
+      expect(bar()?.querySelector('.selection-count')?.textContent?.trim()).toBe('1 selected');
+
+      thumbs()[1].click();
+      fixture.detectChanges();
+      expect(selected()).toEqual([false, false, false, false]);
+    });
+
+    it('should select a range of photos on a click with Shift', () => {
+      thumbs()[0].click();
+      shiftClick(thumbs()[2]);
+      fixture.detectChanges();
+
+      expect(selected()).toEqual([true, true, true, false]);
+    });
+
+    it('should select every photo, and clear the selection', () => {
+      barButton('Select all').click();
+      fixture.detectChanges();
+      expect(selected()).toEqual([true, true, true, true]);
+
+      barButton('Clear').click();
+      fixture.detectChanges();
+      expect(selected()).toEqual([false, false, false, false]);
+    });
+
+    it('should forget the selected photos that are no longer in the grid', () => {
+      thumbs()[0].click();
+      thumbs()[3].click();
+
+      fixture.componentRef.setInput('photos', [photo('3'), photo('4'), photo('5')]);
+      fixture.detectChanges();
+
+      expect(selected()).toEqual([false, true, false]);
+    });
+
+    it('should leave the selection, and forget it, on Escape', () => {
+      thumbs()[0].click();
+      document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}));
+      fixture.detectChanges();
+
+      expect(fixture.componentInstance.selecting()).toBe(false);
+      expect(bar()).toBeNull();
+
+      fixture.componentRef.setInput('selecting', true);
+      fixture.detectChanges();
+      expect(selected()).toEqual([false, false, false, false]);
+    });
+
+    it('should add the tags to the selected photos, and tell the tags they have now', () => {
+      const changes: PhotoTags[][] = [];
+      fixture.componentInstance.photosTagsChange.subscribe((change) => changes.push(change));
+
+      thumbs()[0].click();
+      thumbs()[2].click();
+      fixture.detectChanges();
+      barButton('Add tags').click();
+      fixture.detectChanges();
+
+      const editor = element().querySelector<HTMLElement>('app-photos-bulk-tag-editor')!;
+      expect(editor.getAttribute('aria-label')).toBe('Add tags to 2 photos');
+
+      editor.querySelector<HTMLElement>('.option')!.click();
+      fixture.detectChanges();
+      editor.querySelector<HTMLButtonElement>('.submit')!.click();
+
+      const request = TestBed.inject(HttpTestingController).expectOne(
+        (request) => request.method === 'POST' && request.url.endsWith('/users/1/photos/tags'),
+      );
+      expect(request.request.body).toEqual({photoIds: ['1', '3'], tags: ['Family']});
+
+      const photoTags = [
+        {photoId: '1', tags: ['Family']},
+        {photoId: '3', tags: ['Family', 'Paris']},
+      ];
+      request.flush(photoTags);
+      fixture.detectChanges();
+
+      expect(changes).toEqual([photoTags]);
+      expect(fixture.componentInstance.selecting()).toBe(false);
     });
   });
 });

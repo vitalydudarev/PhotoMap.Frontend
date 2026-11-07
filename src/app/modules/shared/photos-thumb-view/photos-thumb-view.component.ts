@@ -1,10 +1,26 @@
-import {Component, ElementRef, Input, booleanAttribute, computed, inject, input, output, signal} from '@angular/core';
-import {PhotoTag} from 'src/app/core/models/photo-tag.model';
+import {
+  Component,
+  ElementRef,
+  Input,
+  OnChanges,
+  SimpleChanges,
+  booleanAttribute,
+  computed,
+  effect,
+  inject,
+  input,
+  model,
+  output,
+  signal,
+} from '@angular/core';
+import {PhotoTag, PhotoTags} from 'src/app/core/models/photo-tag.model';
 import {Photo} from 'src/app/core/models/photo.model';
 import {PhotoViewerService, UNAVAILABLE_IMAGE} from 'src/app/core/services/photo-viewer.service';
 
+import {ButtonDirective} from 'src/app/shared/ui/button/button.directive';
 import {IconComponent} from 'src/app/shared/ui/icon/icon.component';
 
+import {PhotosBulkTagEditorComponent} from '../photos-bulk-tag-editor/photos-bulk-tag-editor.component';
 import {PhotoTagEditorComponent} from '../photo-tag-editor/photo-tag-editor.component';
 import {ScrollControlComponent} from '../scroll-control/scroll-control.component';
 
@@ -28,15 +44,17 @@ const EDITOR_GAP = 6;
   selector: 'app-photos-thumb-view',
   templateUrl: './photos-thumb-view.component.html',
   styleUrls: ['./photos-thumb-view.component.scss'],
-  imports: [IconComponent, PhotoTagEditorComponent, ScrollControlComponent],
+  imports: [ButtonDirective, IconComponent, PhotoTagEditorComponent, PhotosBulkTagEditorComponent, ScrollControlComponent],
   host: {
     '[class.thumb-view--full]': 'fullWidth()',
+    '[class.thumb-view--selecting]': 'selecting()',
     '(document:click)': 'onDocumentClick($event)',
     // the keyboard of a phone, brought up by the input of the editor, resizes the window too
     '(window:resize)': 'placeEditor()',
+    '(document:keydown.escape)': 'onEscape($event)',
   },
 })
-export class PhotosThumbViewComponent {
+export class PhotosThumbViewComponent implements OnChanges {
   @Input() photos: Photo[] = [];
 
   /** Lets the grid span the whole viewport instead of the page's reading measure. */
@@ -63,6 +81,19 @@ export class PhotosThumbViewComponent {
   /** The tags of a photo were saved. */
   readonly tagsChange = output<PhotoTagsChange>();
 
+  /** Tags were added to the selected photos, which have these tags now. */
+  readonly photosTagsChange = output<PhotoTags[]>();
+
+  /** Whether a click on a thumbnail selects the photo rather than opening it. */
+  readonly selecting = model(false);
+
+  /** The selected photos, by their ID; only ever photos of the grid. */
+  readonly selectedIds = signal<ReadonlySet<string>>(new Set());
+  readonly selectedCount = computed(() => this.selectedIds().size);
+
+  /** Whether the tags to add to the selected photos are being picked. */
+  readonly bulkTagging = signal(false);
+
   /** The photo whose tags are being edited, by its ID, so that it is still found once the photos are replaced. */
   readonly editingId = signal<string | null>(null);
   readonly editorPosition = signal<EditorPosition>({top: 0, left: 0});
@@ -73,6 +104,110 @@ export class PhotosThumbViewComponent {
 
   /** The tag button the editor was opened with, which it sits under. */
   private editorAnchor: HTMLElement | null = null;
+
+  /** The photo selected or unselected last, from which a click with Shift selects a range, by its index. */
+  private selectionAnchor: number | null = null;
+
+  constructor() {
+    effect(() => {
+      if (this.selecting()) {
+        this.closeTags();
+      } else {
+        this.clearSelection();
+      }
+    });
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    // another page, or other filters: the photos selected that are not in the grid any more are no longer selected
+    if (changes['photos'] && this.selectedCount() > 0) {
+      const ids = new Set(this.photos.map((photo) => photo.id));
+      const kept = [...this.selectedIds()].filter((id) => ids.has(id));
+
+      if (kept.length !== this.selectedCount()) {
+        this.selectedIds.set(new Set(kept));
+        this.selectionAnchor = null;
+      }
+    }
+  }
+
+  onThumbClick(index: number, event: MouseEvent): void {
+    if (this.selecting()) {
+      this.toggleSelected(index, event.shiftKey);
+    } else {
+      this.open(index);
+    }
+  }
+
+  isSelected(photo: Photo): boolean {
+    return this.selectedIds().has(photo.id);
+  }
+
+  /**
+   * Selects the photo, or unselects it when it is selected. With `range`, every photo from the one selected or
+   * unselected last to this one is made the same.
+   */
+  toggleSelected(index: number, range = false): void {
+    const photo = this.photos[index];
+
+    if (!photo) {
+      return;
+    }
+
+    const select = !this.isSelected(photo);
+    const anchor = range && this.selectionAnchor !== null ? this.selectionAnchor : index;
+    const ids = new Set(this.selectedIds());
+
+    for (let i = Math.min(anchor, index); i <= Math.max(anchor, index); i++) {
+      const id = this.photos[i]?.id;
+
+      if (id === undefined) {
+        continue;
+      }
+
+      if (select) {
+        ids.add(id);
+      } else {
+        ids.delete(id);
+      }
+    }
+
+    this.selectionAnchor = index;
+    this.selectedIds.set(ids);
+
+    if (ids.size === 0) {
+      this.bulkTagging.set(false);
+    }
+  }
+
+  selectAll(): void {
+    this.selectedIds.set(new Set(this.photos.map((photo) => photo.id)));
+  }
+
+  clearSelection(): void {
+    this.selectedIds.set(new Set());
+    this.selectionAnchor = null;
+    this.bulkTagging.set(false);
+  }
+
+  /** The IDs of the selected photos, in the order of the grid. */
+  selectedPhotoIds(): string[] {
+    const ids = this.selectedIds();
+
+    return this.photos.filter((photo) => ids.has(photo.id)).map((photo) => photo.id);
+  }
+
+  onBulkTagsSaved(photoTags: PhotoTags[]): void {
+    this.photosTagsChange.emit(photoTags);
+    this.selecting.set(false);
+  }
+
+  /** Escape leaves the selection, unless something nearer the focus, such as an editor, took it first. */
+  onEscape(event: Event): void {
+    if (this.selecting() && !event.defaultPrevented) {
+      this.selecting.set(false);
+    }
+  }
 
   open(index: number): void {
     this.photoViewerService.open(this.photos, index);

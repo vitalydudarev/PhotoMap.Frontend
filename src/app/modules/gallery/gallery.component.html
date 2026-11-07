@@ -11,6 +11,18 @@
 
           @if (selectedViewMode() === 'thumb') {
             <app-segmented aria-label="Grid width" [options]="widthModes" [(value)]="selectedWidth" [iconsOnly]="true" />
+
+            <button
+              appButton="outline"
+              type="button"
+              class="select-toggle"
+              [attr.aria-pressed]="selecting()"
+              [disabled]="photos().length === 0"
+              (click)="selecting.set(!selecting())"
+            >
+              <app-icon name="check-circle" [size]="16" />
+              {{ selecting() ? 'Cancel selection' : 'Select' }}
+            </button>
           }
 
           <app-segmented
@@ -162,9 +174,11 @@
       [busy]="busyPhotoIds()"
       [tagOptions]="tags()"
       [duplicates]="duplicateCopies()"
+      [(selecting)]="selecting"
       (markAsDeleted)="markPhotoAsDeleted($event)"
       (restore)="restorePhoto($event)"
       (tagsChange)="tagsUpdated($event)"
+      (photosTagsChange)="photosTagsUpdated($event)"
     />
   } @else {
     <app-photos-map-view class="map" [photos]="photos()" />

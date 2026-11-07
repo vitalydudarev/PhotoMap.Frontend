@@ -16,6 +16,12 @@ export interface TagSuggestion {
   byLocation: boolean;
 }
 
+/** Mirrors the backend's `PhotoTagsDto`: the tags of a photo, by name. */
+export interface PhotoTags {
+  photoId: string;
+  tags: string[];
+}
+
 /** The longest name of a tag, and the most tags a photo has, as the backend takes them. */
 export const TAG_MAX_LENGTH = 50;
 export const TAGS_PER_PHOTO = 30;

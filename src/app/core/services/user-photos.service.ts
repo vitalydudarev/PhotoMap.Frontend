@@ -6,7 +6,7 @@ import {environment} from 'src/environments/environment';
 import {PagedResponse} from '../models/paged-response.model';
 import {PhotoFilter} from '../models/photo-filter.model';
 import {PhotoSortOrder} from '../models/photo-sort-order.model';
-import {PhotoTag, TagSuggestion} from '../models/photo-tag.model';
+import {PhotoTag, PhotoTags, TagSuggestion} from '../models/photo-tag.model';
 import {Photo, PhotoDuplicateGroup} from '../models/photo.model';
 
 @Injectable()
@@ -91,6 +91,15 @@ export class UserPhotosService {
    */
   public setPhotoTags(userId: number, photoId: string, names: readonly string[]): Observable<string[]> {
     return this._httpClient.put<string[]>(`${this.url}/${userId}/photos/${photoId}/tags`, names);
+  }
+
+  /**
+   * Adds the tags to the photos, keeping the tags they have. A name the user has a tag of, whatever its case, takes
+   * that tag; the other names make new tags. The photos are all given the tags, or none of them is.
+   * @returns The tags of each photo once they were added.
+   */
+  public addPhotoTags(userId: number, photoIds: readonly string[], names: readonly string[]): Observable<PhotoTags[]> {
+    return this._httpClient.post<PhotoTags[]>(`${this.url}/${userId}/photos/tags`, {photoIds, tags: names});
   }
 
   /** Tags for the photo by when and where it was taken, the likeliest first, but the ones it has. */

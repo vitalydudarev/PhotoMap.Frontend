@@ -6,7 +6,7 @@ import {ActivatedRoute, Router} from '@angular/router';
 import {Observable, Subscription} from 'rxjs';
 import {PhotoCategory} from 'src/app/core/models/photo-category.model';
 import {PhotoSortOrder} from 'src/app/core/models/photo-sort-order.model';
-import {PhotoTag} from 'src/app/core/models/photo-tag.model';
+import {PhotoTag, PhotoTags} from 'src/app/core/models/photo-tag.model';
 import {Photo, PhotoDuplicateGroup} from 'src/app/core/models/photo.model';
 import {UsersPhotoSourcesClient} from 'src/app/shared/models/photomap-backend.swagger';
 import {ButtonDirective} from 'src/app/shared/ui/button/button.directive';
@@ -161,6 +161,9 @@ export class GalleryComponent implements OnInit {
     return copies;
   });
 
+  /** Whether the photos of the grid are being selected, to add tags to them all at once. */
+  readonly selecting = signal(false);
+
   /** The photos being deleted or restored. */
   readonly busyPhotoIds = signal<ReadonlySet<string>>(new Set());
 
@@ -194,6 +197,13 @@ export class GalleryComponent implements OnInit {
   constructor() {
     effect(() => this.writeWidthPreference(this.selectedWidth()));
     effect(() => this.writeFiltersOpenPreference(this.filtersOpen()));
+
+    // the selection is of the photos of the grid, so leaving it for the map or the duplicates leaves the selection
+    effect(() => {
+      if (this.showDuplicates() || this.selectedViewMode() !== 'thumb') {
+        this.selecting.set(false);
+      }
+    });
   }
 
   ngOnInit(): void {
@@ -332,6 +342,25 @@ export class GalleryComponent implements OnInit {
     this.photos.update((photos) => photos.map((shown) => (shown.id === photo.id ? {...shown, tags} : shown)));
 
     // a tag may have been made, or taken off its last photo, and the counts have changed
+    this.loadTags(true);
+  }
+
+  /** Tags were added to several photos at once. */
+  photosTagsUpdated(photoTags: PhotoTags[]): void {
+    // the backend gives the IDs as numbers, which the photos are typed as strings of
+    const tagsById = new Map(photoTags.map((photo) => [String(photo.photoId), photo.tags]));
+
+    this.photos.update((photos) =>
+      photos.map((shown) => {
+        const tags = tagsById.get(String(shown.id));
+
+        return tags ? {...shown, tags} : shown;
+      }),
+    );
+
+    this.toastService.success(`Tagged ${photoTags.length} ${photoTags.length === 1 ? 'photo' : 'photos'}.`);
+
+    // tags may have been made, and the counts have changed
     this.loadTags(true);
   }
 

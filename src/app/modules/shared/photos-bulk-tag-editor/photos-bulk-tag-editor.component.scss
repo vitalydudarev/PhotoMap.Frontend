@@ -1,0 +1,7 @@
+/* The frame, the chips and the list of options are those of the editor of the tags of one photo. */
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--app-space-2);
+}
