@@ -19,6 +19,7 @@ import {PhotoViewerService, UNAVAILABLE_IMAGE} from 'src/app/core/services/photo
 
 import {ButtonDirective} from 'src/app/shared/ui/button/button.directive';
 import {IconComponent} from 'src/app/shared/ui/icon/icon.component';
+import {LazySrcDirective} from 'src/app/shared/ui/lazy-src/lazy-src.directive';
 
 import {PhotosBulkTagEditorComponent} from '../photos-bulk-tag-editor/photos-bulk-tag-editor.component';
 import {PhotoTagEditorComponent} from '../photo-tag-editor/photo-tag-editor.component';
@@ -44,7 +45,14 @@ const EDITOR_GAP = 6;
   selector: 'app-photos-thumb-view',
   templateUrl: './photos-thumb-view.component.html',
   styleUrls: ['./photos-thumb-view.component.scss'],
-  imports: [ButtonDirective, IconComponent, PhotoTagEditorComponent, PhotosBulkTagEditorComponent, ScrollControlComponent],
+  imports: [
+    ButtonDirective,
+    IconComponent,
+    LazySrcDirective,
+    PhotoTagEditorComponent,
+    PhotosBulkTagEditorComponent,
+    ScrollControlComponent,
+  ],
   host: {
     '[class.thumb-view--full]': 'fullWidth()',
     '[class.thumb-view--selecting]': 'selecting()',

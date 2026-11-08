@@ -12,14 +12,7 @@
         [attr.aria-pressed]="selecting() ? selected : null"
         (click)="onThumbClick(index, $event)"
       >
-        <img
-          [src]="photo.thumbnailLargeUrl"
-          [alt]="photo.fileName"
-          width="190"
-          height="190"
-          loading="lazy"
-          (error)="onThumbnailError($event)"
-        />
+        <img [appLazySrc]="photo.thumbnailLargeUrl" [alt]="photo.fileName" width="190" height="190" (error)="onThumbnailError($event)" />
 
         @let gps = hasGps(photo);
         <span

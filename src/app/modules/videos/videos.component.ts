@@ -16,6 +16,7 @@ import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
 import {ToastService} from '../../core/services/toast.service';
 import {VideosService} from '../../core/services/videos.service';
 import {IconComponent} from '../../shared/ui/icon/icon.component';
+import {LazySrcDirective} from '../../shared/ui/lazy-src/lazy-src.directive';
 import {GalleryFilter} from '../gallery/gallery-filter';
 import {VideoPlayerComponent} from './video-player/video-player.component';
 import {ScrollControlComponent} from '../shared/scroll-control/scroll-control.component';
@@ -38,6 +39,7 @@ const USER_ID = 1;
     ButtonDirective,
     DatePipe,
     IconComponent,
+    LazySrcDirective,
     MultiselectComponent,
     NgTemplateOutlet,
     PaginatorComponent,

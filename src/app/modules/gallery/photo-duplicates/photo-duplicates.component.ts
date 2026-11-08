@@ -3,6 +3,7 @@ import {Component, computed, inject, input, output} from '@angular/core';
 import {Photo, PhotoDuplicateGroup} from 'src/app/core/models/photo.model';
 import {PhotoViewerService, UNAVAILABLE_IMAGE} from 'src/app/core/services/photo-viewer.service';
 import {IconComponent} from 'src/app/shared/ui/icon/icon.component';
+import {LazySrcDirective} from 'src/app/shared/ui/lazy-src/lazy-src.directive';
 
 import {ScrollControlComponent} from '../../shared/scroll-control/scroll-control.component';
 
@@ -11,7 +12,7 @@ import {ScrollControlComponent} from '../../shared/scroll-control/scroll-control
   selector: 'app-photo-duplicates',
   templateUrl: './photo-duplicates.component.html',
   styleUrls: ['./photo-duplicates.component.scss'],
-  imports: [DatePipe, IconComponent, ScrollControlComponent],
+  imports: [DatePipe, IconComponent, LazySrcDirective, ScrollControlComponent],
 })
 export class PhotoDuplicatesComponent {
   readonly groups = input.required<readonly PhotoDuplicateGroup[]>();
