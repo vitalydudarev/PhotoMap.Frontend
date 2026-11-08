@@ -75,7 +75,7 @@ export class VideosComponent implements OnInit {
   readonly folderFilter = new GalleryFilter<string>([], (value) => value || undefined);
 
   pageIndex = 0;
-  pageSize = 100;
+  pageSize = 1000;
   readonly pageSizes: number[] = [100, 250, 500, 1000];
 
   readonly folderLabel = folderLabel;

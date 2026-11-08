@@ -168,7 +168,7 @@ export class GalleryComponent implements OnInit {
   readonly busyPhotoIds = signal<ReadonlySet<string>>(new Set());
 
   pageIndex = 0;
-  pageSize = 100;
+  pageSize = 1000;
   pageSizes: number[] = [100, 250, 500, 1000];
 
   private readonly destroyRef = inject(DestroyRef);
