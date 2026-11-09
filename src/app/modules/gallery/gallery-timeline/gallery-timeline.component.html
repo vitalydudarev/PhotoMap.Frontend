@@ -1,0 +1,38 @@
+<nav aria-label="Timeline">
+  <ol class="years">
+    @for (year of years(); track year.year) {
+      @let current = year.year === activeYear();
+      <li class="year" [class.year--active]="current" [attr.data-year]="year.year">
+        <button
+          class="year-button"
+          type="button"
+          [title]="year.year + ', ' + countLabel(year.count)"
+          [attr.aria-label]="year.year + ', ' + countLabel(year.count)"
+          (click)="monthSelect.emit(year.months[0])"
+        >
+          {{ year.year }}
+        </button>
+
+        @if (expandedYears().has(year.year)) {
+          <ol class="months">
+            @for (month of year.months; track month.key) {
+              <li>
+                <button
+                  class="month-button"
+                  type="button"
+                  [class.month-button--active]="month.key === active()"
+                  [attr.aria-current]="month.key === active() ? 'true' : null"
+                  [title]="month.label"
+                  [attr.aria-label]="month.label"
+                  (click)="monthSelect.emit(month)"
+                >
+                  {{ month.name }}
+                </button>
+              </li>
+            }
+          </ol>
+        }
+      </li>
+    }
+  </ol>
+</nav>

@@ -4,7 +4,13 @@
     @let tags = photo.tags ?? [];
     @let editing = editingId() === photo.id;
     @let selected = isSelected(photo);
-    <div class="thumb" [class.thumb--deleted]="deleted" [class.thumb--editing]="editing" [class.thumb--selected]="selected">
+    <div
+      class="thumb"
+      [class.thumb--deleted]="deleted"
+      [class.thumb--editing]="editing"
+      [class.thumb--selected]="selected"
+      [attr.data-month]="monthKey(photo)"
+    >
       <button
         class="open"
         type="button"

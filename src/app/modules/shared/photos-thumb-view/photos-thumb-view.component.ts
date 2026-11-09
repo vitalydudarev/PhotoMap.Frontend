@@ -14,6 +14,7 @@ import {
   signal,
 } from '@angular/core';
 import {PhotoTag, PhotoTags} from 'src/app/core/models/photo-tag.model';
+import {photoMonthKeyOf} from 'src/app/core/models/photo-month.model';
 import {Photo} from 'src/app/core/models/photo.model';
 import {PhotoViewerService, UNAVAILABLE_IMAGE} from 'src/app/core/services/photo-viewer.service';
 
@@ -224,6 +225,11 @@ export class PhotosThumbViewComponent implements OnChanges {
   /** The same test the backend marks a photo as having GPS by: both coordinates were read from its EXIF. */
   hasGps(photo: Photo): boolean {
     return photo.latitude != null && photo.longitude != null;
+  }
+
+  /** The month the photo was taken in, which the timeline of the gallery finds the photos of a month by. */
+  monthKey(photo: Photo): string {
+    return photoMonthKeyOf(photo.dateTimeTaken);
   }
 
   isDeleted(photo: Photo): boolean {

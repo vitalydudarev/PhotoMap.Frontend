@@ -595,6 +595,53 @@ describe('GalleryComponent', () => {
     scrollTo.mockRestore();
   });
 
+  describe('timeline', () => {
+    /** Photos taken on the given dates, in the order the page gets them. */
+    const flushDatedPhotos = (dates: string[]) => {
+      const values = dates.map((date, index) => ({
+        id: String(index),
+        photoUrl: `/photo-${index}.jpg`,
+        thumbnailSmallUrl: `/thumb-${index}.jpg`,
+        thumbnailLargeUrl: `/thumb-${index}.jpg`,
+        dateTimeTaken: date,
+        fileName: `IMG_${index}.jpg`,
+      }));
+
+      TestBed.inject(HttpTestingController)
+        .expectOne((request) => request.url.endsWith('/photos'))
+        .flush({total: values.length, values});
+      fixture.detectChanges();
+    };
+
+    const yearButtons = () =>
+      Array.from((fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('app-gallery-timeline .year-button')).map(
+        (button) => button.textContent?.trim(),
+      );
+
+    it('should list the months of the photos of the page only, in the order they are shown in', () => {
+      flushDatedPhotos(['2016-03-01T10:00:00Z', '2016-03-20T10:00:00Z', '2016-04-02T10:00:00Z', '2019-11-05T10:00:00Z']);
+
+      expect(component.timelineMonths()).toEqual([
+        {year: 2016, month: 3, count: 2},
+        {year: 2016, month: 4, count: 1},
+        {year: 2019, month: 11, count: 1},
+      ]);
+      expect(yearButtons()).toEqual(['2016', '2019']);
+    });
+
+    it('should take the month in UTC, as the photos are filtered by year', () => {
+      flushDatedPhotos(['2016-03-31T23:30:00Z', '2016-04-01T00:30:00Z']);
+
+      expect(component.timelineMonths().map((month) => month.month)).toEqual([3, 4]);
+    });
+
+    it('should show no timeline while the photos of the page are of a single month', () => {
+      flushDatedPhotos(['2016-03-01T10:00:00Z', '2016-03-20T10:00:00Z']);
+
+      expect(yearButtons()).toEqual([]);
+    });
+  });
+
   it('should remember the choice across reloads', () => {
     component.selectedWidth.set('full');
     fixture.detectChanges();

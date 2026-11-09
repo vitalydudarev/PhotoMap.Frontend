@@ -119,6 +119,27 @@
   color: var(--app-fg-muted);
 }
 
+/* The grid, and the timeline on its right. */
+.thumbs {
+  display: flex;
+  align-items: flex-start;
+}
+
+.thumb-view {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Stays in view under the toolbar while the photos scroll by. */
+.timeline {
+  position: sticky;
+  top: calc(var(--app-header-height) + var(--gallery-toolbar-height, 0px));
+  flex: none;
+  width: 76px;
+  /* The whole height, not only what the years take, so that it tells how many months fit. */
+  height: calc(100vh - var(--app-header-height) - var(--gallery-toolbar-height, 0px));
+}
+
 /* Fills the height left under the toolbar. */
 .map {
   flex: 1;
@@ -144,5 +165,9 @@
   .toolbar-inner,
   .filters-inner {
     padding: var(--app-space-3) var(--app-space-4);
+  }
+
+  .timeline {
+    width: 60px;
   }
 }

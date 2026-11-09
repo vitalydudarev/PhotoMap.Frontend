@@ -1,10 +1,24 @@
 import {DOCUMENT, Location} from '@angular/common';
 import {HttpParams} from '@angular/common/http';
-import {Component, DestroyRef, OnInit, computed, effect, inject, signal} from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  ElementRef,
+  Injector,
+  OnInit,
+  afterNextRender,
+  computed,
+  effect,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {ActivatedRoute, Router} from '@angular/router';
 import {Observable, Subscription} from 'rxjs';
 import {PhotoCategory} from 'src/app/core/models/photo-category.model';
+import {PhotoFilter} from 'src/app/core/models/photo-filter.model';
+import {PhotoMonth, photoMonthKey} from 'src/app/core/models/photo-month.model';
 import {PhotoSortOrder} from 'src/app/core/models/photo-sort-order.model';
 import {PhotoTag, PhotoTags} from 'src/app/core/models/photo-tag.model';
 import {Photo, PhotoDuplicateGroup} from 'src/app/core/models/photo.model';
@@ -21,6 +35,7 @@ import {UserPhotosService} from '../../core/services/user-photos.service';
 import {PhotosMapViewComponent} from '../shared/photos-map-view/photos-map-view.component';
 import {PhotoTagsChange, PhotosThumbViewComponent} from '../shared/photos-thumb-view/photos-thumb-view.component';
 import {GalleryFilter} from './gallery-filter';
+import {GalleryTimelineComponent} from './gallery-timeline/gallery-timeline.component';
 import {PhotoDuplicatesComponent} from './photo-duplicates/photo-duplicates.component';
 
 type ViewMode = 'thumb' | 'map';
@@ -60,6 +75,7 @@ const UNTAGGED = 0;
   styleUrls: ['./gallery.component.scss'],
   imports: [
     ButtonDirective,
+    GalleryTimelineComponent,
     IconComponent,
     MultiselectComponent,
     PaginatorComponent,
@@ -69,6 +85,10 @@ const UNTAGGED = 0;
     SegmentedComponent,
     SpinnerComponent,
   ],
+  host: {
+    '(window:scroll)': 'scheduleActiveMonth()',
+    '(window:resize)': 'scheduleActiveMonth()',
+  },
 })
 export class GalleryComponent implements OnInit {
   readonly photos = signal<Photo[]>([]);
@@ -167,6 +187,32 @@ export class GalleryComponent implements OnInit {
   /** The photos being deleted or restored. */
   readonly busyPhotoIds = signal<ReadonlySet<string>>(new Set());
 
+  /** The months the photos of the page were taken in, in the order they are shown in, with how many of them each. */
+  readonly timelineMonths = computed(() => {
+    const months: PhotoMonth[] = [];
+
+    for (const photo of this.photos()) {
+      const date = new Date(photo.dateTimeTaken);
+      const year = date.getUTCFullYear();
+      const month = date.getUTCMonth() + 1;
+      const last = months.at(-1);
+
+      if (last?.year === year && last.month === month) {
+        last.count++;
+      } else {
+        months.push({year, month, count: 1});
+      }
+    }
+
+    return months;
+  });
+
+  /** The month of the photos at the top of the window, by its key, see `photoMonthKey`. */
+  readonly activeMonth = signal<string | null>(null);
+
+  /** The toolbar sticks under the header, and the timeline under it, so it is measured as it wraps and the filters open. */
+  readonly toolbarHeight = signal(0);
+
   pageIndex = 0;
   pageSize = 1000;
   pageSizes: number[] = [100, 250, 500, 1000];
@@ -194,6 +240,12 @@ export class GalleryComponent implements OnInit {
 
   private photosRequest?: Subscription;
 
+  private activeMonthFrame: number | null = null;
+
+  private readonly injector = inject(Injector);
+  private readonly toolbar = viewChild.required<ElementRef<HTMLElement>>('toolbar');
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
   constructor() {
     effect(() => this.writeWidthPreference(this.selectedWidth()));
     effect(() => this.writeFiltersOpenPreference(this.filtersOpen()));
@@ -202,6 +254,27 @@ export class GalleryComponent implements OnInit {
     effect(() => {
       if (this.showDuplicates() || this.selectedViewMode() !== 'thumb') {
         this.selecting.set(false);
+      }
+    });
+
+    afterNextRender(() => {
+      const toolbar = this.toolbar().nativeElement;
+      const observer = new ResizeObserver(() => this.toolbarHeight.set(toolbar.offsetHeight));
+
+      observer.observe(toolbar);
+      this.destroyRef.onDestroy(() => observer.disconnect());
+    });
+
+    // the grid is shown again, from the map or the duplicates
+    effect(() => {
+      if (this.selectedViewMode() === 'thumb' && !this.showDuplicates()) {
+        afterNextRender(() => this.updateActiveMonth(), {injector: this.injector});
+      }
+    });
+
+    this.destroyRef.onDestroy(() => {
+      if (this.activeMonthFrame !== null) {
+        cancelAnimationFrame(this.activeMonthFrame);
       }
     });
   }
@@ -364,6 +437,23 @@ export class GalleryComponent implements OnInit {
     this.loadTags(true);
   }
 
+  /** Scrolls to the first photo of the month on the page. */
+  monthSelected(month: PhotoMonth): void {
+    this.scrollToMonth(photoMonthKey(month.year, month.month));
+  }
+
+  /** Finds the month of the photos at the top of the window once a frame, however often the window scrolls. */
+  scheduleActiveMonth(): void {
+    if (this.activeMonthFrame !== null) {
+      return;
+    }
+
+    this.activeMonthFrame = requestAnimationFrame(() => {
+      this.activeMonthFrame = null;
+      this.updateActiveMonth();
+    });
+  }
+
   /** Whether the photos are narrowed down by any of the filters. */
   isFiltered(): boolean {
     return [this.sourceFilter, this.yearFilter, this.categoryFilter, this.gpsFilter, this.tagFilter].some(
@@ -510,23 +600,20 @@ export class GalleryComponent implements OnInit {
     this.showSpinner.set(true);
     this.failed.set(false);
 
+    const filter = this.photoFilter();
+
     // a request still on its way is dropped, so an answer for the previous filter cannot land after this one
     this.photosRequest = this.userPhotosService
-      .getUserPhotos(this.userId, this.pageSize, this.pageSize * this.pageIndex, this.selectedSortOrder(), {
-        sourceIds: this.sourceFilter.values(),
-        years: this.yearFilter.values(),
-        categories: this.categoryFilter.values() as PhotoCategory[],
-        hasGps: this.hasGps(),
-        allFolders: this.allFolders(),
-        tagIds: this.tagFilter.values().filter((tag) => tag !== UNTAGGED),
-        untagged: this.tagFilter.values().includes(UNTAGGED),
-      })
+      .getUserPhotos(this.userId, this.pageSize, this.pageSize * this.pageIndex, this.selectedSortOrder(), filter)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (pagedResponse) => {
           this.totalCount.set(pagedResponse.total);
           this.photos.set(pagedResponse.values);
           this.showSpinner.set(false);
+
+          // the grid of the new photos is drawn first
+          afterNextRender(() => this.updateActiveMonth(), {injector: this.injector});
         },
         error: (error) => {
           this.photos.set([]);
@@ -535,6 +622,63 @@ export class GalleryComponent implements OnInit {
           this.toastService.error('Could not load the photos.', error);
         },
       });
+  }
+
+  private photoFilter(): PhotoFilter {
+    return {
+      sourceIds: this.sourceFilter.values(),
+      years: this.yearFilter.values(),
+      categories: this.categoryFilter.values() as PhotoCategory[],
+      hasGps: this.hasGps(),
+      allFolders: this.allFolders(),
+      tagIds: this.tagFilter.values().filter((tag) => tag !== UNTAGGED),
+      untagged: this.tagFilter.values().includes(UNTAGGED),
+    };
+  }
+
+  /**
+   * Scrolls the first photo of the month to just under the toolbar.
+   */
+  private scrollToMonth(key: string): void {
+    const thumb = this.host.nativeElement.querySelector<HTMLElement>(`[data-month="${key}"]`);
+    const window = this.document.defaultView;
+
+    if (!thumb || !window) {
+      return;
+    }
+
+    const top = thumb.getBoundingClientRect().top + window.scrollY - this.toolbar().nativeElement.getBoundingClientRect().bottom;
+
+    // a little gap, so the row does not look cut off by the toolbar
+    window.scrollTo({top: Math.max(0, top - 12)});
+    this.activeMonth.set(key);
+  }
+
+  /** The month of the first photo not hidden under the toolbar, found among the photos of the grid by bisection. */
+  private updateActiveMonth(): void {
+    const thumbs = this.host.nativeElement.querySelectorAll<HTMLElement>('[data-month]');
+
+    if (thumbs.length === 0) {
+      this.activeMonth.set(null);
+
+      return;
+    }
+
+    const top = this.toolbar().nativeElement.getBoundingClientRect().bottom;
+    let low = 0;
+    let high = thumbs.length - 1;
+
+    while (low < high) {
+      const middle = Math.floor((low + high) / 2);
+
+      if (thumbs[middle].getBoundingClientRect().bottom > top) {
+        high = middle;
+      } else {
+        low = middle + 1;
+      }
+    }
+
+    this.activeMonth.set(thumbs[low].dataset['month'] ?? null);
   }
 
   private loadDuplicates(): void {
