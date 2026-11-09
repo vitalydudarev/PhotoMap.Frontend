@@ -22,7 +22,13 @@ import {
 } from '../../core/models/photo-source-status.model';
 import {HubError, HubProgress, HubRetry} from '../../core/models/hub-notification.model';
 import {PhotoSourceProgress} from '../../core/models/photo-source-progress.model';
-import {FailedDownload, SourceDownloadContent, SourceDownloadKind, SourceDownloadStatus} from '../../core/models/source-download.model';
+import {
+  FailedDownload,
+  MissingDownload,
+  SourceDownloadContent,
+  SourceDownloadKind,
+  SourceDownloadStatus,
+} from '../../core/models/source-download.model';
 import {FailedFile} from '../../core/models/failed-file.model';
 import {FailedPreview} from '../../core/models/failed-preview.model';
 import {CameraUploadsProcessingCommand, CameraUploadsService} from '../../core/services/camera-uploads.service';
@@ -83,6 +89,11 @@ interface DownloadState extends ProcessingState {
   alreadyDownloaded: number;
   /** The files that failed to download, over all downloads, and are not downloaded yet. */
   failedFiles: readonly FailedDownload[];
+  /**
+   * The files the last download has found missing from the downloads folder, with what has become of each. Only the
+   * download of the folder the photos are processed from shows them, as the camera uploads Sync local runs it.
+   */
+  missingFiles: readonly MissingDownload[];
 }
 
 /** A run of its own apart from the processing of the camera uploads: of the videos or of the other uploads. */
@@ -135,6 +146,8 @@ export interface DownloadView extends DownloadState, ProcessingView {
   choiceLabel: string;
   /** The files the last download has not got, those that failed among them; 0 while it runs. */
   missing: number;
+  /** How many of the files found missing the last download has downloaded, has failed, and is still to get to. */
+  missingCounts: Record<MissingDownload['status'], number>;
 }
 
 export interface SourceView extends Omit<SourceState, 'retry' | 'videos' | 'otherUploads' | 'download' | 'folderDownload'>, ProcessingView {
@@ -220,6 +233,9 @@ export class PhotoSourcePageComponent implements OnInit {
   readonly tabsIdPrefix = TABS_ID_PREFIX;
   readonly tabId = tabId;
   readonly tabPanelId = tabPanelId;
+
+  /** The size of a file, as the table of the files Sync local has found missing shows it. */
+  readonly fileSizeLabel = fileSizeLabel;
 
   readonly downloadChoices: readonly SegmentedOption<DownloadChoice>[] = [
     {value: 'photos', label: 'Photos', icon: 'image'},
@@ -426,6 +442,33 @@ export class PhotoSourcePageComponent implements OnInit {
           this.toastService.success(`Syncing the camera uploads of ${source.name}.`);
         },
         error: (error) => this.toastService.error(`Failed to sync the camera uploads of ${source.name}.`, error),
+      });
+  }
+
+  /**
+   * Lists the files of the folder of the camera uploads, photos and videos alike, and downloads those missing from the
+   * downloads folder of the backend, next to its thumbs folder. It is the download of the folder the photos are
+   * processed from, so the Download tab shows it too; the files that fail are kept with its failed files.
+   */
+  syncLocal(source: SourceView): void {
+    this.sourceDownloadsService
+      .start(USER_ID, source.id, SourceDownloadContent.All)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.patchDownload(source.id, 'processing-folder', {
+            status: PhotoSourceStatus.InProgress,
+            choice: 'all',
+            retryingFailed: false,
+            error: '',
+            processed: 0,
+            failed: 0,
+            total: 0,
+            missingFiles: [],
+          });
+          this.toastService.success(`Syncing the camera uploads of ${source.name} with the downloads folder.`);
+        },
+        error: (error) => this.toastService.error(`Failed to sync the camera uploads of ${source.name} with the downloads folder.`, error),
       });
   }
 
@@ -785,8 +828,9 @@ export class PhotoSourcePageComponent implements OnInit {
     return forkJoin([
       this.sourceDownloadsService.getStatus(USER_ID, sourceId, kind),
       this.sourceDownloadsService.getFailedFiles(USER_ID, sourceId, kind),
+      this.loadMissingDownloads(sourceId, kind),
     ]).pipe(
-      map(([status, failedFiles]) => this.applyDownloadStatus(sourceId, kind, status, failedFiles)),
+      map(([status, failedFiles, missingFiles]) => this.applyDownloadStatus(sourceId, kind, status, failedFiles, missingFiles)),
       catchError((error) => {
         this.toastService.error('Could not load the download status of a photo source.', error);
 
@@ -801,8 +845,10 @@ export class PhotoSourcePageComponent implements OnInit {
     kind: SourceDownloadKind,
     status: SourceDownloadStatus,
     failedFiles: readonly FailedDownload[],
+    missingFiles: readonly MissingDownload[],
   ): void {
     this.patchDownload(sourceId, kind, (download) => ({
+      missingFiles,
       folder: download.folder || (status.folder ?? ''),
       status: parsePhotoSourceStatus(status.status) ?? download.status,
       processed: status.processedCount,
@@ -815,6 +861,11 @@ export class PhotoSourcePageComponent implements OnInit {
       failedFiles,
       choice: (status.retryingFailed ? undefined : toDownloadChoice(status.content)) ?? download.choice,
     }));
+  }
+
+  /** Only the download of the folder the photos are processed from shows the files it has found missing. */
+  private loadMissingDownloads(sourceId: number, kind: SourceDownloadKind): Observable<readonly MissingDownload[]> {
+    return kind === 'processing-folder' ? this.sourceDownloadsService.getMissingFiles(USER_ID, sourceId, kind) : of([]);
   }
 
   private applyProgress(sourceId: number, progress: PhotoSourceProgress): void {
@@ -996,6 +1047,19 @@ export class PhotoSourcePageComponent implements OnInit {
       }
     });
 
+    // what has become of the files found missing is reloaded as the download goes, a reload superseding the one before;
+    // the end of the download cancels the one still going, the status reloaded above takes them for the last time
+    progress$
+      .pipe(
+        switchMap((progress) =>
+          isPhotoSourceRunning(parsePhotoSourceStatus(progress.status))
+            ? this.loadMissingDownloads(sourceId, kind).pipe(catchError(() => EMPTY))
+            : EMPTY,
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((missingFiles) => this.patchDownload(sourceId, kind, {missingFiles}));
+
     error$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((error) => this.patchDownload(sourceId, kind, {error: error.error, status: PhotoSourceStatus.Failed}));
@@ -1029,6 +1093,20 @@ function toSourceTab(value: string | null): SourceTab {
   return SOURCE_TABS.find((tab) => tab === value) ?? 'camera-uploads';
 }
 
+/** Such as `512 B`, `1.5 MB`. */
+function fileSizeLabel(bytes: number): string {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let size = bytes;
+  let unit = 0;
+
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024;
+    unit++;
+  }
+
+  return `${unit === 0 ? size : size.toLocaleString(undefined, {maximumFractionDigits: 1})} ${units[unit]}`;
+}
+
 function countLabel(count: number, noun: string): string {
   return `${count.toLocaleString()} ${noun}${count === 1 ? '' : 's'}`;
 }
@@ -1053,6 +1131,11 @@ function toDownloadView(download: DownloadState): DownloadView {
         ? `${DOWNLOAD_CHOICE_LABELS[download.choice]} of ${download.folder}`
         : DOWNLOAD_CHOICE_LABELS[download.choice],
     missing,
+    missingCounts: {
+      Pending: download.missingFiles.filter((file) => file.status === 'Pending').length,
+      Downloaded: download.missingFiles.filter((file) => file.status === 'Downloaded').length,
+      Failed: download.missingFiles.filter((file) => file.status === 'Failed').length,
+    },
   };
 }
 
@@ -1073,6 +1156,7 @@ function initialDownloadState(kind: SourceDownloadKind): DownloadState {
     retryingFailed: false,
     alreadyDownloaded: 0,
     failedFiles: [],
+    missingFiles: [],
   };
 }
 

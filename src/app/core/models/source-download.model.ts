@@ -43,3 +43,23 @@ export interface FailedDownload {
   /** ISO 8601. */
   failedAt: string;
 }
+
+/** What has become of a file the last download has found missing: not downloaded yet, downloaded or failed. */
+export type MissingDownloadStatus = 'Pending' | 'Downloaded' | 'Failed';
+
+/**
+ * Mirrors the backend's `MissingDownloadDto`: a file of the source the last download has found missing from the
+ * downloads folder of the backend, or there only in part, with what has become of it.
+ */
+export interface MissingDownload {
+  /** The folder of the source the file is in, empty for the folder the photos are processed from. */
+  folder: string;
+  fileName: string;
+  size: number;
+  /** A `SourceDownloadContent` value. */
+  content: number;
+  /** `Pending` while the download has not got to the file, or has stopped before it did. */
+  status: MissingDownloadStatus;
+  /** What the file has failed with, absent unless it has failed. */
+  error?: string;
+}

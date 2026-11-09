@@ -7,7 +7,13 @@ import {FailedFile} from '../../core/models/failed-file.model';
 import {FailedPreview} from '../../core/models/failed-preview.model';
 import {HubError, HubProgress} from '../../core/models/hub-notification.model';
 import {PhotoSourceProgress} from '../../core/models/photo-source-progress.model';
-import {FailedDownload, SourceDownloadContent, SourceDownloadKind, SourceDownloadStatus} from '../../core/models/source-download.model';
+import {
+  FailedDownload,
+  MissingDownload,
+  SourceDownloadContent,
+  SourceDownloadKind,
+  SourceDownloadStatus,
+} from '../../core/models/source-download.model';
 import {CameraUploadsProcessingCommand, CameraUploadsService} from '../../core/services/camera-uploads.service';
 import {DataService} from '../../core/services/data.service';
 import {FailedPreviewsService} from '../../core/services/failed-previews.service';
@@ -67,6 +73,8 @@ describe('PhotoSourcePageComponent', () => {
   let retryFailedDownloads: ReturnType<typeof vi.fn>;
   let getDownloadStatus: ReturnType<typeof vi.fn>;
   let getFailedDownloads: ReturnType<typeof vi.fn>;
+  let getMissingDownloads: ReturnType<typeof vi.fn>;
+  let missingDownloads: Record<number, MissingDownload[]>;
   let downloadStatuses: Record<number, Partial<SourceDownloadStatus>>;
   let folderDownloadStatuses: Record<number, Partial<SourceDownloadStatus>>;
   let failedDownloads: Record<number, FailedDownload[]>;
@@ -82,6 +90,9 @@ describe('PhotoSourcePageComponent', () => {
   const tabLabels = () => [...page().querySelectorAll<HTMLElement>('[role="tab"]')].map((tab) => tab.textContent?.trim());
   const button = (label: string, container: HTMLElement = page()) =>
     [...container.querySelectorAll<HTMLButtonElement>('button')].find((candidate) => candidate.textContent?.includes(label));
+  /** The camera uploads Sync, told apart from Sync local. */
+  const syncButton = (container: HTMLElement = page()) =>
+    [...container.querySelectorAll<HTMLButtonElement>('button')].find((candidate) => candidate.textContent?.trim() === 'Sync');
 
   /** Opens the page of the source, on the tab given. */
   const build = (sourceName = 'Dropbox', tab?: SourceTab) => {
@@ -188,6 +199,8 @@ describe('PhotoSourcePageComponent', () => {
     getFailedDownloads = vi.fn((_userId: number, sourceId: number, kind: SourceDownloadKind) =>
       of((kind === 'chosen-folder' ? folderFailedDownloads : failedDownloads)[sourceId] ?? []),
     );
+    missingDownloads = {};
+    getMissingDownloads = vi.fn((_userId: number, sourceId: number) => of(missingDownloads[sourceId] ?? []));
     getDownloadStatus = vi.fn((_userId: number, sourceId: number, kind: SourceDownloadKind) =>
       of({
         status: 1,
@@ -267,6 +280,7 @@ describe('PhotoSourcePageComponent', () => {
             getStatus: getDownloadStatus,
             retryFailed: retryFailedDownloads,
             getFailedFiles: getFailedDownloads,
+            getMissingFiles: getMissingDownloads,
           },
         },
       ],
@@ -595,7 +609,7 @@ describe('PhotoSourcePageComponent', () => {
       failedFiles[DROPBOX] = [failedFile('a.jpg'), failedFile('b.jpg')];
       build('Dropbox');
 
-      const sync = button('Sync', panel())!;
+      const sync = syncButton(panel())!;
       expect(sync.parentElement).toBe(button('Retry failed (2)', panel())!.parentElement);
 
       sync.click();
@@ -604,7 +618,7 @@ describe('PhotoSourcePageComponent', () => {
       expect(runCameraUploadsCommand).toHaveBeenLastCalledWith(1, DROPBOX, CameraUploadsProcessingCommand.Sync);
       expect(view().isRunning).toBe(true);
       // no syncing or retrying while a run goes
-      expect(button('Sync', panel())).toBeUndefined();
+      expect(syncButton(panel())).toBeUndefined();
       expect(button('Retry failed', panel())).toBeUndefined();
     });
 
@@ -613,19 +627,108 @@ describe('PhotoSourcePageComponent', () => {
       build('Dropbox');
 
       expect(failedPhotosTable(panel())).toBeNull();
-      expect(button('Sync', panel())).toBeTruthy();
+      expect(syncButton(panel())).toBeTruthy();
     });
 
     it('should not offer to sync camera uploads never processed, or of a source not connected', () => {
       sourceProgress[DROPBOX] = {status: 1, totalCount: 0, processedCount: 0, failedCount: 0};
       build('Dropbox');
 
-      expect(button('Sync', panel())).toBeUndefined();
+      expect(syncButton(panel())).toBeUndefined();
 
       sourceProgress[YANDEX_DISK] = {status: 3, totalCount: 10, processedCount: 10, failedCount: 0};
       build('Yandex.Disk');
 
-      expect(button('Sync', panel())).toBeUndefined();
+      expect(syncButton(panel())).toBeUndefined();
+    });
+
+    describe('sync local', () => {
+      const missingDownload = (fileName: string, status: MissingDownload['status'], error?: string): MissingDownload => ({
+        folder: '',
+        fileName,
+        size: 1536,
+        content: SourceDownloadContent.Photos,
+        status,
+        error,
+      });
+      const localSyncTable = () => panel().querySelector<HTMLTableElement>('table.local-sync-table');
+      const localSyncRows = () =>
+        [...(localSyncTable()?.querySelectorAll('tbody tr') ?? [])].map((row) =>
+          [...row.querySelectorAll('td')].map((cell) => cell.textContent?.trim()),
+        );
+
+      it('should offer Sync local next to Sync, even for camera uploads never processed', () => {
+        sourceProgress[DROPBOX] = {status: 3, totalCount: 200, processedCount: 200, failedCount: 0};
+        build('Dropbox');
+
+        expect(button('Sync local', panel())!.parentElement).toBe(syncButton(panel())!.parentElement);
+
+        sourceProgress[DROPBOX] = {status: 1, totalCount: 0, processedCount: 0, failedCount: 0};
+        build('Dropbox');
+
+        expect(syncButton(panel())).toBeUndefined();
+        expect(button('Sync local', panel())).toBeTruthy();
+      });
+
+      it('should not offer Sync local for a source not connected', () => {
+        build('Yandex.Disk');
+
+        expect(button('Sync local', panel())).toBeUndefined();
+      });
+
+      it('should download all the files of the camera uploads folder missing from the downloads folder', () => {
+        build('Dropbox');
+
+        button('Sync local', panel())!.click();
+        fixture.detectChanges();
+
+        expect(startDownload).toHaveBeenCalledWith(1, DROPBOX, SourceDownloadContent.All);
+        expect(view().download.isRunning).toBe(true);
+        expect(button('Syncing local', panel())!.disabled).toBe(true);
+      });
+
+      it('should show the files found missing, with what has become of each, as the download goes', () => {
+        build('Dropbox');
+
+        missingDownloads[DROPBOX] = [missingDownload('a.jpg', 'Downloaded'), missingDownload('b.jpg', 'Pending')];
+        downloadProgress.next({sourceId: DROPBOX, status: 'InProgress', processed: 1, failed: 0, total: 3});
+        fixture.detectChanges();
+
+        expect(localSyncRows()).toEqual([
+          ['1', 'a.jpg', '1.5 KB', 'Downloaded', '—'],
+          ['2', 'b.jpg', '1.5 KB', 'Pending', '—'],
+        ]);
+        expect(localSyncTable()!.caption!.textContent).toContain('1 to go');
+
+        missingDownloads[DROPBOX] = [
+          missingDownload('a.jpg', 'Downloaded'),
+          missingDownload('b.jpg', 'Failed', 'The connection was reset.'),
+        ];
+        downloadStatuses[DROPBOX] = {status: 3, totalCount: 3, processedCount: 2, failedCount: 1, alreadyDownloadedCount: 1};
+        downloadProgress.next({sourceId: DROPBOX, status: 'Done', processed: 2, failed: 1, total: 3});
+        fixture.detectChanges();
+
+        expect(localSyncRows()[1]).toEqual(['2', 'b.jpg', '1.5 KB', 'Failed', 'The connection was reset.']);
+        expect(localSyncTable()!.caption!.textContent?.replace(/\s+/g, ' ')).toContain('2 files were missing · 1 downloaded · 1 failed');
+      });
+
+      it('should load the files the last download has found missing with the page', () => {
+        downloadStatuses[DROPBOX] = {status: 3, totalCount: 5, processedCount: 4, failedCount: 0};
+        missingDownloads[DROPBOX] = [missingDownload('a.jpg', 'Downloaded'), missingDownload('b.jpg', 'Pending')];
+        build('Dropbox');
+
+        expect(getMissingDownloads).toHaveBeenCalledWith(1, DROPBOX, 'processing-folder');
+        expect(getMissingDownloads).not.toHaveBeenCalledWith(1, DROPBOX, 'chosen-folder');
+        expect(localSyncRows().map((row) => row[3])).toEqual(['Downloaded', 'Not downloaded']);
+      });
+
+      it('should tell when no file is missing', () => {
+        downloadStatuses[DROPBOX] = {status: 3, totalCount: 5, processedCount: 5, failedCount: 0};
+        build('Dropbox');
+
+        expect(localSyncTable()).toBeNull();
+        expect(panel().textContent).toContain('All 5 files are in the downloads folder already.');
+      });
     });
 
     it('should reload the failed photos once a run has ended', () => {

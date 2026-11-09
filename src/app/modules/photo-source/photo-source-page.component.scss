@@ -168,7 +168,8 @@
   box-shadow: var(--app-focus-ring);
 }
 
-.failed-photos-table {
+.failed-photos-table,
+.local-sync-table {
   width: 100%;
   border-collapse: collapse;
   font-size: var(--app-text-sm);
@@ -181,14 +182,17 @@
 }
 
 .failed-photos-table th,
-.failed-photos-table td {
+.failed-photos-table td,
+.local-sync-table th,
+.local-sync-table td {
   padding: var(--app-space-2) var(--app-space-3);
   border-top: 1px solid var(--app-border);
   text-align: left;
   vertical-align: top;
 }
 
-.failed-photos-table th {
+.failed-photos-table th,
+.local-sync-table th {
   position: sticky;
   top: 0;
   background: var(--app-surface-sunken);
@@ -197,7 +201,8 @@
   white-space: nowrap;
 }
 
-.failed-photos-table .numeric {
+.failed-photos-table .numeric,
+.local-sync-table .numeric {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -215,6 +220,38 @@
 
 .failed-files-actions {
   margin-top: var(--app-space-3);
+}
+
+/* The files Sync local has found missing from the downloads folder, under the actions of the camera uploads. */
+.local-sync {
+  display: grid;
+  gap: var(--app-space-3);
+}
+
+.local-sync-title {
+  margin: 0;
+  font-size: var(--app-text-md);
+  font-weight: 600;
+}
+
+.local-sync-folder {
+  margin: 0;
+  color: var(--app-fg-muted);
+  font-family: var(--app-font-mono);
+  font-size: var(--app-text-sm);
+  overflow-wrap: anywhere;
+}
+
+.local-sync-table caption {
+  padding: var(--app-space-2) var(--app-space-3);
+  color: var(--app-fg-muted);
+  text-align: left;
+}
+
+.local-sync-empty {
+  margin: 0;
+  color: var(--app-fg-muted);
+  font-size: var(--app-text-sm);
 }
 
 .preview-grid {

@@ -123,15 +123,15 @@
               <ng-container *ngTemplateOutlet="failedFilesTable; context: {$implicit: source.failedFiles}" />
             }
 
-            @if (source.isAuthorized && !source.isRunning && (source.failedFiles.length > 0 || source.hasRun)) {
+            @if (source.isAuthorized) {
               <div class="app-actions failed-files-actions">
-                @if (source.failedFiles.length > 0) {
+                @if (!source.isRunning && source.failedFiles.length > 0) {
                   <button appButton="outline" type="button" (click)="retryFailedProcessing(source)">
                     <app-icon name="restore" [size]="16" />
                     Retry failed ({{ source.failedFiles.length.toLocaleString() }})
                   </button>
                 }
-                @if (source.hasRun) {
+                @if (!source.isRunning && source.hasRun) {
                   <button
                     appButton="outline"
                     type="button"
@@ -142,8 +142,20 @@
                     Sync
                   </button>
                 }
+                <button
+                  appButton="outline"
+                  type="button"
+                  title="Download the files of the camera uploads folder that are missing from the downloads folder of the backend"
+                  [disabled]="source.download.isRunning"
+                  (click)="syncLocal(source)"
+                >
+                  <app-icon name="download" [size]="16" />
+                  {{ source.download.isRunning ? 'Syncing local…' : 'Sync local' }}
+                </button>
               </div>
             }
+
+            <ng-container *ngTemplateOutlet="localSync; context: {$implicit: source.download}" />
           </section>
 
           <!-- Hidden for now: deletes the data of every source, not only of this page's.
@@ -591,4 +603,96 @@
       </tbody>
     </table>
   </div>
+</ng-template>
+
+<!--
+  The files of the camera uploads folder the last download has found missing from the downloads folder of the backend,
+  with what has become of each, which Sync local starts.
+-->
+<ng-template #localSync let-download>
+  @if (download.isRunning || download.missingFiles.length > 0 || (download.hasRun && download.total > 0)) {
+    <hr class="failed-photos-separator" />
+    <div class="local-sync">
+      <h3 class="local-sync-title">Local sync</h3>
+      @if (download.targetFolder) {
+        <p class="local-sync-folder">{{ download.targetFolder }}</p>
+      }
+
+      @if (download.error) {
+        <app-alert tone="danger" heading="Sync local failed">{{ download.error }}</app-alert>
+      }
+
+      @if (download.isRunning) {
+        <div class="progress">
+          <app-progress-bar [mode]="download.total > 0 ? 'determinate' : 'indeterminate'" [value]="download.progressPercent" />
+          @if (download.total > 0) {
+            <span class="progress-value">{{ download.progressPercent.toFixed(1) }}%</span>
+          }
+        </div>
+      }
+
+      @if (download.missingFiles.length > 0) {
+        <div class="failed-photos" role="region" aria-label="Files missing locally" tabindex="0">
+          <table class="local-sync-table">
+            <caption>
+              {{
+                download.missingFiles.length.toLocaleString()
+              }}
+              {{
+                download.missingFiles.length === 1 ? 'file was' : 'files were'
+              }}
+              missing ·
+              {{
+                download.missingCounts.Downloaded.toLocaleString()
+              }}
+              downloaded ·
+              {{
+                download.missingCounts.Failed.toLocaleString()
+              }}
+              failed
+              @if (download.missingCounts.Pending > 0) {
+                · {{ download.missingCounts.Pending.toLocaleString() }} {{ download.isRunning ? 'to go' : 'not downloaded' }}
+              }
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col" class="numeric"><abbr title="Number">No.</abbr></th>
+                <th scope="col">File</th>
+                <th scope="col" class="numeric">Size</th>
+                <th scope="col">Status</th>
+                <th scope="col">Error</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (file of download.missingFiles; track file.folder + '/' + file.fileName; let index = $index) {
+                <tr>
+                  <td class="numeric">{{ (index + 1).toLocaleString() }}</td>
+                  <td class="failed-photo-name">{{ file.folder ? file.folder + '/' + file.fileName : file.fileName }}</td>
+                  <td class="numeric">{{ fileSizeLabel(file.size) }}</td>
+                  <td>
+                    @switch (file.status) {
+                      @case ('Downloaded') {
+                        <span class="app-badge app-badge--success">Downloaded</span>
+                      }
+                      @case ('Failed') {
+                        <span class="app-badge app-badge--danger">Failed</span>
+                      }
+                      @default {
+                        <span class="app-badge" [class.app-badge--accent]="download.isRunning">
+                          {{ download.isRunning ? 'Pending' : 'Not downloaded' }}
+                        </span>
+                      }
+                    }
+                  </td>
+                  <td class="failed-photo-error">{{ file.error || '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else if (!download.isRunning) {
+        <p class="local-sync-empty">All {{ download.total.toLocaleString() }} files are in the downloads folder already.</p>
+      }
+    </div>
+  }
 </ng-template>

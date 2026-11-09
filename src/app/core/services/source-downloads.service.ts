@@ -3,7 +3,13 @@ import {Injectable, inject} from '@angular/core';
 import {Observable} from 'rxjs';
 import {environment} from 'src/environments/environment';
 
-import {FailedDownload, SourceDownloadContent, SourceDownloadKind, SourceDownloadStatus} from '../models/source-download.model';
+import {
+  FailedDownload,
+  MissingDownload,
+  SourceDownloadContent,
+  SourceDownloadKind,
+  SourceDownloadStatus,
+} from '../models/source-download.model';
 
 /**
  * Downloads the original photos and videos of a source into the file storage of the backend: from the folder its
@@ -42,6 +48,14 @@ export class SourceDownloadsService {
   /** The files of the downloads of the kind that failed and are not downloaded yet, in the order they first failed. */
   getFailedFiles(userId: number, sourceId: number, kind: SourceDownloadKind): Observable<FailedDownload[]> {
     return this.httpClient.get<FailedDownload[]>(`${this.downloadUrl(userId, sourceId, kind)}/failed-files`);
+  }
+
+  /**
+   * The files the last download of the kind has found missing from the downloads folder, in the order it has listed
+   * them, with what has become of each. Kept in memory by the backend, empty after it restarts.
+   */
+  getMissingFiles(userId: number, sourceId: number, kind: SourceDownloadKind): Observable<MissingDownload[]> {
+    return this.httpClient.get<MissingDownload[]>(`${this.downloadUrl(userId, sourceId, kind)}/missing-files`);
   }
 
   stop(userId: number, sourceId: number, kind: SourceDownloadKind): Observable<void> {
