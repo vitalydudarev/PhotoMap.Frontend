@@ -1,9 +1,10 @@
 @if (pageSizeOptions().length > 0) {
   <label class="page-size">
     <span class="page-size-label">Per page</span>
-    <select class="page-size-select" [value]="pageSize()" (change)="changePageSize($any($event.target).value)">
+    <!-- the selected option is marked on the option, as the value of the select is set before its options are there -->
+    <select class="page-size-select" (change)="changePageSize($any($event.target).value)">
       @for (option of pageSizeOptions(); track option) {
-        <option [value]="option">{{ option }}</option>
+        <option [value]="option" [selected]="option === pageSize()">{{ option }}</option>
       }
     </select>
   </label>
