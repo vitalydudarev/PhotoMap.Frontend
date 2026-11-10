@@ -75,6 +75,8 @@ describe('PhotoSourcePageComponent', () => {
   let getFailedDownloads: ReturnType<typeof vi.fn>;
   let getMissingDownloads: ReturnType<typeof vi.fn>;
   let missingDownloads: Record<number, MissingDownload[]>;
+  let folderMissingDownloads: Record<number, MissingDownload[]>;
+  let startOtherUploadsDownload: ReturnType<typeof vi.fn>;
   let downloadStatuses: Record<number, Partial<SourceDownloadStatus>>;
   let folderDownloadStatuses: Record<number, Partial<SourceDownloadStatus>>;
   let failedDownloads: Record<number, FailedDownload[]>;
@@ -200,7 +202,11 @@ describe('PhotoSourcePageComponent', () => {
       of((kind === 'chosen-folder' ? folderFailedDownloads : failedDownloads)[sourceId] ?? []),
     );
     missingDownloads = {};
-    getMissingDownloads = vi.fn((_userId: number, sourceId: number) => of(missingDownloads[sourceId] ?? []));
+    folderMissingDownloads = {};
+    startOtherUploadsDownload = vi.fn(() => of(undefined));
+    getMissingDownloads = vi.fn((_userId: number, sourceId: number, kind: SourceDownloadKind) =>
+      of((kind === 'chosen-folder' ? folderMissingDownloads : missingDownloads)[sourceId] ?? []),
+    );
     getDownloadStatus = vi.fn((_userId: number, sourceId: number, kind: SourceDownloadKind) =>
       of({
         status: 1,
@@ -281,6 +287,7 @@ describe('PhotoSourcePageComponent', () => {
             retryFailed: retryFailedDownloads,
             getFailedFiles: getFailedDownloads,
             getMissingFiles: getMissingDownloads,
+            startOtherUploads: startOtherUploadsDownload,
           },
         },
       ],
@@ -727,7 +734,7 @@ describe('PhotoSourcePageComponent', () => {
         build('Dropbox');
 
         expect(localSyncTable()).toBeNull();
-        expect(panel().textContent).toContain('All 5 files are in the downloads folder already.');
+        expect(panel().textContent).toContain('All 5 files are downloaded already.');
       });
     });
 
@@ -994,14 +1001,100 @@ describe('PhotoSourcePageComponent', () => {
       otherUploadsSourceProgress[YANDEX_DISK] = {status: 3, totalCount: 500, processedCount: 500, failedCount: 0};
       build('Yandex.Disk', 'other-uploads');
 
-      button('Sync', otherUploadsSection()!)!.click();
+      syncButton(otherUploadsSection()!)!.click();
       fixture.detectChanges();
 
       expect(runOtherUploadsCommand).toHaveBeenLastCalledWith(1, YANDEX_DISK, OtherUploadsProcessingCommand.Sync);
       expect(runCameraUploadsCommand).not.toHaveBeenCalled();
       expect(view().otherUploads!.isRunning).toBe(true);
       expect(view().isRunning).toBe(false);
-      expect(button('Sync', otherUploadsSection()!)).toBeUndefined();
+      expect(syncButton(otherUploadsSection()!)).toBeUndefined();
+    });
+
+    describe('sync local', () => {
+      const missingPhoto = (path: string, status: MissingDownload['status'], error?: string): MissingDownload => ({
+        folder: path.slice(0, path.lastIndexOf('/')),
+        fileName: path.slice(path.lastIndexOf('/') + 1),
+        size: 2048,
+        content: SourceDownloadContent.Photos,
+        status,
+        error,
+      });
+      const localSyncRows = () =>
+        [...(otherUploadsSection()!.querySelectorAll('table.local-sync-table tbody tr') ?? [])].map((row) =>
+          [...row.querySelectorAll('td')].map((cell) => cell.textContent?.trim()),
+        );
+
+      beforeEach(() => {
+        sources[1].isUserAuthorized = true;
+      });
+
+      it('should offer Sync local next to Sync, even for other uploads never processed', () => {
+        otherUploadsSourceProgress[YANDEX_DISK] = {status: 3, totalCount: 500, processedCount: 500, failedCount: 0};
+        build('Yandex.Disk', 'other-uploads');
+
+        expect(button('Sync local', otherUploadsSection()!)!.parentElement).toBe(syncButton(otherUploadsSection()!)!.parentElement);
+
+        otherUploadsSourceProgress[YANDEX_DISK] = {status: 1, totalCount: 0, processedCount: 0, failedCount: 0};
+        build('Yandex.Disk', 'other-uploads');
+
+        expect(syncButton(otherUploadsSection()!)).toBeUndefined();
+        expect(button('Sync local', otherUploadsSection()!)).toBeTruthy();
+      });
+
+      it('should download the other uploads missing from the folders folder, by the folder download', () => {
+        build('Yandex.Disk', 'other-uploads');
+
+        button('Sync local', otherUploadsSection()!)!.click();
+        fixture.detectChanges();
+
+        expect(startOtherUploadsDownload).toHaveBeenCalledWith(1, YANDEX_DISK, true);
+        expect(startDownload).not.toHaveBeenCalled();
+        expect(view().folderDownload!.isRunning).toBe(true);
+        expect(view().folderDownload!.choiceLabel).toBe('Photos and videos of the other uploads');
+        expect(button('Syncing local (with videos)', otherUploadsSection()!)!.disabled).toBe(true);
+      });
+
+      it('should not offer Sync local while a folder is being downloaded', () => {
+        folderDownloadStatuses[YANDEX_DISK] = {status: 2, folder: 'disk:/Photos'};
+        build('Yandex.Disk', 'other-uploads');
+
+        const syncLocal = button('Sync local', otherUploadsSection()!)!;
+        expect(syncLocal.disabled).toBe(true);
+        expect(syncLocal.textContent?.trim()).toBe('Sync local (with videos)');
+        expect(otherUploadsSection()!.querySelector('table.local-sync-table')).toBeNull();
+      });
+
+      it('should show the photos found missing, in the folders of their paths, as the download goes', () => {
+        build('Yandex.Disk', 'other-uploads');
+        button('Sync local', otherUploadsSection()!)!.click();
+
+        folderMissingDownloads[YANDEX_DISK] = [
+          missingPhoto('disk:/Photos/2020/a.jpg', 'Downloaded'),
+          missingPhoto('disk:/Trips/b.jpg', 'Failed', 'The connection was reset.'),
+        ];
+        folderDownloadProgress.next({sourceId: YANDEX_DISK, status: 'InProgress', processed: 1, failed: 1, total: 4});
+        fixture.detectChanges();
+
+        expect(getMissingDownloads).toHaveBeenLastCalledWith(1, YANDEX_DISK, 'chosen-folder');
+        expect(localSyncRows()).toEqual([
+          ['1', 'disk:/Photos/2020/a.jpg', '2 KB', 'Downloaded', '—'],
+          ['2', 'disk:/Trips/b.jpg', '2 KB', 'Failed', 'The connection was reset.'],
+        ]);
+      });
+
+      it('should show the photos the last Sync local has found missing with the page, but not those of a chosen folder', () => {
+        folderDownloadStatuses[YANDEX_DISK] = {status: 3, totalCount: 3, processedCount: 3, failedCount: 0, otherUploads: true};
+        folderMissingDownloads[YANDEX_DISK] = [missingPhoto('disk:/Photos/a.jpg', 'Downloaded')];
+        build('Yandex.Disk', 'other-uploads');
+
+        expect(localSyncRows().length).toBe(1);
+
+        folderDownloadStatuses[YANDEX_DISK] = {status: 3, totalCount: 3, processedCount: 3, failedCount: 0, folder: 'disk:/Photos'};
+        build('Yandex.Disk', 'other-uploads');
+
+        expect(otherUploadsSection()!.querySelector('.local-sync')).toBeNull();
+      });
     });
 
     it('should clear the failed other uploads once they are deleted', () => {

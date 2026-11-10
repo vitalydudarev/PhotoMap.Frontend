@@ -246,15 +246,18 @@
                 <ng-container *ngTemplateOutlet="failedFilesTable; context: {$implicit: otherUploads.failedFiles}" />
               }
 
-              @if (source.isAuthorized && !otherUploads.isRunning && (otherUploads.failedFiles?.length || otherUploads.hasRun)) {
+              @if (
+                source.isAuthorized &&
+                ((!otherUploads.isRunning && (otherUploads.failedFiles?.length || otherUploads.hasRun)) || source.folderDownload)
+              ) {
                 <div class="app-actions failed-files-actions">
-                  @if (otherUploads.failedFiles?.length) {
+                  @if (!otherUploads.isRunning && otherUploads.failedFiles?.length) {
                     <button appButton="outline" type="button" (click)="retryFailedOtherUploads(source)">
                       <app-icon name="restore" [size]="16" />
                       Retry failed ({{ otherUploads.failedFiles!.length.toLocaleString() }})
                     </button>
                   }
-                  @if (otherUploads.hasRun) {
+                  @if (!otherUploads.isRunning && otherUploads.hasRun) {
                     <button
                       appButton="outline"
                       type="button"
@@ -265,7 +268,29 @@
                       Sync
                     </button>
                   }
+                  <!-- TEMPORARY: downloads the videos too, which the other uploads do not import; to be removed -->
+                  @if (source.folderDownload; as folderDownload) {
+                    <button
+                      appButton="outline"
+                      type="button"
+                      title="Download the photos and videos outside the camera uploads that are missing from the folders folder of the backend"
+                      [disabled]="folderDownload.isRunning"
+                      (click)="syncLocalOtherUploads(source)"
+                    >
+                      <app-icon name="download" [size]="16" />
+                      {{
+                        folderDownload.isRunning && folderDownload.otherUploads
+                          ? 'Syncing local (with videos)…'
+                          : 'Sync local (with videos)'
+                      }}
+                    </button>
+                  }
                 </div>
+              }
+
+              <!-- the folder download shows the files of a chosen folder otherwise, which the Download a folder tab has -->
+              @if (source.folderDownload?.otherUploads) {
+                <ng-container *ngTemplateOutlet="localSync; context: {$implicit: source.folderDownload}" />
               }
             </section>
           }
@@ -606,8 +631,9 @@
 </ng-template>
 
 <!--
-  The files of the camera uploads folder the last download has found missing from the downloads folder of the backend,
-  with what has become of each, which Sync local starts.
+  The files the last download has found missing from the folder of the backend it saves to, with what has become of
+  each, which Sync local starts: the files of the camera uploads folder, missing from downloads, or the photos and videos of the
+  other uploads, missing from folders.
 -->
 <ng-template #localSync let-download>
   @if (download.isRunning || download.missingFiles.length > 0 || (download.hasRun && download.total > 0)) {
@@ -691,7 +717,7 @@
           </table>
         </div>
       } @else if (!download.isRunning) {
-        <p class="local-sync-empty">All {{ download.total.toLocaleString() }} files are in the downloads folder already.</p>
+        <p class="local-sync-empty">All {{ download.total.toLocaleString() }} files are downloaded already.</p>
       }
     </div>
   }

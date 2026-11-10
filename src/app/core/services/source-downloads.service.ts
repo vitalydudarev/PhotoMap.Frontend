@@ -40,6 +40,18 @@ export class SourceDownloadsService {
     return this.httpClient.post<void>(this.downloadUrl(userId, sourceId, 'chosen-folder'), {folder, content});
   }
 
+  /**
+   * Downloads the photos of the other uploads, those outside the folder of the camera uploads, as their processing
+   * lists them. It is a chosen folder download: the photos are saved in the folders of their paths, under `folders`,
+   * and the ones downloaded whole already are skipped. Only Yandex.Disk has other uploads.
+   * @param includeVideos Download the videos outside the folder of the camera uploads as well, which are not imported.
+   */
+  startOtherUploads(userId: number, sourceId: number, includeVideos = false): Observable<void> {
+    return this.httpClient.post<void>(`${this.downloadUrl(userId, sourceId, 'chosen-folder')}/other-uploads`, null, {
+      params: {includeVideos},
+    });
+  }
+
   /** Downloads again only the files of the downloads of the kind that failed, without listing a folder. */
   retryFailed(userId: number, sourceId: number, kind: SourceDownloadKind): Observable<void> {
     return this.httpClient.post<void>(`${this.downloadUrl(userId, sourceId, kind)}/retry-failed`, null);

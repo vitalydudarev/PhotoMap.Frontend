@@ -19,6 +19,8 @@ export interface SourceDownloadStatus extends PhotoSourceProgress {
   content?: number;
   /** The last download has taken only the files that failed before, rather than the folder. */
   retryingFailed: boolean;
+  /** The last chosen folder download has taken the photos of the other uploads rather than a folder. */
+  otherUploads?: boolean;
   /** The folder the last chosen folder download has taken its files from, such as `disk:/Photos/2020`. */
   folder?: string;
   /** The files found downloaded whole when the last download started, which it has skipped. */

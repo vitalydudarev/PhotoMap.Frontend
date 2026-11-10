@@ -85,13 +85,16 @@ interface DownloadState extends ProcessingState {
   targetFolder?: string;
   /** The last download has taken only the files that failed before, rather than the folder. */
   retryingFailed: boolean;
+  /** The last chosen folder download has taken the photos of the other uploads, which their Sync local starts. */
+  otherUploads: boolean;
   /** The files found downloaded whole when the last download started. */
   alreadyDownloaded: number;
   /** The files that failed to download, over all downloads, and are not downloaded yet. */
   failedFiles: readonly FailedDownload[];
   /**
-   * The files the last download has found missing from the downloads folder, with what has become of each. Only the
-   * download of the folder the photos are processed from shows them, as the camera uploads Sync local runs it.
+   * The files the last download has found missing from the folder it saves to, with what has become of each. Sync
+   * local shows them: that of the camera uploads runs the download of the folder the photos are processed from, that
+   * of the other uploads the chosen folder download.
    */
   missingFiles: readonly MissingDownload[];
 }
@@ -472,6 +475,38 @@ export class PhotoSourcePageComponent implements OnInit {
       });
   }
 
+  /**
+   * Lists the photos of the other uploads, as their processing does, and the videos outside the folder of the camera
+   * uploads, and downloads those missing from the folders folder of the backend, where each is kept in the folders of
+   * its path on the source. It is the chosen folder download, so the Download a folder tab shows it too, and the two
+   * do not run at the same time.
+   *
+   * TEMPORARY: Sync local (with videos) is to be removed; the backend downloads the photos alone unless asked for the
+   * videos, so removing it needs no change there.
+   */
+  syncLocalOtherUploads(source: SourceView): void {
+    this.sourceDownloadsService
+      .startOtherUploads(USER_ID, source.id, true)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.patchDownload(source.id, 'chosen-folder', {
+            status: PhotoSourceStatus.InProgress,
+            otherUploads: true,
+            choice: 'all',
+            retryingFailed: false,
+            error: '',
+            processed: 0,
+            failed: 0,
+            total: 0,
+            missingFiles: [],
+          });
+          this.toastService.success(`Syncing the other uploads of ${source.name}, with the videos, with the folders folder.`);
+        },
+        error: (error) => this.toastService.error(`Failed to sync the other uploads of ${source.name} with the folders folder.`, error),
+      });
+  }
+
   /** The videos are processed by a run of their own, which resumes by skipping the videos saved already. */
   startStopVideoProcessing(source: SourceView): void {
     const videos = source.videos;
@@ -609,7 +644,7 @@ export class PhotoSourcePageComponent implements OnInit {
         this.patchDownload(source.id, download.kind, {
           status: starting ? PhotoSourceStatus.InProgress : PhotoSourceStatus.Stopped,
           error: '',
-          ...(starting ? {retryingFailed: false} : {}),
+          ...(starting ? {retryingFailed: false, otherUploads: false} : {}),
           ...(starting && download.kind === 'chosen-folder' ? {folder} : {}),
         });
         this.toastService.success(`${starting ? (resuming ? 'Resumed' : 'Started') : 'Paused'} downloading ${what} of ${from}.`);
@@ -625,7 +660,12 @@ export class PhotoSourcePageComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.patchDownload(source.id, download.kind, {status: PhotoSourceStatus.InProgress, retryingFailed: true, error: ''});
+          this.patchDownload(source.id, download.kind, {
+            status: PhotoSourceStatus.InProgress,
+            retryingFailed: true,
+            otherUploads: false,
+            error: '',
+          });
           this.toastService.success(`Retrying the ${countLabel(download.failedFiles.length, 'failed file')} of ${source.name}.`);
         },
         error: (error) => this.toastService.error(`Failed to retry the failed files of ${source.name}.`, error),
@@ -857,15 +897,15 @@ export class PhotoSourcePageComponent implements OnInit {
       lastUpdatedAt: status.lastUpdatedAt,
       targetFolder: status.targetFolder,
       retryingFailed: status.retryingFailed,
+      otherUploads: status.otherUploads ?? false,
       alreadyDownloaded: status.alreadyDownloadedCount,
       failedFiles,
       choice: (status.retryingFailed ? undefined : toDownloadChoice(status.content)) ?? download.choice,
     }));
   }
 
-  /** Only the download of the folder the photos are processed from shows the files it has found missing. */
   private loadMissingDownloads(sourceId: number, kind: SourceDownloadKind): Observable<readonly MissingDownload[]> {
-    return kind === 'processing-folder' ? this.sourceDownloadsService.getMissingFiles(USER_ID, sourceId, kind) : of([]);
+    return this.sourceDownloadsService.getMissingFiles(USER_ID, sourceId, kind);
   }
 
   private applyProgress(sourceId: number, progress: PhotoSourceProgress): void {
@@ -1127,9 +1167,11 @@ function toDownloadView(download: DownloadState): DownloadView {
     action,
     choiceLabel: download.retryingFailed
       ? 'Failed files'
-      : download.kind === 'chosen-folder' && download.folder
-        ? `${DOWNLOAD_CHOICE_LABELS[download.choice]} of ${download.folder}`
-        : DOWNLOAD_CHOICE_LABELS[download.choice],
+      : download.otherUploads
+        ? `${DOWNLOAD_CHOICE_LABELS[download.choice]} of the other uploads`
+        : download.kind === 'chosen-folder' && download.folder
+          ? `${DOWNLOAD_CHOICE_LABELS[download.choice]} of ${download.folder}`
+          : DOWNLOAD_CHOICE_LABELS[download.choice],
     missing,
     missingCounts: {
       Pending: download.missingFiles.filter((file) => file.status === 'Pending').length,
@@ -1154,6 +1196,7 @@ function initialDownloadState(kind: SourceDownloadKind): DownloadState {
     choice: 'all',
     folder: '',
     retryingFailed: false,
+    otherUploads: false,
     alreadyDownloaded: 0,
     failedFiles: [],
     missingFiles: [],
