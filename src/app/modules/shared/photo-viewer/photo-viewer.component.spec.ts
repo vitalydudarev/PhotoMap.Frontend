@@ -1,11 +1,21 @@
 import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
+import {Component, input} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 
 import {Photo} from '../../../core/models/photo.model';
 import {PhotoViewerService} from '../../../core/services/photo-viewer.service';
+import {PhotoLocationMapComponent} from './photo-location-map.component';
 import {PhotoViewerComponent} from './photo-viewer.component';
+
+/** Stands in for the map of the location, which Leaflet cannot draw in a test. */
+@Component({selector: 'app-photo-location-map', template: ''})
+class LocationMapStubComponent {
+  readonly latitude = input.required<number>();
+  readonly longitude = input.required<number>();
+  readonly accuracy = input<number | null | undefined>(undefined);
+}
 
 describe('PhotoViewerComponent', () => {
   let fixture: ComponentFixture<PhotoViewerComponent>;
@@ -43,6 +53,9 @@ describe('PhotoViewerComponent', () => {
     TestBed.configureTestingModule({
       imports: [PhotoViewerComponent],
       providers: [provideHttpClient(), provideHttpClientTesting()],
+    }).overrideComponent(PhotoViewerComponent, {
+      remove: {imports: [PhotoLocationMapComponent]},
+      add: {imports: [LocationMapStubComponent]},
     });
 
     fixture = TestBed.createComponent(PhotoViewerComponent);
@@ -163,6 +176,40 @@ describe('PhotoViewerComponent', () => {
 
       await flushExif('/photo-1.jpg/exif', {ExifIfd0: {Make: 'DJI'}});
       expect(info()?.textContent).toContain('DJI');
+    });
+
+    it('should show where the photo was taken on a map under the EXIF, with how far off it may be', async () => {
+      viewer.open([{...photos[0], latitude: 38.7223, longitude: -9.1393, horizontalPositioningError: 65}], 0);
+      fixture.detectChanges();
+      await flushExif('/photo-0.jpg/exif', {ExifIfd0: {Make: 'Canon'}});
+
+      const map = fixture.debugElement.query((debug) => debug.componentInstance instanceof LocationMapStubComponent);
+      const stub = map.componentInstance as LocationMapStubComponent;
+      expect([stub.latitude(), stub.longitude(), stub.accuracy()]).toEqual([38.7223, -9.1393, 65]);
+      expect([...info()!.querySelectorAll('h3')].map((heading) => heading.textContent)).toEqual(['Camera', 'Location']);
+      expect(info()!.querySelector('.info-coordinates')?.textContent).toContain('38.722300, -9.139300');
+      expect(info()!.querySelector('.info-accuracy')?.textContent).toContain('± 65 m');
+    });
+
+    it('should show the location even when the EXIF could not be loaded', async () => {
+      viewer.open([{...photos[0], latitude: 38.7223, longitude: -9.1393}], 0);
+      fixture.detectChanges();
+      TestBed.tick();
+      http().expectOne('/photo-0.jpg/exif').flush('', {status: 500, statusText: 'Server Error'});
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(info()?.textContent).toContain('The EXIF could not be loaded.');
+      expect(info()!.querySelector('app-photo-location-map')).not.toBeNull();
+      expect(info()!.querySelector('.info-accuracy')).toBeNull();
+    });
+
+    it('should show no map for a photo with no GPS location', async () => {
+      open();
+      await flushExif('/photo-0.jpg/exif', {});
+
+      expect(info()!.querySelector('app-photo-location-map')).toBeNull();
+      expect(info()?.textContent).not.toContain('Location');
     });
 
     it('should hide the panel on I, not ask for the EXIF meanwhile, and keep it hidden across reloads', async () => {

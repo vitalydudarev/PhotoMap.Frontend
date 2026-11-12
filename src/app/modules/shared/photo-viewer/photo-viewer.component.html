@@ -80,26 +80,41 @@
       <aside id="photo-info" class="info" aria-label="Photo info">
         <h2 class="info-title">EXIF</h2>
 
-        @if (exif.isLoading()) {
-          <app-spinner [size]="20" label="Loading the EXIF" />
-        } @else if (exif.error()) {
-          <p class="info-note">The EXIF could not be loaded.</p>
-        } @else if (exifSections().length === 0) {
-          <p class="info-note">This photo has no EXIF data.</p>
-        } @else {
-          @for (section of exifSections(); track section.title) {
-            <section class="info-section">
-              <h3>{{ section.title }}</h3>
-              <dl>
-                @for (row of section.rows; track row.label) {
-                  <div class="info-row">
-                    <dt>{{ row.label }}</dt>
-                    <dd>{{ row.value }}</dd>
-                  </div>
-                }
-              </dl>
-            </section>
+        <div class="info-scroll">
+          @if (exif.isLoading()) {
+            <app-spinner [size]="20" label="Loading the EXIF" />
+          } @else if (exif.error()) {
+            <p class="info-note">The EXIF could not be loaded.</p>
+          } @else if (exifSections().length === 0) {
+            <p class="info-note">This photo has no EXIF data.</p>
+          } @else {
+            @for (section of exifSections(); track section.title) {
+              <section class="info-section">
+                <h3>{{ section.title }}</h3>
+                <dl>
+                  @for (row of section.rows; track row.label) {
+                    <div class="info-row">
+                      <dt>{{ row.label }}</dt>
+                      <dd>{{ row.value }}</dd>
+                    </div>
+                  }
+                </dl>
+              </section>
+            }
           }
+        </div>
+
+        @if (location(); as location) {
+          <section class="info-section info-location">
+            <h3>Location</h3>
+            <app-photo-location-map [latitude]="location.latitude" [longitude]="location.longitude" [accuracy]="location.accuracy" />
+            <p class="info-coordinates">
+              {{ location.latitude.toFixed(6) }}, {{ location.longitude.toFixed(6) }}
+              @if (location.accuracy) {
+                <span class="info-accuracy">± {{ location.accuracy | number: '1.0-0' }} m</span>
+              }
+            </p>
+          </section>
         }
       </aside>
     }

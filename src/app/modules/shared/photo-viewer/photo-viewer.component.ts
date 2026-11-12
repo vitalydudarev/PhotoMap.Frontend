@@ -1,4 +1,4 @@
-import {DOCUMENT} from '@angular/common';
+import {DOCUMENT, DecimalPipe} from '@angular/common';
 import {httpResource} from '@angular/common/http';
 import {ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, linkedSignal, signal, viewChild} from '@angular/core';
 import {Photo} from 'src/app/core/models/photo.model';
@@ -7,6 +7,7 @@ import {IconComponent} from 'src/app/shared/ui/icon/icon.component';
 import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
 
 import {exifSections} from './exif-sections';
+import {PhotoLocationMapComponent} from './photo-location-map.component';
 
 type LoadStatus = 'loading' | 'loaded' | 'failed';
 
@@ -25,7 +26,7 @@ const INFO_OPEN_STORAGE_KEY = 'photo-viewer-info-open';
   templateUrl: './photo-viewer.component.html',
   styleUrl: './photo-viewer.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent, SpinnerComponent],
+  imports: [DecimalPipe, IconComponent, PhotoLocationMapComponent, SpinnerComponent],
 })
 export class PhotoViewerComponent {
   private readonly viewer = inject(PhotoViewerService);
@@ -50,6 +51,15 @@ export class PhotoViewerComponent {
   });
 
   readonly exifSections = computed(() => (this.exif.hasValue() ? exifSections(this.exif.value()) : []));
+
+  /** Where the photo was taken, shown on a small map under the EXIF; none for a photo with no GPS location. */
+  readonly location = computed(() => {
+    const photo = this.photo();
+
+    return photo?.latitude != null && photo.longitude != null
+      ? {latitude: photo.latitude, longitude: photo.longitude, accuracy: photo.horizontalPositioningError}
+      : undefined;
+  });
 
   private readonly dialog = viewChild<ElementRef<HTMLElement>>('dialog');
 

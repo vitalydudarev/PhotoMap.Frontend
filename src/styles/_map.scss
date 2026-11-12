@@ -82,6 +82,14 @@
 
 /* The area a photo whose location may be far off may have been taken in, the hovered photo's or all
    of them, on OpenStreetMap; Google Maps draws its circles itself, in the same colours. */
+/* The spot a photo was taken at, on the small map of the photo viewer. */
+.location-map-marker {
+  fill: var(--app-accent);
+  fill-opacity: 1;
+  stroke: #fff;
+  stroke-width: 2px;
+}
+
 .photo-map-accuracy {
   fill: var(--app-danger);
   fill-opacity: 0.12;
