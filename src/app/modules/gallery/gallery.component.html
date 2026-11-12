@@ -47,6 +47,17 @@
             }
             <app-icon class="chevron" [class.chevron--open]="filtersOpen()" name="chevron-down" [size]="16" />
           </button>
+
+          @if (area()) {
+            <span class="area-chip">
+              <app-icon name="map" [size]="16" />
+              <span>Map area</span>
+              <button type="button" class="area-chip-clear" title="Show the photos taken anywhere" (click)="clearArea()">
+                <app-icon name="x" [size]="14" />
+                <span class="app-visually-hidden">Clear the map area</span>
+              </button>
+            </span>
+          }
         }
       </div>
 
@@ -161,7 +172,13 @@
     </div>
   } @else if (photos().length === 0 && isFiltered()) {
     <div class="state">
-      <p>No photos match the selected filters.</p>
+      <p>
+        @if (area()) {
+          No photos taken in this area of the map match the selected filters.
+        } @else {
+          No photos match the selected filters.
+        }
+      </p>
     </div>
   } @else if (photos().length === 0) {
     <div class="state">

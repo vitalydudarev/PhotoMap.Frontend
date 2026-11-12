@@ -17,6 +17,7 @@ import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {ActivatedRoute, Router} from '@angular/router';
 import {Observable, Subscription} from 'rxjs';
 import {PhotoCategory} from 'src/app/core/models/photo-category.model';
+import {MapArea, formatMapArea, parseMapArea} from 'src/app/core/models/map-area.model';
 import {PhotoFilter} from 'src/app/core/models/photo-filter.model';
 import {PhotoMonth, photoMonthKey} from 'src/app/core/models/photo-month.model';
 import {PhotoSortOrder} from 'src/app/core/models/photo-sort-order.model';
@@ -145,6 +146,9 @@ export class GalleryComponent implements OnInit {
    */
   readonly allFolders = signal(false);
 
+  /** The area of the map the photos were taken within, as the map asked for it; the photos taken anywhere when none. */
+  readonly area = signal<MapArea | undefined>(undefined);
+
   /** The filters sit in a row of their own under the toolbar, shown on demand. */
   readonly filtersOpen = signal(this.readFiltersOpenPreference());
 
@@ -153,7 +157,9 @@ export class GalleryComponent implements OnInit {
     () =>
       [this.sourceFilter, this.yearFilter, this.categoryFilter, this.gpsFilter, this.tagFilter].filter(
         (filter) => filter.values().length > 0 || filter.noneSelected(),
-      ).length + (this.allFolders() ? 1 : 0),
+      ).length +
+      (this.allFolders() ? 1 : 0) +
+      (this.area() ? 1 : 0),
   );
 
   /** Whether the photos shown are the deleted ones only. */
@@ -236,6 +242,7 @@ export class GalleryComponent implements OnInit {
   private gpsConst = 'gps';
   private tagConst = 'tag';
   private allFoldersConst = 'allFolders';
+  private areaConst = 'area';
   private duplicatesConst = 'duplicates';
 
   private photosRequest?: Subscription;
@@ -305,6 +312,8 @@ export class GalleryComponent implements OnInit {
         this.gpsFilter.request(params[this.gpsConst]);
         this.tagFilter.request(params[this.tagConst]);
         this.allFolders.set(params[this.allFoldersConst] === 'true');
+        // an address that is not an area leaves the photos taken anywhere, rather than none
+        this.area.set(parseMapArea(params[this.areaConst]));
         this.showDuplicates.set(params[this.duplicatesConst] === 'true');
       },
     });
@@ -359,6 +368,17 @@ export class GalleryComponent implements OnInit {
 
   allFoldersUpdated(allFolders: boolean): void {
     this.allFolders.set(allFolders);
+
+    // the other photos fill the pages differently, so the first page is the only one worth keeping
+    this.pageIndex = 0;
+
+    this.addQueryString();
+    this.setImages();
+  }
+
+  /** Shows the photos taken anywhere again, not only those within the area of the map. */
+  clearArea(): void {
+    this.area.set(undefined);
 
     // the other photos fill the pages differently, so the first page is the only one worth keeping
     this.pageIndex = 0;
@@ -456,8 +476,9 @@ export class GalleryComponent implements OnInit {
 
   /** Whether the photos are narrowed down by any of the filters. */
   isFiltered(): boolean {
-    return [this.sourceFilter, this.yearFilter, this.categoryFilter, this.gpsFilter, this.tagFilter].some(
-      (filter) => filter.values().length > 0,
+    return (
+      this.area() !== undefined ||
+      [this.sourceFilter, this.yearFilter, this.categoryFilter, this.gpsFilter, this.tagFilter].some((filter) => filter.values().length > 0)
     );
   }
 
@@ -572,6 +593,12 @@ export class GalleryComponent implements OnInit {
       params = params.append(this.allFoldersConst, 'true');
     }
 
+    const area = this.area();
+
+    if (area) {
+      params = params.append(this.areaConst, formatMapArea(area));
+    }
+
     if (this.showDuplicates()) {
       params = params.append(this.duplicatesConst, 'true');
     }
@@ -633,6 +660,7 @@ export class GalleryComponent implements OnInit {
       allFolders: this.allFolders(),
       tagIds: this.tagFilter.values().filter((tag) => tag !== UNTAGGED),
       untagged: this.tagFilter.values().includes(UNTAGGED),
+      area: this.area(),
     };
   }
 

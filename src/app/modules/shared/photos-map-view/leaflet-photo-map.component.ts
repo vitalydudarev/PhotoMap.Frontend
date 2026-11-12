@@ -15,6 +15,7 @@ import {
 // The default import is Leaflet's own exports object, the one leaflet.markercluster extends through the `L`
 // global; a namespace import would be a copy taken before the plugin adds `markerClusterGroup` to it.
 import L from 'leaflet';
+import {MapArea, mapAreaOfView} from 'src/app/core/models/map-area.model';
 import 'leaflet.markercluster';
 
 import {
@@ -67,6 +68,8 @@ export class LeafletPhotoMapComponent {
   readonly photosSelected = output<PhotoSelection>();
   /** Photos on one spot, too many to spread on the map, to show all together. */
   readonly groupOpened = output<readonly GeotaggedPhoto[]>();
+  /** The area the map shows, each time it has moved or zoomed. */
+  readonly areaChanged = output<MapArea>();
   /** Photos whose spot stands out on the map, for as long as they are shown together. */
   readonly highlighted = input<readonly GeotaggedPhoto[] | undefined>(undefined);
   /** Whether the areas of all the photos whose location may be far off are circled, not only the hovered one's. */
@@ -172,6 +175,7 @@ export class LeafletPhotoMapComponent {
     this.clusterGroup.addTo(map);
     // clusters that come back into view keep the icons they had, drawn for the room they had then
     map.on('moveend', () => this.scheduleSpreadLayout(map));
+    map.on('moveend', () => this.emitArea(map));
 
     const stopWatchingHover = watchInaccurateMarkerHover(element, (photoId) => this.showAccuracyArea(map, photoId));
     // the hovered marker may be gone into a cluster once the map has zoomed, without the pointer leaving it
@@ -184,6 +188,13 @@ export class LeafletPhotoMapComponent {
     map.on('unload', () => resizeObserver.disconnect());
 
     return map;
+  }
+
+  private emitArea(map: L.Map): void {
+    const bounds = map.getBounds();
+    const area = mapAreaOfView(bounds.getSouth(), bounds.getWest(), bounds.getNorth(), bounds.getEast());
+
+    this.zone.run(() => this.areaChanged.emit(area));
   }
 
   private showPhotos(map: L.Map, photos: readonly GeotaggedPhoto[]): void {

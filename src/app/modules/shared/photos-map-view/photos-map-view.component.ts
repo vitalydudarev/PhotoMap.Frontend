@@ -1,4 +1,6 @@
 import {ChangeDetectionStrategy, Component, computed, effect, inject, input, signal} from '@angular/core';
+import {Router} from '@angular/router';
+import {MapArea, formatMapArea, mapAreaContains} from 'src/app/core/models/map-area.model';
 import {Photo} from 'src/app/core/models/photo.model';
 import {PhotoViewerService} from 'src/app/core/services/photo-viewer.service';
 import {ButtonDirective} from 'src/app/shared/ui/button/button.directive';
@@ -35,6 +37,9 @@ const ACCURACY_STORAGE_KEY = 'map-accuracy-areas';
 export class PhotosMapViewComponent {
   readonly photos = input<readonly Photo[]>([]);
 
+  /** Whether a button opens the gallery on the photos the map shows. */
+  readonly showInGallery = input(false);
+
   readonly geotaggedPhotos = computed(() => this.photos().filter(isGeotagged));
 
   readonly providers: readonly SegmentedOption<MapProvider>[] = [
@@ -50,10 +55,21 @@ export class PhotosMapViewComponent {
   /** Whether the areas of all the photos whose location may be far off are circled, not only the hovered one's. */
   readonly showAccuracyAreas = signal(this.readPreference(ACCURACY_STORAGE_KEY) === 'true');
 
+  /** The area the map shows, once it has been drawn. */
+  readonly area = signal<MapArea | undefined>(undefined);
+
+  /** How many of the photos are within the area the map shows. */
+  readonly photosInArea = computed(() => {
+    const area = this.area();
+
+    return area ? this.geotaggedPhotos().filter((photo) => mapAreaContains(area, photo.latitude, photo.longitude)).length : 0;
+  });
+
   /** The photos of a crowded spot shown all together in a panel, if one is open. */
   readonly group = signal<readonly GeotaggedPhoto[] | undefined>(undefined);
 
   private readonly photoViewerService = inject(PhotoViewerService);
+  private readonly router = inject(Router);
 
   constructor() {
     effect(() => this.writePreference(PROVIDER_STORAGE_KEY, this.provider()));
@@ -68,6 +84,18 @@ export class PhotosMapViewComponent {
 
   openPhotos(selection: PhotoSelection): void {
     this.photoViewerService.open(selection.photos, selection.index);
+  }
+
+  /**
+   * Opens the gallery on the photos the map shows. Those of every folder are asked for, as the map shows them all, so
+   * that the gallery has as many as the button said.
+   */
+  openInGallery(): void {
+    const area = this.area();
+
+    if (area) {
+      void this.router.navigate(['/gallery'], {queryParams: {area: formatMapArea(area), allFolders: true}});
+    }
   }
 
   private readProviderPreference(): MapProvider {

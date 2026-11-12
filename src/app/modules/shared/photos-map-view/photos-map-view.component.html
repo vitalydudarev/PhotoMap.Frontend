@@ -5,6 +5,7 @@
     [showAccuracyAreas]="showAccuracyAreas()"
     (photosSelected)="openPhotos($event)"
     (groupOpened)="group.set($event)"
+    (areaChanged)="area.set($event)"
   />
 } @else {
   <app-leaflet-photo-map
@@ -13,6 +14,7 @@
     [showAccuracyAreas]="showAccuracyAreas()"
     (photosSelected)="openPhotos($event)"
     (groupOpened)="group.set($event)"
+    (areaChanged)="area.set($event)"
   />
 }
 
@@ -22,6 +24,20 @@
 
 <div class="controls">
   <app-segmented class="provider-switch" aria-label="Map provider" [options]="providers" [(value)]="provider" />
+
+  @if (showInGallery() && photosInArea() > 0) {
+    <button
+      class="gallery-link"
+      type="button"
+      size="sm"
+      appButton="filled"
+      title="Show the photos the map shows in the gallery"
+      (click)="openInGallery()"
+    >
+      <app-icon name="grid" [size]="16" />
+      Show {{ photosInArea() }} in gallery
+    </button>
+  }
 
   @if (hasInaccurateLocations()) {
     <button

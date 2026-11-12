@@ -1,3 +1,4 @@
+import {MapArea} from './map-area.model';
 import {PhotoCategory} from './photo-category.model';
 
 /**
@@ -21,4 +22,6 @@ export interface PhotoFilter {
   tagIds?: readonly number[];
   /** Whether the photos with no tag are taken, along with those of the tags; only they are when no tag is given. */
   untagged?: boolean;
+  /** The area of the map the photos were taken within, which leaves out the photos with no GPS location; anywhere when not given. */
+  area?: MapArea;
 }

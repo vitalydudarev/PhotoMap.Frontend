@@ -66,6 +66,40 @@
   text-align: center;
 }
 
+.area-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--app-space-2);
+  height: 38px;
+  padding: 0 var(--app-space-1) 0 var(--app-space-3);
+  border: 1px solid var(--app-border-strong);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-sunken);
+  color: var(--app-fg);
+  font-size: var(--app-text-sm);
+  font-weight: 500;
+}
+
+.area-chip-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--app-radius);
+  background: transparent;
+  color: var(--app-fg-muted);
+  cursor: pointer;
+  transition: background-color var(--app-transition);
+}
+
+.area-chip-clear:hover {
+  background: var(--app-border);
+  color: var(--app-fg);
+}
+
 .chevron {
   color: var(--app-fg-muted);
   transition: transform var(--app-transition);

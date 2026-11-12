@@ -13,6 +13,7 @@ import {
   viewChild,
 } from '@angular/core';
 import {importLibrary, setOptions} from '@googlemaps/js-api-loader';
+import {MapArea, mapAreaOfView} from 'src/app/core/models/map-area.model';
 import {
   AlgorithmInput,
   AlgorithmOutput,
@@ -113,6 +114,8 @@ export class GooglePhotoMapComponent {
   readonly photosSelected = output<PhotoSelection>();
   /** Photos on one spot, too many to spread on the map, to show all together. */
   readonly groupOpened = output<readonly GeotaggedPhoto[]>();
+  /** The area the map shows, each time it has moved or zoomed. */
+  readonly areaChanged = output<MapArea>();
   /** Photos whose spot stands out on the map, for as long as they are shown together. */
   readonly highlighted = input<readonly GeotaggedPhoto[] | undefined>(undefined);
   /** Whether the areas of all the photos whose location may be far off are circled, not only the hovered one's. */
@@ -237,6 +240,7 @@ export class GooglePhotoMapComponent {
     this.stopWatchingHover = watchInaccurateMarkerHover(this.container().nativeElement, (photoId) => this.showAccuracyArea(map, photoId));
     // the hovered marker may be gone into a cluster once the map has zoomed, without the pointer leaving it
     map.addListener('zoom_changed', () => this.accuracyCircle!.setMap(null));
+    map.addListener('idle', () => this.emitArea(map));
 
     this.ready.set({map, lib});
   }
@@ -276,6 +280,23 @@ export class GooglePhotoMapComponent {
         map.setZoom(FIT_MAX_ZOOM);
       }
     });
+  }
+
+  private emitArea(map: google.maps.Map): void {
+    const bounds = map.getBounds();
+
+    if (!bounds) {
+      return;
+    }
+
+    // the west side is east of the east one when the view is across the 180th meridian, which the area makes whole
+    const south = bounds.getSouthWest().lat();
+    const west = bounds.getSouthWest().lng();
+    const north = bounds.getNorthEast().lat();
+    const east = bounds.getNorthEast().lng();
+    const area = mapAreaOfView(south, west, north, east);
+
+    this.zone.run(() => this.areaChanged.emit(area));
   }
 
   /** Circles the areas of those of `photos` whose location may be far off, or takes them all off the map for none. */

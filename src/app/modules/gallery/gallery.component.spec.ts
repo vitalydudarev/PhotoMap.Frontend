@@ -1,7 +1,7 @@
 import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
-import {provideRouter} from '@angular/router';
+import {Router, provideRouter} from '@angular/router';
 import {of} from 'rxjs';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
@@ -373,6 +373,62 @@ describe('GalleryComponent', () => {
 
       const [defaultFolders] = photosRequests();
       expect(defaultFolders.request.params.get('allFolders')).toBeNull();
+    });
+
+    describe('by the area of the map', () => {
+      const chip = () => (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>('.area-chip');
+
+      const openWithAddress = async (url: string) => {
+        photosRequests();
+        await TestBed.inject(Router).navigateByUrl(url);
+        fixture.detectChanges();
+      };
+
+      it('should ask for the photos within the area the address asks for, and show it as a chip that counts', async () => {
+        await openWithAddress('/?area=-9.23,38.69,-9.09,38.8&allFolders=true');
+
+        // the gallery reads the address as it opens; it was open before here, so a change of the filters asks again
+        component.filterUpdated(component.yearFilter, component.yearFilter.selected());
+        fixture.detectChanges();
+
+        const [request] = photosRequests();
+        expect(request.request.params.get('area')).toBe('-9.23,38.69,-9.09,38.8');
+        expect(request.request.params.get('allFolders')).toBe('true');
+        expect(chip()?.textContent).toContain('Map area');
+        expect(toggle().querySelector('.filters-count')?.textContent).toContain('2');
+      });
+
+      it('should ask for the photos taken anywhere from the first page once the chip is cleared', async () => {
+        await openWithAddress('/?area=-9.23,38.69,-9.09,38.8');
+        component.pageIndex = 2;
+
+        chip()!.querySelector<HTMLButtonElement>('.area-chip-clear')!.click();
+        fixture.detectChanges();
+
+        const [request] = photosRequests();
+        expect(request.request.params.get('area')).toBeNull();
+        expect(request.request.params.get('skip')).toBe('0');
+        expect(chip()).toBeNull();
+        expect(component.area()).toBeUndefined();
+      });
+
+      it('should show the photos taken anywhere when the address asks for what is not an area', async () => {
+        await openWithAddress('/?area=north');
+
+        expect(component.area()).toBeUndefined();
+        expect(chip()).toBeNull();
+      });
+
+      it('should say that no photos of the area match, when none does', async () => {
+        await openWithAddress('/?area=-9.23,38.69,-9.09,38.8');
+        component.filterUpdated(component.yearFilter, component.yearFilter.selected());
+        photosRequests()[0].flush({total: 0, values: []});
+        fixture.detectChanges();
+
+        expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+          'No photos taken in this area of the map match the selected filters.',
+        );
+      });
     });
 
     describe('by tags', () => {

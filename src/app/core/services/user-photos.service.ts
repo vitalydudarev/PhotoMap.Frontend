@@ -3,6 +3,7 @@ import {Injectable, inject} from '@angular/core';
 import {Observable} from 'rxjs';
 import {environment} from 'src/environments/environment';
 
+import {formatMapArea} from '../models/map-area.model';
 import {PagedResponse} from '../models/paged-response.model';
 import {PhotoFilter} from '../models/photo-filter.model';
 import {PhotoSortOrder} from '../models/photo-sort-order.model';
@@ -50,6 +51,10 @@ export class UserPhotosService {
 
     if (filter.untagged) {
       params = params.set('untagged', true);
+    }
+
+    if (filter.area) {
+      params = params.set('area', formatMapArea(filter.area));
     }
 
     return this._httpClient.get<PagedResponse<Photo>>(`${this.url}/${userId}/photos`, {params});

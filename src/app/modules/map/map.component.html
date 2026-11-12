@@ -12,5 +12,5 @@
     <p>No photos with a location yet. Connect a photo source and start processing to see them here.</p>
   </div>
 } @else {
-  <app-photos-map-view class="map" [photos]="photos()" />
+  <app-photos-map-view class="map" [photos]="photos()" [showInGallery]="true" />
 }
