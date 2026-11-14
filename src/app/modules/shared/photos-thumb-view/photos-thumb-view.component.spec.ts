@@ -62,6 +62,11 @@ describe('PhotosThumbViewComponent', () => {
       (thumb) => thumb.querySelector('.duplicate')?.getAttribute('aria-label') ?? null,
     );
     expect(marks).toEqual(['Has a duplicate', null, 'Has 2 duplicates']);
+
+    const counts = [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('.duplicate-count')].map((count) =>
+      count.textContent?.trim(),
+    );
+    expect(counts).toEqual(['1', '2']);
   });
 
   it('should offer to delete a photo, and to restore a deleted one', () => {

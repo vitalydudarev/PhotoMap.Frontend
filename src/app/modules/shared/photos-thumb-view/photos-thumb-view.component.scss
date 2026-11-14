@@ -96,6 +96,26 @@
   color: #fff;
 }
 
+/* How many copies the photo has besides itself, over the corner of the icon. */
+.duplicate-count {
+  position: absolute;
+  top: -5px;
+  right: -6px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: var(--app-radius-pill);
+  background: rgb(40 40 40 / 85%);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 30%);
+  color: rgb(255 255 255 / 90%);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 15px;
+  text-align: center;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
 /* Shows on the thumbnail being pointed at or tabbed to, so that a grid of photos does not turn into a
    grid of bins. Same dark backing as the GPS badge, for the same reason. */
 .action {
@@ -147,7 +167,8 @@
 }
 
 .thumb--editing .tag-button {
-  background: var(--app-accent);
+  background: rgb(40 40 40 / 85%);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 30%);
 }
 
 /* The tags of the photo, listed over its bottom edge while it is pointed at. They keep a dark backing whatever the
@@ -241,7 +262,7 @@
   border: 2px solid #fff;
   border-radius: 50%;
   background: rgb(0 0 0 / 30%);
-  color: var(--app-accent-fg);
+  color: rgb(255 255 255 / 90%);
   box-shadow: 0 0 0 1px rgb(0 0 0 / 25%);
 }
 
@@ -261,7 +282,8 @@
 
 .thumb--selected .select-mark {
   border-color: var(--app-accent);
-  background: var(--app-accent);
+  background: rgb(40 40 40 / 85%);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 30%);
 }
 
 /* Floats at the bottom of the viewport, so it stays at hand however far down the photos are selected. */

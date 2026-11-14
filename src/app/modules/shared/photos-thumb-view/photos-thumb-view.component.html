@@ -36,6 +36,7 @@
           @let copiesLabel = copies === 1 ? 'Has a duplicate' : 'Has ' + copies + ' duplicates';
           <span class="duplicate" role="img" [attr.aria-label]="copiesLabel" [title]="copiesLabel">
             <app-icon name="copy" [size]="14" />
+            <span class="duplicate-count" aria-hidden="true">{{ copies > 99 ? '99+' : copies }}</span>
           </span>
         }
 
