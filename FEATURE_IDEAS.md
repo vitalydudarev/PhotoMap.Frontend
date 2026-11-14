@@ -9,7 +9,7 @@ PhotoMap's map, gallery and source sync are already in place, so most new featur
 - **Gallery:** filters by source, year, category, GPS and tag; bulk select and tagging; a month timeline; duplicate detection; a viewer with EXIF.
 - **Map:** Leaflet or Google Maps with clustering, a day-split panel for crowded spots, and a flag on imprecise locations.
 - **Videos:** a separate page with folder filtering and playback.
-- **Sources:** Yandex.Disk and Dropbox pages for processing, downloads and retrying failed files, with live progress over SignalR.
+- **Sources:** a Data Sources page, picking Yandex.Disk or Dropbox, for processing, downloads and retrying failed files, with live progress over SignalR.
 
 ## Map and location
 

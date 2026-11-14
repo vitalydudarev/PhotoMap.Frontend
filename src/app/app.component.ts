@@ -25,7 +25,6 @@ export class AppComponent {
     {title: 'Gallery', route: '/gallery', icon: 'grid'},
     {title: 'Videos', route: '/videos', icon: 'video'},
     {title: 'Map', route: '/map', icon: 'map'},
-    {title: 'Yandex.Disk', route: '/yandex-disk', icon: 'cloud'},
-    {title: 'Dropbox', route: '/dropbox', icon: 'box'},
+    {title: 'Data Sources', route: '/data-sources', icon: 'cloud'},
   ];
 }

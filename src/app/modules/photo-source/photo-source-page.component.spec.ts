@@ -301,7 +301,7 @@ describe('PhotoSourcePageComponent', () => {
       build('Dropbox');
 
       expect(component.sources().map((source) => source.name)).toEqual(['Dropbox']);
-      expect(page().querySelector('h1')?.textContent).toContain('Dropbox');
+      expect(page().querySelector('h2')?.textContent).toContain('Dropbox');
       expect(getCameraUploadsStatus).toHaveBeenCalledWith(1, DROPBOX);
       expect(getCameraUploadsStatus).not.toHaveBeenCalledWith(1, YANDEX_DISK);
       expect(getDownloadStatus).not.toHaveBeenCalledWith(1, YANDEX_DISK, expect.anything());
