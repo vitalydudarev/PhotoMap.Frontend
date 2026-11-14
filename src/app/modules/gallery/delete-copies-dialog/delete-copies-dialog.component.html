@@ -1,0 +1,37 @@
+<dialog #dialog class="dialog" aria-labelledby="delete-copies-title" (close)="closed.emit()">
+  <h2 id="delete-copies-title" class="title">Delete copies</h2>
+  <p class="hint">This photo is kept in {{ copies().length }} places. Pick the copies to delete.</p>
+
+  <label class="select-all">
+    <input type="checkbox" [checked]="allSelected()" [indeterminate]="selectedCount() > 0 && !allSelected()" (change)="toggleAll()" />
+    Select all
+  </label>
+
+  <ul class="copies">
+    @for (copy of copies(); track copy.id) {
+      @let source = sourceName(copy);
+      <li>
+        <label class="copy" [class.copy--selected]="isSelected(copy)">
+          <input type="checkbox" [checked]="isSelected(copy)" (change)="toggle(copy)" />
+          <img [src]="copy.thumbnailSmallUrl" alt="" width="56" height="56" (error)="onThumbnailError($event)" />
+          <span class="copy-text">
+            @if (source) {
+              <span class="copy-source">{{ source }}</span>
+            }
+            <span class="copy-folder" [title]="copy.path ?? ''">{{ folder(copy) }}</span>
+            @if (copy.fileName !== photo().fileName) {
+              <span class="copy-name" [title]="copy.fileName">{{ copy.fileName }}</span>
+            }
+          </span>
+        </label>
+      </li>
+    }
+  </ul>
+
+  <div class="actions">
+    <button appButton="ghost" type="button" (click)="close()">Cancel</button>
+    <button appButton="danger" type="button" [disabled]="selectedCount() === 0" (click)="confirm()">
+      {{ allSelected() ? 'Delete all' : selectedCount() === 1 ? 'Delete 1 copy' : 'Delete ' + selectedCount() + ' copies' }}
+    </button>
+  </div>
+</dialog>

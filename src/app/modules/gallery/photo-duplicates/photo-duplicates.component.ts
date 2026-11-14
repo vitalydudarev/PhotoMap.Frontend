@@ -1,5 +1,6 @@
 import {DatePipe} from '@angular/common';
 import {Component, computed, inject, input, output} from '@angular/core';
+import {photoFolder} from 'src/app/core/helpers/photo-folder.helper';
 import {Photo, PhotoDuplicateGroup} from 'src/app/core/models/photo.model';
 import {PhotoViewerService, UNAVAILABLE_IMAGE} from 'src/app/core/services/photo-viewer.service';
 import {IconComponent} from 'src/app/shared/ui/icon/icon.component';
@@ -34,16 +35,7 @@ export class PhotoDuplicatesComponent {
     this.photoViewerService.open(photos, photos.indexOf(photo));
   }
 
-  /** The folder of the photo, without the name of the disk it is on: `disk:/Camera Uploads/a.jpg` as `/Camera Uploads`. */
-  folder(photo: Photo): string {
-    if (!photo.path) {
-      return '—';
-    }
-
-    const folder = photo.path.replace(/^[^/]*:(?=\/)/, '').replace(/\/[^/]*$/, '');
-
-    return folder || '/';
-  }
+  readonly folder = photoFolder;
 
   onThumbnailError(event: Event): void {
     const image = event.target as HTMLImageElement;

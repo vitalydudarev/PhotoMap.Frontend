@@ -16,6 +16,10 @@ export class UserPhotosService {
 
   private url = `${environment.photoMapApiUrl}/users`;
 
+  /**
+   * A page of the photos of the user the filter takes. A photo with copies comes once, as the first of its copies the
+   * filter takes; its full photo is downloaded from whichever source of the copies the user is authorized in.
+   */
   public getUserPhotos(
     userId: number,
     top: number,

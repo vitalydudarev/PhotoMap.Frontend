@@ -200,6 +200,16 @@
         (photosTagsChange)="photosTagsUpdated($event)"
       />
 
+      @if (deletingCopies(); as deleting) {
+        <app-delete-copies-dialog
+          [photo]="deleting.photo"
+          [copies]="deleting.copies"
+          [sourceNames]="sourceNames()"
+          (confirmed)="deleteCopies(deleting.photo, deleting.copies, $event)"
+          (closed)="deletingCopies.set(null)"
+        />
+      }
+
       @if (timelineMonths().length > 1) {
         <app-gallery-timeline class="timeline" [months]="timelineMonths()" [active]="activeMonth()" (monthSelect)="monthSelected($event)" />
       }

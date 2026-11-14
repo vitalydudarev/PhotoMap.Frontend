@@ -15,7 +15,7 @@ import {
 } from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {ActivatedRoute, Router} from '@angular/router';
-import {Observable, Subscription} from 'rxjs';
+import {Observable, Subscription, catchError, forkJoin, map, of} from 'rxjs';
 import {PhotoCategory} from 'src/app/core/models/photo-category.model';
 import {MapArea, formatMapArea, parseMapArea} from 'src/app/core/models/map-area.model';
 import {PhotoFilter} from 'src/app/core/models/photo-filter.model';
@@ -35,6 +35,7 @@ import {ToastService} from '../../core/services/toast.service';
 import {UserPhotosService} from '../../core/services/user-photos.service';
 import {PhotosMapViewComponent} from '../shared/photos-map-view/photos-map-view.component';
 import {PhotoTagsChange, PhotosThumbViewComponent} from '../shared/photos-thumb-view/photos-thumb-view.component';
+import {DeleteCopiesDialogComponent} from './delete-copies-dialog/delete-copies-dialog.component';
 import {GalleryFilter} from './gallery-filter';
 import {GalleryTimelineComponent} from './gallery-timeline/gallery-timeline.component';
 import {PhotoDuplicatesComponent} from './photo-duplicates/photo-duplicates.component';
@@ -76,6 +77,7 @@ const UNTAGGED = 0;
   styleUrls: ['./gallery.component.scss'],
   imports: [
     ButtonDirective,
+    DeleteCopiesDialogComponent,
     GalleryTimelineComponent,
     IconComponent,
     MultiselectComponent,
@@ -186,6 +188,25 @@ export class GalleryComponent implements OnInit {
 
     return copies;
   });
+
+  /** The group of copies each photo that has any is in, by the ID of the photo. */
+  private readonly duplicateGroupOf = computed(() => {
+    const groups = new Map<string, PhotoDuplicateGroup>();
+
+    for (const group of this.duplicateGroups()) {
+      for (const photo of group.photos) {
+        groups.set(photo.id, group);
+      }
+    }
+
+    return groups;
+  });
+
+  /** The photo of the grid the user asked to delete, with its copies to pick from, while they pick them. */
+  readonly deletingCopies = signal<{photo: Photo; copies: readonly Photo[]} | null>(null);
+
+  /** The names of the photo sources of the user, by their ID, to tell where each copy is kept. */
+  readonly sourceNames = computed(() => new Map(this.sourceFilter.options().map((option) => [option.value, option.label])));
 
   /** Whether the photos of the grid are being selected, to add tags to them all at once. */
   readonly selecting = signal(false);
@@ -419,8 +440,79 @@ export class GalleryComponent implements OnInit {
       });
   }
 
+  /** A photo with copies asks which of them to delete first. */
   markPhotoAsDeleted(photo: Photo): void {
+    const group = this.duplicateGroupOf().get(photo.id);
+
+    if (group) {
+      this.deletingCopies.set({photo, copies: group.photos});
+
+      return;
+    }
+
     this.changeDeleted(photo, this.userPhotosService.markPhotoAsDeleted(this.userId, photo.id), new Date(), 'Could not delete the photo.');
+  }
+
+  /**
+   * Deletes the copies picked of the photo of the grid. They leave their group, and the group goes once a single photo
+   * is left in it. When the photo of the grid is one of them, a copy left takes its place, as the server would show
+   * that copy now; it leaves the grid when none is left, or the filters leave the copies left out.
+   */
+  deleteCopies(photo: Photo, copies: readonly Photo[], picked: readonly Photo[]): void {
+    this.setBusy(photo.id, true);
+
+    forkJoin(
+      picked.map((copy) =>
+        this.userPhotosService.markPhotoAsDeleted(this.userId, copy.id).pipe(
+          map(() => copy.id),
+          catchError((error) => of({error})),
+        ),
+      ),
+    )
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((results) => {
+        this.setBusy(photo.id, false);
+
+        const deletedIds = new Set(results.filter((result): result is string => typeof result === 'string'));
+        const failures = results.filter((result) => typeof result !== 'string');
+
+        if (failures.length > 0) {
+          this.toastService.error(
+            failures.length === results.length ? 'Could not delete the copies.' : `Could not delete ${failures.length} of the copies.`,
+            failures[0].error,
+          );
+        }
+
+        if (deletedIds.size === 0) {
+          return;
+        }
+
+        this.duplicateGroups.update((groups) =>
+          groups
+            .map((group) => ({...group, photos: group.photos.filter((copy) => !deletedIds.has(copy.id))}))
+            .filter((group) => group.photos.length > 1),
+        );
+
+        if (!deletedIds.has(photo.id)) {
+          return;
+        }
+
+        const sources = this.sourceFilter.values();
+        const replacement = copies.find(
+          (copy) =>
+            !deletedIds.has(copy.id) &&
+            (sources.length === 0 || (copy.photoSourceId !== undefined && sources.includes(copy.photoSourceId))),
+        );
+
+        // the deleted photos are not shown along with the others, so the copy left can take its place
+        if (replacement && !this.shows(true)) {
+          this.photos.update((photos) => photos.map((shown) => (shown.id === photo.id ? replacement : shown)));
+
+          return;
+        }
+
+        this.applyDeleted(photo.id, new Date());
+      });
   }
 
   restorePhoto(photo: Photo): void {
@@ -752,33 +844,37 @@ export class GalleryComponent implements OnInit {
     request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.setBusy(photo.id, false);
-
-        // the photos were loaded again meanwhile, and the server already left it out of them, or not
-        if (!this.photos().some((shown) => shown.id === photo.id)) {
-          return;
-        }
-
-        if (this.shows(deletedOn !== null)) {
-          this.photos.update((photos) => photos.map((shown) => (shown.id === photo.id ? {...shown, deletedOn} : shown)));
-
-          return;
-        }
-
-        this.photos.update((photos) => photos.filter((shown) => shown.id !== photo.id));
-        this.totalCount.update((count) => count - 1);
-
-        // the page was emptied, but the photos after it would move up into it
-        if (this.photos().length === 0 && this.totalCount() > 0) {
-          this.pageIndex = Math.min(this.pageIndex, Math.ceil(this.totalCount() / this.pageSize) - 1);
-          this.addQueryString();
-          this.setImages();
-        }
+        this.applyDeleted(photo.id, deletedOn);
       },
       error: (error) => {
         this.setBusy(photo.id, false);
         this.toastService.error(failure, error);
       },
     });
+  }
+
+  /** Marks the photo of the grid as deleted, or not, keeping it in place when the photos shown take it either way. */
+  private applyDeleted(photoId: string, deletedOn: Date | null): void {
+    // the photos were loaded again meanwhile, and the server already left it out of them, or not
+    if (!this.photos().some((shown) => shown.id === photoId)) {
+      return;
+    }
+
+    if (this.shows(deletedOn !== null)) {
+      this.photos.update((photos) => photos.map((shown) => (shown.id === photoId ? {...shown, deletedOn} : shown)));
+
+      return;
+    }
+
+    this.photos.update((photos) => photos.filter((shown) => shown.id !== photoId));
+    this.totalCount.update((count) => count - 1);
+
+    // the page was emptied, but the photos after it would move up into it
+    if (this.photos().length === 0 && this.totalCount() > 0) {
+      this.pageIndex = Math.min(this.pageIndex, Math.ceil(this.totalCount() / this.pageSize) - 1);
+      this.addQueryString();
+      this.setImages();
+    }
   }
 
   /** Whether the photos shown take the deleted photos, or the ones that are not. */

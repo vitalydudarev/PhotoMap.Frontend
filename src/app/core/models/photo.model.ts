@@ -9,6 +9,8 @@ export interface Photo {
   /** How far off the location may be, in meters, as the camera reported it; none when it did not. */
   horizontalPositioningError?: number | null;
   fileName: string;
+  /** The photo source the photo is kept in. */
+  photoSourceId?: number;
   /** The path of the photo in its photo source, with its file name. */
   path?: string | null;
   /** When the user marked the photo as deleted, none while it is not. */

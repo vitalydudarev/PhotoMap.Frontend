@@ -1,0 +1,109 @@
+.dialog {
+  width: min(440px, calc(100vw - 2 * var(--app-space-4)));
+  max-height: calc(100vh - 2 * var(--app-space-6));
+  padding: var(--app-space-5);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  background: var(--app-surface);
+  color: var(--app-fg);
+  box-shadow: var(--app-shadow-lg);
+}
+
+.dialog[open] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-3);
+}
+
+.dialog::backdrop {
+  background: var(--app-scrim);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--app-text-lg);
+  font-weight: 600;
+}
+
+.hint {
+  margin: 0;
+  color: var(--app-fg-muted);
+  font-size: var(--app-text-sm);
+}
+
+.select-all,
+.copy {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-3);
+  cursor: pointer;
+}
+
+.select-all {
+  font-size: var(--app-text-sm);
+  font-weight: 600;
+}
+
+.copies {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-1);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.copy {
+  padding: var(--app-space-2);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  transition: background var(--app-transition);
+}
+
+.copy:hover {
+  background: var(--app-surface-hover);
+}
+
+.copy--selected {
+  border-color: var(--app-danger);
+  background: var(--app-danger-soft);
+}
+
+.copy img {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--app-radius-sm);
+  object-fit: cover;
+  background: var(--app-surface-sunken);
+}
+
+.copy-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: var(--app-text-sm);
+}
+
+.copy-source {
+  font-weight: 600;
+}
+
+.copy-folder,
+.copy-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copy-name {
+  color: var(--app-fg-muted);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--app-space-2);
+  margin-top: var(--app-space-2);
+}
