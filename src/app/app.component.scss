@@ -88,12 +88,6 @@
   min-height: 0;
 }
 
-@media (width <= 1100px) {
-  .header-end .app-badge {
-    display: none;
-  }
-}
-
 @media (width <= 720px) {
   .header-inner {
     gap: var(--app-space-3);
