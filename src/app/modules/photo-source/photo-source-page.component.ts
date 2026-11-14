@@ -939,7 +939,7 @@ export class PhotoSourcePageComponent implements OnInit {
       .subscribe({
         next: (completed) => {
           if (completed) {
-            this.toastService.success(`${sourceName} is connected.`);
+            this.toastService.success(`${sourceName} is authorized.`);
           }
 
           this.showPage();

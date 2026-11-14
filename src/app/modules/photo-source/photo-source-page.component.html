@@ -6,10 +6,10 @@
         @if (source.isAuthorized) {
           <span class="app-badge app-badge--success">
             <app-icon name="check" [size]="13" />
-            Connected
+            Authorized
           </span>
         } @else {
-          <span class="app-badge">Not connected</span>
+          <span class="app-badge">Not authorized</span>
         }
       }
     </div>
@@ -27,7 +27,7 @@
       <div class="connection-row">
         <p class="connection-status">
           @if (source.isAuthorized) {
-            Connected{{ source.tokenExpires ? ' until ' + source.tokenExpires : '' }}.
+            Authorized{{ source.tokenExpires ? ' until ' + source.tokenExpires : '' }}.
           } @else {
             Authorize the account to import and download its files.
           }

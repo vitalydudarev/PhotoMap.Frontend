@@ -316,18 +316,18 @@ describe('PhotoSourcePageComponent', () => {
       expect(page().querySelector('app-tabs')).toBeNull();
     });
 
-    it('should show whether the source is connected, and until when', () => {
+    it('should show whether the source is authorized, and until when', () => {
       sources[0].tokenExpiresOn = '2026-12-01T10:00:00Z';
       build('Dropbox');
 
       expect(view().isAuthorized).toBe(true);
-      expect(text()).toContain('Connected until');
+      expect(text()).toContain('Authorized until');
       expect(button('Reauthorize')).toBeTruthy();
 
       build('Yandex.Disk');
 
       expect(view().isAuthorized).toBe(false);
-      expect(text()).toContain('Not connected');
+      expect(text()).toContain('Not authorized');
       expect(button('Authorize')).toBeTruthy();
     });
 
