@@ -61,6 +61,16 @@ export class PhotoViewerComponent {
       : undefined;
   });
 
+  /**
+   * The address of where the photo was taken, by the geocoding of its GPS location; asked for only while the panel is
+   * open, and only for a photo with a location. Null while the photo has not been geocoded.
+   */
+  readonly address = httpResource<{address: string | null}>(() => {
+    const photo = this.photo();
+
+    return photo && this.infoOpen() && this.location() ? `${photo.photoUrl}/address` : undefined;
+  });
+
   private readonly dialog = viewChild<ElementRef<HTMLElement>>('dialog');
 
   /** Where the focus was before the viewer opened, to put it back on close. */

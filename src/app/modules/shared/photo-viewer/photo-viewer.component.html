@@ -114,6 +114,9 @@
                 <span class="info-accuracy">± {{ location.accuracy | number: '1.0-0' }} m</span>
               }
             </p>
+            @if (address.hasValue() && address.value().address; as address) {
+              <p class="info-address">{{ address }}</p>
+            }
           </section>
         }
       </aside>

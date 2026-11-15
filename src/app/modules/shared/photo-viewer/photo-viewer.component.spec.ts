@@ -181,6 +181,8 @@ describe('PhotoViewerComponent', () => {
     it('should show where the photo was taken on a map under the EXIF, with how far off it may be', async () => {
       viewer.open([{...photos[0], latitude: 38.7223, longitude: -9.1393, horizontalPositioningError: 65}], 0);
       fixture.detectChanges();
+      TestBed.tick();
+      http().expectOne('/photo-0.jpg/address').flush({address: null});
       await flushExif('/photo-0.jpg/exif', {ExifIfd0: {Make: 'Canon'}});
 
       const map = fixture.debugElement.query((debug) => debug.componentInstance instanceof LocationMapStubComponent);
@@ -196,6 +198,7 @@ describe('PhotoViewerComponent', () => {
       fixture.detectChanges();
       TestBed.tick();
       http().expectOne('/photo-0.jpg/exif').flush('', {status: 500, statusText: 'Server Error'});
+      http().expectOne('/photo-0.jpg/address').flush({address: null});
       await fixture.whenStable();
       fixture.detectChanges();
 
@@ -204,12 +207,34 @@ describe('PhotoViewerComponent', () => {
       expect(info()!.querySelector('.info-accuracy')).toBeNull();
     });
 
-    it('should show no map for a photo with no GPS location', async () => {
+    it('should show the geocoded address under the coordinates', async () => {
+      viewer.open([{...photos[0], latitude: 38.7223, longitude: -9.1393}], 0);
+      fixture.detectChanges();
+      TestBed.tick();
+      http().expectOne('/photo-0.jpg/address').flush({address: 'Praça do Comércio, 1100-148 Lisbon, Portugal'});
+      await flushExif('/photo-0.jpg/exif', {});
+
+      expect(info()!.querySelector('.info-address')?.textContent).toBe('Praça do Comércio, 1100-148 Lisbon, Portugal');
+    });
+
+    it('should show no address while the photo has not been geocoded', async () => {
+      viewer.open([{...photos[0], latitude: 38.7223, longitude: -9.1393}], 0);
+      fixture.detectChanges();
+      TestBed.tick();
+      http().expectOne('/photo-0.jpg/address').flush({address: null});
+      await flushExif('/photo-0.jpg/exif', {});
+
+      expect(info()!.querySelector('app-photo-location-map')).not.toBeNull();
+      expect(info()!.querySelector('.info-address')).toBeNull();
+    });
+
+    it('should show no map for a photo with no GPS location, and not ask for its address', async () => {
       open();
       await flushExif('/photo-0.jpg/exif', {});
 
       expect(info()!.querySelector('app-photo-location-map')).toBeNull();
       expect(info()?.textContent).not.toContain('Location');
+      http().expectNone('/photo-0.jpg/address');
     });
 
     it('should hide the panel on I, not ask for the EXIF meanwhile, and keep it hidden across reloads', async () => {

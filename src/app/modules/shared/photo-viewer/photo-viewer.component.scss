@@ -215,6 +215,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+.info-address {
+  margin: var(--app-space-1) 0 0;
+  color: rgb(255 255 255 / 70%);
+  overflow-wrap: anywhere;
+}
+
 @keyframes viewer-in {
   from {
     opacity: 0;
