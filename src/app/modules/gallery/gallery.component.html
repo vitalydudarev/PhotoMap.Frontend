@@ -1,52 +1,30 @@
-<div class="gallery" [style.--gallery-toolbar-height.px]="toolbarHeight()">
-  <div #toolbar class="toolbar">
-    <div class="toolbar-inner">
-      <div class="view-controls">
-        <button appButton="outline" type="button" [attr.aria-pressed]="showDuplicates()" (click)="toggleDuplicates()">
-          {{ showDuplicates() ? 'Show all photos' : 'Show duplicates' }}
+<div class="gallery" [class.gallery--sidebar-open]="sidebarOpen()" [style.--gallery-toolbar-height.px]="toolbarHeight()">
+  @if (sidebarOpen()) {
+    <!-- on a narrow screen the sidebar slides over the photos, and a click beside it closes it -->
+    <button type="button" class="sidebar-backdrop" tabindex="-1" aria-hidden="true" (click)="sidebarOpen.set(false)"></button>
+
+    <aside id="gallery-sidebar" class="sidebar" aria-label="Photos and filters">
+      <nav class="sidebar-section" aria-label="Library">
+        <button type="button" class="view-link" [attr.aria-current]="showDuplicates() ? null : 'page'" (click)="selectDuplicates(false)">
+          <app-icon name="image" [size]="16" />
+          <span>All photos</span>
         </button>
+        <button type="button" class="view-link" [attr.aria-current]="showDuplicates() ? 'page' : null" (click)="selectDuplicates(true)">
+          <app-icon name="copy" [size]="16" />
+          <span>Duplicates</span>
+        </button>
+      </nav>
 
-        @if (!showDuplicates()) {
-          <app-segmented aria-label="View mode" [options]="viewModes" [(value)]="selectedViewMode" [iconsOnly]="true" />
-
-          @if (selectedViewMode() === 'thumb') {
-            <app-segmented aria-label="Grid width" [options]="widthModes" [(value)]="selectedWidth" [iconsOnly]="true" />
-
-            <button
-              appButton="outline"
-              type="button"
-              class="select-toggle"
-              [attr.aria-pressed]="selecting()"
-              [disabled]="photos().length === 0"
-              (click)="selecting.set(!selecting())"
-            >
-              <app-icon name="check-circle" [size]="16" />
-              {{ selecting() ? 'Cancel selection' : 'Select' }}
-            </button>
-          }
-
-          <app-segmented
-            aria-label="Sort order"
-            [options]="sortOrders"
-            [value]="selectedSortOrder()"
-            (valueChange)="sortOrderUpdated($event)"
-            [iconsOnly]="true"
-          />
-
-          <button
-            type="button"
-            class="filters-toggle"
-            [attr.aria-controls]="filtersOpen() ? 'gallery-filters' : null"
-            [attr.aria-expanded]="filtersOpen()"
-            (click)="filtersOpen.set(!filtersOpen())"
-          >
-            <app-icon name="filter" [size]="16" />
-            <span>Filters</span>
+      @if (showDuplicates()) {
+        <p class="sidebar-note">The copies are looked for among all the photos, so the filters do not apply to them.</p>
+      } @else {
+        <div id="gallery-filters" class="sidebar-section filters" role="group" aria-labelledby="gallery-filters-heading">
+          <div class="filters-heading">
+            <h2 id="gallery-filters-heading" class="sidebar-heading">Filters</h2>
             @if (activeFilterCount() > 0) {
-              <span class="filters-count">{{ activeFilterCount() }}<span class="app-visually-hidden"> active</span></span>
+              <button type="button" class="filters-reset" (click)="resetFilters()">Reset</button>
             }
-            <app-icon class="chevron" [class.chevron--open]="filtersOpen()" name="chevron-down" [size]="16" />
-          </button>
+          </div>
 
           @if (area()) {
             <span class="area-chip">
@@ -58,29 +36,10 @@
               </button>
             </span>
           }
-        }
-      </div>
 
-      @if (showDuplicates()) {
-        @if (duplicateGroups().length > 0) {
-          <p class="summary">{{ duplicateCount() }} photos in {{ duplicateGroups().length }} groups of copies</p>
-        }
-      } @else {
-        <app-paginator
-          [length]="totalCount()"
-          [pageIndex]="pageIndex"
-          [pageSize]="pageSize"
-          [pageSizeOptions]="pageSizes"
-          (page)="pageUpdated($event)"
-        />
-      }
-    </div>
-
-    @if (filtersOpen() && !showDuplicates()) {
-      <div id="gallery-filters" class="filters" role="group" aria-label="Filters">
-        <div class="filters-inner">
           @if (sourceFilter.options().length > 0) {
-            <app-multiselect
+            <app-checklist
+              [collapsed]="true"
               label="Sources"
               [options]="sourceFilter.options()"
               [value]="sourceFilter.selected()"
@@ -89,7 +48,8 @@
           }
 
           @if (yearFilter.options().length > 0) {
-            <app-multiselect
+            <app-checklist
+              [collapsed]="true"
               label="Years"
               [options]="yearFilter.options()"
               [value]="yearFilter.selected()"
@@ -97,14 +57,16 @@
             />
           }
 
-          <app-multiselect
+          <app-checklist
+            [collapsed]="true"
             label="Category"
             [options]="categoryFilter.options()"
             [value]="categoryFilter.selected()"
             (valueChange)="filterUpdated(categoryFilter, $event)"
           />
 
-          <app-multiselect
+          <app-checklist
+            [collapsed]="true"
             label="GPS"
             [options]="gpsFilter.options()"
             [value]="gpsFilter.selected()"
@@ -112,7 +74,8 @@
           />
 
           @if (tagFilter.options().length > 0) {
-            <app-multiselect
+            <app-checklist
+              [collapsed]="true"
               label="Tags"
               [options]="tagFilter.options()"
               [value]="tagFilter.selected()"
@@ -125,96 +88,176 @@
             <span>Photos of all folders</span>
           </label>
         </div>
-      </div>
-    }
-  </div>
+      }
+    </aside>
+  }
 
-  @if (showSpinner()) {
-    <div class="state">
-      <app-spinner [size]="28" label="Loading photos" />
-      <p>Loading photos…</p>
+  <div class="main">
+    <div #toolbar class="toolbar">
+      <div class="toolbar-inner">
+        <div class="view-controls">
+          <button
+            type="button"
+            class="sidebar-toggle"
+            [title]="sidebarOpen() ? 'Hide the sidebar' : 'Show the sidebar'"
+            [attr.aria-controls]="sidebarOpen() ? 'gallery-sidebar' : null"
+            [attr.aria-expanded]="sidebarOpen()"
+            (click)="sidebarOpen.set(!sidebarOpen())"
+          >
+            <app-icon name="sidebar" [size]="16" />
+            <span class="app-visually-hidden">Filters</span>
+            @if (activeFilterCount() > 0 && !showDuplicates()) {
+              <span class="filters-count">{{ activeFilterCount() }}<span class="app-visually-hidden"> active</span></span>
+            }
+          </button>
+
+          @if (showDuplicates()) {
+            <span class="toolbar-title">Duplicates</span>
+          } @else {
+            <app-segmented aria-label="View mode" [options]="viewModes" [(value)]="selectedViewMode" [iconsOnly]="true" />
+
+            @if (selectedViewMode() === 'thumb') {
+              <app-segmented
+                class="width-modes"
+                aria-label="Grid width"
+                [options]="widthModes"
+                [(value)]="selectedWidth"
+                [iconsOnly]="true"
+              />
+            }
+
+            <app-segmented
+              aria-label="Sort order"
+              [options]="sortOrders"
+              [value]="selectedSortOrder()"
+              (valueChange)="sortOrderUpdated($event)"
+              [iconsOnly]="true"
+            />
+
+            @if (selectedViewMode() === 'thumb') {
+              <button
+                appButton="outline"
+                type="button"
+                class="select-toggle"
+                [attr.aria-pressed]="selecting()"
+                [disabled]="photos().length === 0"
+                (click)="selecting.set(!selecting())"
+              >
+                <app-icon name="check-circle" [size]="16" />
+                <span class="select-label">{{ selecting() ? 'Cancel' : 'Select' }}</span>
+              </button>
+            }
+          }
+        </div>
+
+        @if (showDuplicates()) {
+          @if (duplicateGroups().length > 0) {
+            <p class="summary">{{ duplicateCount() }} photos in {{ duplicateGroups().length }} groups of copies</p>
+          }
+        } @else {
+          <app-paginator
+            [length]="totalCount()"
+            [pageIndex]="pageIndex"
+            [pageSize]="pageSize"
+            [pageSizeOptions]="pageSizes"
+            (page)="pageUpdated($event)"
+          />
+        }
+      </div>
     </div>
-  } @else if (failed()) {
-    <div class="state">
-      <p>The photos could not be loaded.</p>
-    </div>
-  } @else if (showDuplicates()) {
-    @if (duplicateGroups().length === 0) {
+
+    @if (showSpinner()) {
       <div class="state">
-        <p>No duplicate photos. Photos of the same contents, wherever they are kept, are listed here as copies of one another.</p>
+        <app-spinner [size]="28" label="Loading photos" />
+        <p>Loading photos…</p>
+      </div>
+    } @else if (failed()) {
+      <div class="state">
+        <p>The photos could not be loaded.</p>
+      </div>
+    } @else if (showDuplicates()) {
+      @if (duplicateGroups().length === 0) {
+        <div class="state">
+          <p>No duplicate photos. Photos of the same contents, wherever they are kept, are listed here as copies of one another.</p>
+        </div>
+      } @else {
+        <app-photo-duplicates [groups]="duplicateGroups()" [busy]="busyPhotoIds()" (markAsDeleted)="deleteDuplicate($event)" />
+      }
+    } @else if (sourceFilter.noneSelected()) {
+      <div class="state">
+        <p>No photo sources are selected. Pick one to see its photos.</p>
+      </div>
+    } @else if (yearFilter.noneSelected()) {
+      <div class="state">
+        <p>No years are selected. Pick one to see its photos.</p>
+      </div>
+    } @else if (categoryFilter.noneSelected()) {
+      <div class="state">
+        <p>No categories are selected. Pick one to see its photos.</p>
+      </div>
+    } @else if (gpsFilter.noneSelected()) {
+      <div class="state">
+        <p>Neither photos with GPS nor without are selected. Pick one to see its photos.</p>
+      </div>
+    } @else if (tagFilter.noneSelected()) {
+      <div class="state">
+        <p>No tags are selected. Pick one to see its photos.</p>
+      </div>
+    } @else if (photos().length === 0 && onlyDeletedShown()) {
+      <div class="state">
+        <p>No deleted photos.</p>
+      </div>
+    } @else if (photos().length === 0 && isFiltered()) {
+      <div class="state">
+        <p>
+          @if (area()) {
+            No photos taken in this area of the map match the selected filters.
+          } @else {
+            No photos match the selected filters.
+          }
+        </p>
+      </div>
+    } @else if (photos().length === 0) {
+      <div class="state">
+        <p>No photos yet. Connect a photo source and start processing to see them here.</p>
+      </div>
+    } @else if (selectedViewMode() === 'thumb') {
+      <div class="thumbs">
+        <app-photos-thumb-view
+          class="thumb-view"
+          [photos]="photos()"
+          [fullWidth]="isFullWidth()"
+          [busy]="busyPhotoIds()"
+          [tagOptions]="tags()"
+          [duplicates]="duplicateCopies()"
+          [(selecting)]="selecting"
+          (markAsDeleted)="markPhotoAsDeleted($event)"
+          (restore)="restorePhoto($event)"
+          (tagsChange)="tagsUpdated($event)"
+          (photosTagsChange)="photosTagsUpdated($event)"
+        />
+
+        @if (deletingCopies(); as deleting) {
+          <app-delete-copies-dialog
+            [photo]="deleting.photo"
+            [copies]="deleting.copies"
+            [sourceNames]="sourceNames()"
+            (confirmed)="deleteCopies(deleting.photo, deleting.copies, $event)"
+            (closed)="deletingCopies.set(null)"
+          />
+        }
+
+        @if (timelineMonths().length > 1) {
+          <app-gallery-timeline
+            class="timeline"
+            [months]="timelineMonths()"
+            [active]="activeMonth()"
+            (monthSelect)="monthSelected($event)"
+          />
+        }
       </div>
     } @else {
-      <app-photo-duplicates [groups]="duplicateGroups()" [busy]="busyPhotoIds()" (markAsDeleted)="deleteDuplicate($event)" />
+      <app-photos-map-view class="map" [photos]="photos()" />
     }
-  } @else if (sourceFilter.noneSelected()) {
-    <div class="state">
-      <p>No photo sources are selected. Pick one to see its photos.</p>
-    </div>
-  } @else if (yearFilter.noneSelected()) {
-    <div class="state">
-      <p>No years are selected. Pick one to see its photos.</p>
-    </div>
-  } @else if (categoryFilter.noneSelected()) {
-    <div class="state">
-      <p>No categories are selected. Pick one to see its photos.</p>
-    </div>
-  } @else if (gpsFilter.noneSelected()) {
-    <div class="state">
-      <p>Neither photos with GPS nor without are selected. Pick one to see its photos.</p>
-    </div>
-  } @else if (tagFilter.noneSelected()) {
-    <div class="state">
-      <p>No tags are selected. Pick one to see its photos.</p>
-    </div>
-  } @else if (photos().length === 0 && onlyDeletedShown()) {
-    <div class="state">
-      <p>No deleted photos.</p>
-    </div>
-  } @else if (photos().length === 0 && isFiltered()) {
-    <div class="state">
-      <p>
-        @if (area()) {
-          No photos taken in this area of the map match the selected filters.
-        } @else {
-          No photos match the selected filters.
-        }
-      </p>
-    </div>
-  } @else if (photos().length === 0) {
-    <div class="state">
-      <p>No photos yet. Connect a photo source and start processing to see them here.</p>
-    </div>
-  } @else if (selectedViewMode() === 'thumb') {
-    <div class="thumbs">
-      <app-photos-thumb-view
-        class="thumb-view"
-        [photos]="photos()"
-        [fullWidth]="isFullWidth()"
-        [busy]="busyPhotoIds()"
-        [tagOptions]="tags()"
-        [duplicates]="duplicateCopies()"
-        [(selecting)]="selecting"
-        (markAsDeleted)="markPhotoAsDeleted($event)"
-        (restore)="restorePhoto($event)"
-        (tagsChange)="tagsUpdated($event)"
-        (photosTagsChange)="photosTagsUpdated($event)"
-      />
-
-      @if (deletingCopies(); as deleting) {
-        <app-delete-copies-dialog
-          [photo]="deleting.photo"
-          [copies]="deleting.copies"
-          [sourceNames]="sourceNames()"
-          (confirmed)="deleteCopies(deleting.photo, deleting.copies, $event)"
-          (closed)="deletingCopies.set(null)"
-        />
-      }
-
-      @if (timelineMonths().length > 1) {
-        <app-gallery-timeline class="timeline" [months]="timelineMonths()" [active]="activeMonth()" (monthSelect)="monthSelected($event)" />
-      }
-    </div>
-  } @else {
-    <app-photos-map-view class="map" [photos]="photos()" />
-  }
+  </div>
 </div>

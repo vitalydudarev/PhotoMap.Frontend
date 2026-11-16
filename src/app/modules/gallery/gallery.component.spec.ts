@@ -151,29 +151,31 @@ describe('GalleryComponent', () => {
   describe('filters', () => {
     const http = () => TestBed.inject(HttpTestingController);
     const photosRequests = () => http().match((request) => request.url.endsWith('/photos'));
-    const multiselects = () => [...(fixture.nativeElement as HTMLElement).querySelectorAll('app-multiselect')];
-    const toggle = () => (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.filters-toggle')!;
+    const multiselects = () => [...(fixture.nativeElement as HTMLElement).querySelectorAll('.sidebar app-checklist')];
+    const toggle = () => (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.sidebar-toggle')!;
 
-    const openFilters = () => {
+    const toggleSidebar = () => {
       toggle().click();
       fixture.detectChanges();
     };
 
-    it('should hide the filters behind a button until it is clicked', () => {
+    it('should show the filters in the sidebar, which a button hides and shows again', () => {
       photosRequests();
       flushYears();
+
+      expect(multiselects()).toHaveLength(4);
+      expect(toggle().getAttribute('aria-expanded')).toBe('true');
+      // folded away under their headings, which say what is picked, so they all fit without scrolling
+      expect((fixture.nativeElement as HTMLElement).querySelectorAll('.sidebar app-checklist .options')).toHaveLength(0);
+
+      toggleSidebar();
 
       expect(multiselects()).toHaveLength(0);
       expect(toggle().getAttribute('aria-expanded')).toBe('false');
 
-      openFilters();
+      toggleSidebar();
 
       expect(multiselects()).toHaveLength(4);
-      expect(toggle().getAttribute('aria-expanded')).toBe('true');
-
-      openFilters();
-
-      expect(multiselects()).toHaveLength(0);
     });
 
     it('should count on the button the filters that narrow the photos down', () => {
@@ -189,14 +191,37 @@ describe('GalleryComponent', () => {
       expect(toggle().querySelector('.filters-count')?.textContent).toContain('2');
     });
 
-    it('should keep the filters open across reloads', () => {
+    it('should keep the sidebar hidden across reloads', () => {
       photosRequests();
       flushYears();
-      openFilters();
+      toggleSidebar();
 
       build();
 
-      expect(component.filtersOpen()).toBe(true);
+      expect(component.sidebarOpen()).toBe(false);
+    });
+
+    it('should let every photo through again once the filters are reset, from the first page', async () => {
+      photosRequests();
+      await TestBed.inject(Router).navigateByUrl('/?area=-9.23,38.69,-9.09,38.8&allFolders=true');
+      fixture.detectChanges();
+      flushYears();
+      component.filterUpdated(component.yearFilter, [2019]);
+      component.pageIndex = 2;
+      photosRequests();
+      fixture.detectChanges();
+
+      (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.filters-reset')!.click();
+      fixture.detectChanges();
+
+      const [request] = photosRequests();
+      expect(request.request.params.get('year')).toBeNull();
+      expect(request.request.params.get('area')).toBeNull();
+      expect(request.request.params.get('allFolders')).toBeNull();
+      expect(request.request.params.get('skip')).toBe('0');
+      expect(component.yearFilter.selected()).toEqual([2016, 2019]);
+      expect(toggle().querySelector('.filters-count')).toBeNull();
+      expect((fixture.nativeElement as HTMLElement).querySelector('.filters-reset')).toBeNull();
     });
 
     const flushYears = (years = [2016, 2019]) => {
@@ -209,7 +234,6 @@ describe('GalleryComponent', () => {
     it('should select all the sources, years and categories by default and ask for every photo', () => {
       const [request] = photosRequests();
       flushYears();
-      openFilters();
 
       expect(component.sourceFilter.selected()).toEqual([1, 2]);
       expect(component.yearFilter.selected()).toEqual([2016, 2019]);
@@ -355,7 +379,6 @@ describe('GalleryComponent', () => {
     it('should ask for the photos of all folders from the first page once the box is checked, and count it', () => {
       photosRequests();
       flushYears();
-      openFilters();
       component.pageIndex = 2;
 
       const checkbox = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('.all-folders input')!;
@@ -448,7 +471,6 @@ describe('GalleryComponent', () => {
         const [request] = photosRequests();
         flushYears();
         flushTags();
-        openFilters();
 
         expect(component.tagFilter.options().map((option) => option.label)).toEqual(['Family', 'Paris', 'Untagged']);
         expect(component.tagFilter.selected()).toEqual([4, 9, 0]);
@@ -461,7 +483,6 @@ describe('GalleryComponent', () => {
         photosRequests();
         flushYears();
         flushTags([]);
-        openFilters();
 
         expect(multiselects().map((multiselect) => multiselect.textContent)).not.toContainEqual(expect.stringContaining('Tags'));
       });
@@ -551,7 +572,6 @@ describe('GalleryComponent', () => {
     it('should hide the year filter while there are no photos to take years from', () => {
       photosRequests();
       flushYears([]);
-      openFilters();
 
       expect(multiselects().map((multiselect) => multiselect.textContent)).toEqual([
         expect.stringContaining('Sources'),
@@ -754,7 +774,8 @@ describe('GalleryComponent', () => {
       expect(copies()[0].textContent).toContain('/Camera Uploads');
       expect((fixture.nativeElement as HTMLElement).textContent).toContain('5 photos in 2 groups of copies');
       expect((fixture.nativeElement as HTMLElement).querySelector('app-paginator')).toBeNull();
-      expect((fixture.nativeElement as HTMLElement).textContent).toContain('Show all photos');
+      expect((fixture.nativeElement as HTMLElement).querySelector('.toolbar-title')?.textContent).toContain('Duplicates');
+      expect((fixture.nativeElement as HTMLElement).querySelector('.view-link[aria-current="page"]')?.textContent).toContain('Duplicates');
     });
 
     it('should take a deleted copy out of its group, and the group out once one photo is left', () => {

@@ -65,6 +65,11 @@ export class GalleryFilter<T extends number | string = number> {
     return changed;
   }
 
+  /** Picks the options picked until the user says otherwise, so the photos are not narrowed down by this filter. */
+  reset(): void {
+    this.selected.set(this.defaults(this.options()));
+  }
+
   /** The options picked until the user says otherwise. */
   private defaults(options: readonly MultiselectOption<T>[]): T[] {
     return options.map((option) => option.value).filter((value) => !this.optIn.includes(value));

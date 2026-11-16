@@ -1,0 +1,27 @@
+<button
+  type="button"
+  class="heading"
+  [attr.aria-expanded]="!collapsed()"
+  [attr.aria-controls]="listId"
+  (click)="collapsed.set(!collapsed())"
+>
+  <span class="heading-label">{{ label() }}</span>
+  <span class="heading-summary" [class.heading-summary--narrowed]="!allSelected()">{{ summary() }}</span>
+  <app-icon class="chevron" [class.chevron--open]="!collapsed()" name="chevron-down" [size]="16" />
+</button>
+
+@if (!collapsed()) {
+  <div class="options" role="group" [id]="listId" [attr.aria-label]="label()">
+    <label class="option option--all">
+      <input type="checkbox" [checked]="allSelected()" [indeterminate]="!allSelected() && !noneSelected()" (change)="toggleAll()" />
+      <span>All</span>
+    </label>
+
+    @for (option of options(); track option.value) {
+      <label class="option">
+        <input type="checkbox" [checked]="isSelected(option)" (change)="toggle(option)" />
+        <span class="option-label">{{ option.label }}</span>
+      </label>
+    }
+  </div>
+}

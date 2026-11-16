@@ -34,6 +34,7 @@ export type IconName =
   | 'plus'
   | 'share'
   | 'shield-check'
+  | 'sidebar'
   | 'sort-asc'
   | 'sort-desc'
   | 'sun'

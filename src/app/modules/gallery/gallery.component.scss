@@ -1,7 +1,116 @@
 .gallery {
+  --gallery-sidebar-width: 248px;
+
+  display: flex;
+  align-items: flex-start;
+  min-height: calc(100vh - var(--app-header-height));
+}
+
+/* The views and the filters, on the left, staying in view as the photos scroll by. */
+.sidebar {
+  position: sticky;
+  top: var(--app-header-height);
+  z-index: 31;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--app-space-4);
+  width: var(--gallery-sidebar-width);
+  height: calc(100vh - var(--app-header-height));
+  padding: var(--app-space-3) var(--app-space-3) var(--app-space-5);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-right: 1px solid var(--app-border);
+  background: var(--app-surface);
+}
+
+/* Only there on a narrow screen, where the sidebar covers the photos. */
+.sidebar-backdrop {
+  display: none;
+}
+
+.sidebar-section {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - var(--app-header-height));
+  gap: 2px;
+}
+
+.sidebar-heading {
+  margin: 0;
+  padding: 0 var(--app-space-2);
+  color: var(--app-fg-subtle);
+  font-size: var(--app-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sidebar-note {
+  padding: 0 var(--app-space-2);
+  color: var(--app-fg-muted);
+  font-size: var(--app-text-sm);
+}
+
+.view-link {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-2);
+  height: 34px;
+  padding: 0 var(--app-space-2);
+  border: 0;
+  border-radius: var(--app-radius-sm);
+  background: transparent;
+  color: var(--app-fg-muted);
+  font-size: var(--app-text-sm);
+  font-weight: 500;
+  text-align: start;
+  cursor: pointer;
+}
+
+.view-link:hover {
+  background: var(--app-surface-hover);
+  color: var(--app-fg);
+}
+
+.view-link[aria-current='page'] {
+  background: var(--app-accent-soft);
+  color: var(--app-accent-soft-fg);
+}
+
+.filters {
+  gap: var(--app-space-1);
+}
+
+.filters-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 24px;
+}
+
+.filters-reset {
+  padding: 0 var(--app-space-2);
+  border: 0;
+  border-radius: var(--app-radius-sm);
+  background: transparent;
+  color: var(--app-accent);
+  font-size: var(--app-text-xs);
+  font-weight: 600;
+  line-height: 24px;
+  cursor: pointer;
+}
+
+.filters-reset:hover {
+  background: var(--app-accent-soft);
+}
+
+/* The toolbar and the photos, right of the sidebar. */
+.main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-self: stretch;
+  min-width: 0;
 }
 
 .toolbar {
@@ -30,16 +139,22 @@
   flex-wrap: wrap;
   max-width: 1240px;
   margin: 0 auto;
-  padding: var(--app-space-3) var(--app-space-5);
+  padding: var(--app-space-2) var(--app-space-5);
 }
 
-/* The frame and height of `app-multiselect`'s trigger, so it lines up with the segmented controls. */
-.filters-toggle {
+.toolbar-title {
+  font-weight: 600;
+}
+
+/* The height and frame of the segmented controls, so it lines up with them. */
+.sidebar-toggle {
   display: inline-flex;
   align-items: center;
-  gap: var(--app-space-2);
+  gap: var(--app-space-1);
   height: 38px;
-  padding: 0 var(--app-space-2) 0 var(--app-space-3);
+  min-width: 38px;
+  justify-content: center;
+  padding: 0 var(--app-space-2);
   border: 1px solid var(--app-border);
   border-radius: var(--app-radius);
   background: var(--app-surface-sunken);
@@ -50,8 +165,8 @@
   transition: border-color var(--app-transition);
 }
 
-.filters-toggle:hover,
-.filters-toggle[aria-expanded='true'] {
+.sidebar-toggle:hover,
+.sidebar-toggle[aria-expanded='true'] {
   border-color: var(--app-border-strong);
 }
 
@@ -67,10 +182,11 @@
 }
 
 .area-chip {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: var(--app-space-2);
-  height: 38px;
+  height: 34px;
+  margin-bottom: var(--app-space-1);
   padding: 0 var(--app-space-1) 0 var(--app-space-3);
   border: 1px solid var(--app-border-strong);
   border-radius: var(--app-radius);
@@ -78,6 +194,10 @@
   color: var(--app-fg);
   font-size: var(--app-text-sm);
   font-weight: 500;
+}
+
+.area-chip > span {
+  flex: 1;
 }
 
 .area-chip-clear {
@@ -100,53 +220,29 @@
   color: var(--app-fg);
 }
 
-.chevron {
-  color: var(--app-fg-muted);
-  transition: transform var(--app-transition);
-}
-
-.chevron--open {
-  transform: rotate(180deg);
-}
-
-.filters {
-  border-top: 1px solid var(--app-border);
-}
-
-/* Sits in the row of the filters, as tall as they are. */
+/* Lines up with the options of the groups of filters above. */
 .all-folders {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: var(--app-space-2);
-  height: 38px;
-  padding: 0 var(--app-space-3);
-  border: 1px solid var(--app-border);
-  border-radius: var(--app-radius);
-  background: var(--app-surface-sunken);
+  min-height: 32px;
+  margin-top: var(--app-space-1);
+  padding: 0 var(--app-space-2);
+  border-top: 1px solid var(--app-border);
   color: var(--app-fg);
   font-size: var(--app-text-sm);
+  font-weight: 500;
   cursor: pointer;
 }
 
 .all-folders:hover {
-  border-color: var(--app-border-strong);
+  background: var(--app-surface-hover);
 }
 
 .all-folders input {
   margin: 0;
   accent-color: var(--app-accent);
   cursor: pointer;
-}
-
-/* The measure of `.toolbar-inner`, so the filters line up under the controls. */
-.filters-inner {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--app-space-2);
-  max-width: 1240px;
-  margin: 0 auto;
-  padding: var(--app-space-3) var(--app-space-5);
 }
 
 .summary {
@@ -196,9 +292,43 @@
 }
 
 @media (width <= 720px) {
-  .toolbar-inner,
-  .filters-inner {
-    padding: var(--app-space-3) var(--app-space-4);
+  .toolbar-inner {
+    gap: var(--app-space-2);
+    padding: var(--app-space-2) var(--app-space-4);
+  }
+
+  /* A phone shows the grid across its whole width either way, and the toolbar keeps to fewer rows. */
+  .width-modes {
+    display: none;
+  }
+
+  .select-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  /* Slides over the photos, under the header, rather than squeezing them. */
+  .sidebar {
+    position: fixed;
+    top: var(--app-header-height);
+    left: 0;
+    z-index: 36;
+    width: min(var(--gallery-sidebar-width), calc(100vw - var(--app-space-7)));
+    box-shadow: var(--app-shadow-lg);
+  }
+
+  .sidebar-backdrop {
+    position: fixed;
+    inset: var(--app-header-height) 0 0;
+    z-index: 35;
+    display: block;
+    padding: 0;
+    border: 0;
+    background: var(--app-scrim);
+    cursor: default;
   }
 
   .timeline {
