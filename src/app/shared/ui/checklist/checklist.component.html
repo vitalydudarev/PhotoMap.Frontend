@@ -20,7 +20,8 @@
     @for (option of options(); track option.value) {
       <label class="option">
         <input type="checkbox" [checked]="isSelected(option)" (change)="toggle(option)" />
-        <span class="option-label">{{ option.label }}</span>
+        <!-- a long label, such as a folder, is cut short, so the whole of it shows on hover -->
+        <span class="option-label" [title]="option.label">{{ option.label }}</span>
       </label>
     }
   </div>

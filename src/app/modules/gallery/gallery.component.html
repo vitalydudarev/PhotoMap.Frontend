@@ -1,4 +1,4 @@
-<div class="gallery" [class.gallery--sidebar-open]="sidebarOpen()" [style.--gallery-toolbar-height.px]="toolbarHeight()">
+<div class="gallery sidebar-page" [style.--gallery-toolbar-height.px]="toolbarHeight()">
   @if (sidebarOpen()) {
     <!-- on a narrow screen the sidebar slides over the photos, and a click beside it closes it -->
     <button type="button" class="sidebar-backdrop" tabindex="-1" aria-hidden="true" (click)="sidebarOpen.set(false)"></button>

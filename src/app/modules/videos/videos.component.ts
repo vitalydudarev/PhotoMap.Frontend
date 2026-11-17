@@ -1,16 +1,15 @@
 import {DOCUMENT, DatePipe, Location, NgTemplateOutlet} from '@angular/common';
 import {HttpParams} from '@angular/common/http';
-import {Component, DestroyRef, OnInit, computed, inject, signal} from '@angular/core';
+import {Component, DestroyRef, OnInit, computed, effect, inject, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {ActivatedRoute, Router} from '@angular/router';
 import {Subscription} from 'rxjs';
 import {PhotoSortOrder} from 'src/app/core/models/photo-sort-order.model';
 import {Video, VideoDuplicateGroup} from 'src/app/core/models/video.model';
 import {UNAVAILABLE_IMAGE} from 'src/app/core/services/photo-viewer.service';
-import {MultiselectComponent} from 'src/app/shared/ui/multiselect/multiselect.component';
+import {ChecklistComponent} from 'src/app/shared/ui/checklist/checklist.component';
 import {PageEvent, PaginatorComponent} from 'src/app/shared/ui/paginator/paginator.component';
 import {SegmentedComponent, SegmentedOption} from 'src/app/shared/ui/segmented/segmented.component';
-import {ButtonDirective} from 'src/app/shared/ui/button/button.directive';
 import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
 
 import {ToastService} from '../../core/services/toast.service';
@@ -20,12 +19,18 @@ import {LazySrcDirective} from '../../shared/ui/lazy-src/lazy-src.directive';
 import {GalleryFilter} from '../gallery/gallery-filter';
 import {VideoPlayerComponent} from './video-player/video-player.component';
 import {ScrollControlComponent} from '../shared/scroll-control/scroll-control.component';
+import {isNarrowScreen, sidebarOpen} from '../shared/sidebar-page/sidebar-open';
 
 const PAGE_PARAM = 'page';
 const PAGE_SIZE_PARAM = 'pageSize';
 const SORT_PARAM = 'sort';
 const FOLDER_PARAM = 'folder';
 const DUPLICATES_PARAM = 'duplicates';
+
+const WIDTH_STORAGE_KEY = 'videos-width';
+const SIDEBAR_OPEN_STORAGE_KEY = 'videos-sidebar-open';
+
+type VideosWidth = 'contained' | 'full';
 
 // TODO: take the user ID from cookies
 const USER_ID = 1;
@@ -36,11 +41,10 @@ const USER_ID = 1;
   templateUrl: './videos.component.html',
   styleUrls: ['./videos.component.scss'],
   imports: [
-    ButtonDirective,
+    ChecklistComponent,
     DatePipe,
     IconComponent,
     LazySrcDirective,
-    MultiselectComponent,
     NgTemplateOutlet,
     PaginatorComponent,
     ScrollControlComponent,
@@ -73,8 +77,25 @@ export class VideosComponent implements OnInit {
 
   readonly selectedSortOrder = signal<PhotoSortOrder>('asc');
 
+  readonly widthModes: readonly SegmentedOption<VideosWidth>[] = [
+    {value: 'contained', label: 'Fit to page', icon: 'fit-width'},
+    {value: 'full', label: 'Use the full width', icon: 'full-width'},
+  ];
+
+  readonly selectedWidth = signal<VideosWidth>(readWidthPreference());
+  readonly isFullWidth = computed(() => this.selectedWidth() === 'full');
+
   /** The folders of the videos, without the file names, to narrow the videos down to. */
   readonly folderFilter = new GalleryFilter<string>([], (value) => value || undefined);
+
+  /** How many filters narrow the videos down, so that a filter hidden with the sidebar is not forgotten. */
+  readonly activeFilterCount = computed(() => (this.folderFilter.values().length > 0 || this.folderFilter.noneSelected() ? 1 : 0));
+
+  /**
+   * The views and the filters sit in a sidebar on the left, which the user can hide to give the videos the whole
+   * width. On a narrow screen it slides over the videos instead, so it starts hidden there.
+   */
+  readonly sidebarOpen = sidebarOpen(SIDEBAR_OPEN_STORAGE_KEY);
 
   pageIndex = 0;
   pageSize = 1000;
@@ -92,6 +113,10 @@ export class VideosComponent implements OnInit {
   private readonly toastService = inject(ToastService);
 
   private videosRequest?: Subscription;
+
+  constructor() {
+    effect(() => writeWidthPreference(this.selectedWidth()));
+  }
 
   ngOnInit(): void {
     const params = this.activatedRoute.snapshot.queryParamMap;
@@ -117,6 +142,29 @@ export class VideosComponent implements OnInit {
     this.addQueryString();
     this.load();
     this.loadFolders();
+  }
+
+  /** Shows the videos that are copies of one another, or all the videos again. */
+  selectDuplicates(duplicates: boolean): void {
+    if (duplicates !== this.showDuplicates()) {
+      this.toggleDuplicates();
+    }
+
+    // on a narrow screen the sidebar covers the videos, so it goes once the user has picked what to see
+    if (isNarrowScreen()) {
+      this.sidebarOpen.set(false);
+    }
+  }
+
+  /** Shows the videos of every folder again. */
+  resetFilters(): void {
+    this.folderFilter.reset();
+
+    // the other videos fill the pages differently, so the first page is the only one worth keeping
+    this.pageIndex = 0;
+
+    this.addQueryString();
+    this.loadVideos();
   }
 
   toggleDuplicates(): void {
@@ -277,6 +325,23 @@ export class VideosComponent implements OnInit {
           this.toastService.error('Could not load the videos.', error);
         },
       });
+  }
+}
+
+function readWidthPreference(): VideosWidth {
+  try {
+    return localStorage.getItem(WIDTH_STORAGE_KEY) === 'full' ? 'full' : 'contained';
+  } catch {
+    // Storage can be unavailable (private mode, blocked cookies); the default is fine.
+    return 'contained';
+  }
+}
+
+function writeWidthPreference(width: VideosWidth): void {
+  try {
+    localStorage.setItem(WIDTH_STORAGE_KEY, width);
+  } catch {
+    // Ignore: the preference just will not survive a reload.
   }
 }
 

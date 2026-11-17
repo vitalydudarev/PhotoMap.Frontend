@@ -1,0 +1,249 @@
+/* The layout of a page with a sidebar on the left, for its views and filters, and a slim toolbar
+   over its contents, such as the gallery and the videos. A page includes `sidebar-page` and puts
+   the class of the same name on its root. */
+
+@mixin sidebar-page {
+  .sidebar-page {
+    --sidebar-page-width: 248px;
+
+    display: flex;
+    align-items: flex-start;
+    min-height: calc(100vh - var(--app-header-height));
+  }
+
+  /* The views and the filters, on the left, staying in view as the page scrolls. */
+  .sidebar {
+    position: sticky;
+    top: var(--app-header-height);
+    z-index: 31;
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: var(--app-space-4);
+    width: var(--sidebar-page-width);
+    height: calc(100vh - var(--app-header-height));
+    padding: var(--app-space-3) var(--app-space-3) var(--app-space-5);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-right: 1px solid var(--app-border);
+    background: var(--app-surface);
+  }
+
+  /* Only there on a narrow screen, where the sidebar covers the photos. */
+  .sidebar-backdrop {
+    display: none;
+  }
+
+  .sidebar-section {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .sidebar-heading {
+    margin: 0;
+    padding: 0 var(--app-space-2);
+    color: var(--app-fg-subtle);
+    font-size: var(--app-text-xs);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .sidebar-note {
+    padding: 0 var(--app-space-2);
+    color: var(--app-fg-muted);
+    font-size: var(--app-text-sm);
+  }
+
+  .view-link {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-2);
+    height: 34px;
+    padding: 0 var(--app-space-2);
+    border: 0;
+    border-radius: var(--app-radius-sm);
+    background: transparent;
+    color: var(--app-fg-muted);
+    font-size: var(--app-text-sm);
+    font-weight: 500;
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .view-link:hover {
+    background: var(--app-surface-hover);
+    color: var(--app-fg);
+  }
+
+  .view-link[aria-current='page'] {
+    background: var(--app-accent-soft);
+    color: var(--app-accent-soft-fg);
+  }
+
+  .filters {
+    gap: var(--app-space-1);
+  }
+
+  .filters-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 24px;
+  }
+
+  .filters-reset {
+    padding: 0 var(--app-space-2);
+    border: 0;
+    border-radius: var(--app-radius-sm);
+    background: transparent;
+    color: var(--app-accent);
+    font-size: var(--app-text-xs);
+    font-weight: 600;
+    line-height: 24px;
+    cursor: pointer;
+  }
+
+  .filters-reset:hover {
+    background: var(--app-accent-soft);
+  }
+
+  /* The toolbar and the photos, right of the sidebar. */
+  .main {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-self: stretch;
+    min-width: 0;
+  }
+
+  .toolbar {
+    position: sticky;
+    top: var(--app-header-height);
+    z-index: 30;
+    border-bottom: 1px solid var(--app-border);
+    background: color-mix(in srgb, var(--app-surface) 82%, transparent);
+    backdrop-filter: saturate(180%) blur(12px);
+  }
+
+  .view-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--app-space-2);
+  }
+
+  /* Matches the `.app-page` measure so the toolbar lines up with the header and page content. It
+     keeps that measure in full-width mode too, so toggling the grid does not move the controls. */
+  .toolbar-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--app-space-4);
+    flex-wrap: wrap;
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: var(--app-space-2) var(--app-space-5);
+  }
+
+  .toolbar-title {
+    font-weight: 600;
+  }
+
+  /* The height and frame of the segmented controls, so it lines up with them. */
+  .sidebar-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--app-space-1);
+    height: 38px;
+    min-width: 38px;
+    justify-content: center;
+    padding: 0 var(--app-space-2);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+    background: var(--app-surface-sunken);
+    color: var(--app-fg);
+    font-size: var(--app-text-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color var(--app-transition);
+  }
+
+  .sidebar-toggle:hover,
+  .sidebar-toggle[aria-expanded='true'] {
+    border-color: var(--app-border-strong);
+  }
+
+  .filters-count {
+    min-width: 20px;
+    padding: 0 var(--app-space-1);
+    border-radius: var(--app-radius-pill);
+    background: var(--app-accent);
+    color: var(--app-accent-fg);
+    font-size: var(--app-text-xs);
+    line-height: 20px;
+    text-align: center;
+  }
+
+  .summary {
+    color: var(--app-fg-muted);
+  }
+
+  .state {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--app-space-4);
+    padding: var(--app-space-7) var(--app-space-5);
+    color: var(--app-fg-muted);
+    text-align: center;
+  }
+
+  .state p {
+    max-width: 42ch;
+  }
+
+  @media (width <= 720px) {
+    .toolbar-inner {
+      gap: var(--app-space-2);
+      padding: var(--app-space-2) var(--app-space-4);
+    }
+
+    /* A phone shows a grid across its whole width either way, and the toolbar keeps to fewer rows. */
+    .width-modes {
+      display: none;
+    }
+
+    .select-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+
+    /* Slides over the page, under the header, rather than squeezing them. */
+    .sidebar {
+      position: fixed;
+      top: var(--app-header-height);
+      left: 0;
+      z-index: 36;
+      width: min(var(--sidebar-page-width), calc(100vw - var(--app-space-7)));
+      box-shadow: var(--app-shadow-lg);
+    }
+
+    .sidebar-backdrop {
+      position: fixed;
+      inset: var(--app-header-height) 0 0;
+      z-index: 35;
+      display: block;
+      padding: 0;
+      border: 0;
+      background: var(--app-scrim);
+      cursor: default;
+    }
+  }
+}

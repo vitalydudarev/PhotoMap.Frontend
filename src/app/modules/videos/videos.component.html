@@ -1,110 +1,163 @@
-<div class="videos">
-  <div class="toolbar">
-    <div class="toolbar-inner">
-      <div class="view-controls">
-        <button appButton="outline" type="button" [attr.aria-pressed]="showDuplicates()" (click)="toggleDuplicates()">
-          {{ showDuplicates() ? 'Show all videos' : 'Show duplicates' }}
+<div class="videos sidebar-page">
+  @if (sidebarOpen()) {
+    <!-- on a narrow screen the sidebar slides over the videos, and a click beside it closes it -->
+    <button type="button" class="sidebar-backdrop" tabindex="-1" aria-hidden="true" (click)="sidebarOpen.set(false)"></button>
+
+    <aside id="videos-sidebar" class="sidebar" aria-label="Videos and filters">
+      <nav class="sidebar-section" aria-label="Library">
+        <button type="button" class="view-link" [attr.aria-current]="showDuplicates() ? null : 'page'" (click)="selectDuplicates(false)">
+          <app-icon name="video" [size]="16" />
+          <span>All videos</span>
         </button>
-
-        @if (!showDuplicates()) {
-          <app-segmented
-            aria-label="Sort order"
-            [options]="sortOrders"
-            [value]="selectedSortOrder()"
-            (valueChange)="sortOrderUpdated($event)"
-            [iconsOnly]="true"
-          />
-
-          @if (folderFilter.options().length > 0) {
-            <app-multiselect
-              label="Folders"
-              [options]="folderFilter.options()"
-              [value]="folderFilter.selected()"
-              (valueChange)="folderFilterUpdated($event)"
-            />
-          }
-        }
-      </div>
+        <button type="button" class="view-link" [attr.aria-current]="showDuplicates() ? 'page' : null" (click)="selectDuplicates(true)">
+          <app-icon name="copy" [size]="16" />
+          <span>Duplicates</span>
+        </button>
+      </nav>
 
       @if (showDuplicates()) {
-        @if (duplicateGroups().length > 0) {
-          <p class="summary">{{ duplicateCount() }} videos in {{ duplicateGroups().length }} groups of copies</p>
-        }
-      } @else {
-        <app-paginator
-          [length]="totalCount()"
-          [pageIndex]="pageIndex"
-          [pageSize]="pageSize"
-          [pageSizeOptions]="pageSizes"
-          (page)="pageUpdated($event)"
-        />
-      }
-    </div>
-  </div>
+        <p class="sidebar-note">The copies are looked for among all the videos, so the filters do not apply to them.</p>
+      } @else if (folderFilter.options().length > 0) {
+        <div class="sidebar-section filters" role="group" aria-labelledby="videos-filters-heading">
+          <div class="filters-heading">
+            <h2 id="videos-filters-heading" class="sidebar-heading">Filters</h2>
+            @if (activeFilterCount() > 0) {
+              <button type="button" class="filters-reset" (click)="resetFilters()">Reset</button>
+            }
+          </div>
 
-  @if (showSpinner()) {
-    <div class="state">
-      <app-spinner [size]="28" label="Loading videos" />
-      <p>Loading videos…</p>
+          <app-checklist
+            [collapsed]="true"
+            label="Folders"
+            [options]="folderFilter.options()"
+            [value]="folderFilter.selected()"
+            (valueChange)="folderFilterUpdated($event)"
+          />
+        </div>
+      }
+    </aside>
+  }
+
+  <div class="main">
+    <div class="toolbar">
+      <div class="toolbar-inner">
+        <div class="view-controls">
+          <button
+            type="button"
+            class="sidebar-toggle"
+            [title]="sidebarOpen() ? 'Hide the sidebar' : 'Show the sidebar'"
+            [attr.aria-controls]="sidebarOpen() ? 'videos-sidebar' : null"
+            [attr.aria-expanded]="sidebarOpen()"
+            (click)="sidebarOpen.set(!sidebarOpen())"
+          >
+            <app-icon name="sidebar" [size]="16" />
+            <span class="app-visually-hidden">Filters</span>
+            @if (activeFilterCount() > 0 && !showDuplicates()) {
+              <span class="filters-count">{{ activeFilterCount() }}<span class="app-visually-hidden"> active</span></span>
+            }
+          </button>
+
+          @if (showDuplicates()) {
+            <span class="toolbar-title">Duplicates</span>
+          } @else {
+            <app-segmented
+              class="width-modes"
+              aria-label="Grid width"
+              [options]="widthModes"
+              [(value)]="selectedWidth"
+              [iconsOnly]="true"
+            />
+
+            <app-segmented
+              aria-label="Sort order"
+              [options]="sortOrders"
+              [value]="selectedSortOrder()"
+              (valueChange)="sortOrderUpdated($event)"
+              [iconsOnly]="true"
+            />
+          }
+        </div>
+
+        @if (showDuplicates()) {
+          @if (duplicateGroups().length > 0) {
+            <p class="summary">{{ duplicateCount() }} videos in {{ duplicateGroups().length }} groups of copies</p>
+          }
+        } @else {
+          <app-paginator
+            [length]="totalCount()"
+            [pageIndex]="pageIndex"
+            [pageSize]="pageSize"
+            [pageSizeOptions]="pageSizes"
+            (page)="pageUpdated($event)"
+          />
+        }
+      </div>
     </div>
-  } @else if (failed()) {
-    <div class="state">
-      <p>The videos could not be loaded.</p>
-    </div>
-  } @else if (showDuplicates()) {
-    @if (duplicateGroups().length === 0) {
+
+    @if (showSpinner()) {
       <div class="state">
-        <p>No duplicate videos. Videos of the same size and file name are listed here as copies of one another.</p>
+        <app-spinner [size]="28" label="Loading videos" />
+        <p>Loading videos…</p>
+      </div>
+    } @else if (failed()) {
+      <div class="state">
+        <p>The videos could not be loaded.</p>
+      </div>
+    } @else if (showDuplicates()) {
+      @if (duplicateGroups().length === 0) {
+        <div class="state">
+          <p>No duplicate videos. Videos of the same size and file name are listed here as copies of one another.</p>
+        </div>
+      } @else {
+        <section class="duplicates">
+          @for (group of duplicateGroups(); track group.id) {
+            <article class="group">
+              <h2 class="group-title">
+                <span class="group-name">{{ group.fileName }}</span>
+                <span class="group-meta">{{ sizeLabel(group.size) }} · {{ group.videos.length }} copies</span>
+              </h2>
+
+              <div class="group-videos">
+                @for (video of group.videos; track video.id) {
+                  <figure class="copy">
+                    <ng-container *ngTemplateOutlet="thumb; context: {$implicit: video}" />
+                    <figcaption>
+                      <span class="copy-folder" [title]="video.folderPath ?? ''">{{
+                        video.folderPath ? folderLabel(video.folderPath) : '—'
+                      }}</span>
+                      <span class="copy-date">{{ video.dateTimeTaken | date: 'medium' }}</span>
+                    </figcaption>
+                  </figure>
+                }
+              </div>
+            </article>
+          }
+        </section>
+
+        <app-scroll-control />
+      }
+    } @else if (folderFilter.noneSelected()) {
+      <div class="state">
+        <p>No folders are selected. Pick one to see its videos.</p>
+      </div>
+    } @else if (videos().length === 0 && folderFilter.values().length > 0) {
+      <div class="state">
+        <p>No videos in the selected folders.</p>
+      </div>
+    } @else if (videos().length === 0) {
+      <div class="state">
+        <p>No videos yet. Connect Yandex.Disk and start processing its videos on the Data Sources page to see them here.</p>
       </div>
     } @else {
-      <section class="duplicates">
-        @for (group of duplicateGroups(); track group.id) {
-          <article class="group">
-            <h2 class="group-title">
-              <span class="group-name">{{ group.fileName }}</span>
-              <span class="group-meta">{{ sizeLabel(group.size) }} · {{ group.videos.length }} copies</span>
-            </h2>
-
-            <div class="group-videos">
-              @for (video of group.videos; track video.id) {
-                <figure class="copy">
-                  <ng-container *ngTemplateOutlet="thumb; context: {$implicit: video}" />
-                  <figcaption>
-                    <span class="copy-folder" [title]="video.folderPath ?? ''">{{
-                      video.folderPath ? folderLabel(video.folderPath) : '—'
-                    }}</span>
-                    <span class="copy-date">{{ video.dateTimeTaken | date: 'medium' }}</span>
-                  </figcaption>
-                </figure>
-              }
-            </div>
-          </article>
+      <section class="grid" [class.grid--full]="isFullWidth()">
+        @for (video of videos(); track video.id) {
+          <ng-container *ngTemplateOutlet="thumb; context: {$implicit: video}" />
         }
       </section>
 
       <app-scroll-control />
     }
-  } @else if (folderFilter.noneSelected()) {
-    <div class="state">
-      <p>No folders are selected. Pick one to see its videos.</p>
-    </div>
-  } @else if (videos().length === 0 && folderFilter.values().length > 0) {
-    <div class="state">
-      <p>No videos in the selected folders.</p>
-    </div>
-  } @else if (videos().length === 0) {
-    <div class="state">
-      <p>No videos yet. Connect Yandex.Disk and start processing its videos on the Data Sources page to see them here.</p>
-    </div>
-  } @else {
-    <section class="grid">
-      @for (video of videos(); track video.id) {
-        <ng-container *ngTemplateOutlet="thumb; context: {$implicit: video}" />
-      }
-    </section>
-
-    <app-scroll-control />
-  }
+  </div>
 
   <app-video-player [videos]="playerVideos()" [(index)]="playingIndex" />
 </div>

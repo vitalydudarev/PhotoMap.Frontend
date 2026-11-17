@@ -36,6 +36,7 @@ import {ToastService} from '../../core/services/toast.service';
 import {UserPhotosService} from '../../core/services/user-photos.service';
 import {PhotosMapViewComponent} from '../shared/photos-map-view/photos-map-view.component';
 import {PhotoTagsChange, PhotosThumbViewComponent} from '../shared/photos-thumb-view/photos-thumb-view.component';
+import {isNarrowScreen, sidebarOpen} from '../shared/sidebar-page/sidebar-open';
 import {DeleteCopiesDialogComponent} from './delete-copies-dialog/delete-copies-dialog.component';
 import {GalleryFilter} from './gallery-filter';
 import {GalleryTimelineComponent} from './gallery-timeline/gallery-timeline.component';
@@ -46,9 +47,6 @@ type GalleryWidth = 'contained' | 'full';
 
 const WIDTH_STORAGE_KEY = 'gallery-width';
 const SIDEBAR_OPEN_STORAGE_KEY = 'gallery-sidebar-open';
-
-/** Under this width the sidebar slides over the photos rather than sitting beside them, see the styles. */
-const NARROW_QUERY = '(width <= 720px)';
 
 /**
  * Other photos are an option too, so that picking every category still leaves no photo out. The deleted photos are
@@ -159,7 +157,7 @@ export class GalleryComponent implements OnInit {
    * The views and the filters sit in a sidebar on the left, which the user can hide to give the photos the whole
    * width. On a narrow screen it slides over the photos instead, so it starts hidden there.
    */
-  readonly sidebarOpen = signal(this.readSidebarPreference());
+  readonly sidebarOpen = sidebarOpen(SIDEBAR_OPEN_STORAGE_KEY);
 
   /** How many filters narrow the photos down, so that a filter hidden with the sidebar is not forgotten. */
   readonly activeFilterCount = computed(
@@ -283,7 +281,6 @@ export class GalleryComponent implements OnInit {
 
   constructor() {
     effect(() => this.writeWidthPreference(this.selectedWidth()));
-    effect(() => this.writeSidebarPreference(this.sidebarOpen()));
 
     // the selection is of the photos of the grid, so leaving it for the map or the duplicates leaves the selection
     effect(() => {
@@ -438,7 +435,7 @@ export class GalleryComponent implements OnInit {
     }
 
     // on a narrow screen the sidebar covers the photos, so it goes once the user has picked what to see
-    if (this.isNarrow()) {
+    if (isNarrowScreen()) {
       this.sidebarOpen.set(false);
     }
   }
@@ -958,37 +955,6 @@ export class GalleryComponent implements OnInit {
       localStorage.setItem(WIDTH_STORAGE_KEY, width);
     } catch {
       // Ignore: the preference just will not survive a reload.
-    }
-  }
-
-  private isNarrow(): boolean {
-    // read as the fields are set up, before the injected document is, like the preferences in storage
-    return typeof window !== 'undefined' && (window.matchMedia?.(NARROW_QUERY).matches ?? false);
-  }
-
-  private readSidebarPreference(): boolean {
-    if (this.isNarrow()) {
-      return false;
-    }
-
-    try {
-      return localStorage.getItem(SIDEBAR_OPEN_STORAGE_KEY) !== 'false';
-    } catch {
-      // Storage can be unavailable (private mode, blocked cookies); open is fine.
-      return true;
-    }
-  }
-
-  private writeSidebarPreference(open: boolean): void {
-    // on a narrow screen the sidebar is closed to see the photos, which says nothing of the wide one
-    if (this.isNarrow()) {
-      return;
-    }
-
-    try {
-      localStorage.setItem(SIDEBAR_OPEN_STORAGE_KEY, String(open));
-    } catch {
-      // Ignore: the sidebar just will not stay hidden across reloads.
     }
   }
 }

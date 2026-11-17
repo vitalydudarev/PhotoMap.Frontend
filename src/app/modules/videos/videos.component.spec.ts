@@ -1,7 +1,7 @@
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {ActivatedRoute, convertToParamMap, provideRouter} from '@angular/router';
 import {of} from 'rxjs';
-import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {Video, VideoDuplicateGroup} from '../../core/models/video.model';
 import {VideosService} from '../../core/services/videos.service';
@@ -37,7 +37,13 @@ describe('VideosComponent', () => {
     fixture.detectChanges();
   };
 
+  const element = () => fixture.nativeElement as HTMLElement;
+  const toggle = () => element().querySelector<HTMLButtonElement>('.sidebar-toggle')!;
+
+  afterEach(() => localStorage.clear());
+
   beforeEach(() => {
+    localStorage.clear();
     getUserVideos = vi.fn(() => of({values: [video], total: 1, limit: 100, offset: 0}));
     getUserVideoDuplicates = vi.fn(() => of([group]));
     queryParams = {};
@@ -107,6 +113,78 @@ describe('VideosComponent', () => {
     expect(text()).toContain('No folders are selected');
   });
 
+  it('should offer the folders in the sidebar, folded away, which a button hides and shows again', () => {
+    build();
+
+    const checklist = () => element().querySelector('.sidebar app-checklist');
+    expect(checklist()?.textContent).toContain('Folders');
+    expect(checklist()?.querySelector('.options')).toBeNull();
+    expect(toggle().getAttribute('aria-expanded')).toBe('true');
+
+    toggle().click();
+    fixture.detectChanges();
+
+    expect(element().querySelector('.sidebar')).toBeNull();
+    expect(toggle().getAttribute('aria-expanded')).toBe('false');
+
+    build();
+
+    expect(component.sidebarOpen()).toBe(false);
+  });
+
+  it('should count the folder filter on the sidebar button, and show every folder again once it is reset', () => {
+    build();
+    component.pageIndex = 2;
+
+    component.folderFilterUpdated(['disk:/Videos']);
+    fixture.detectChanges();
+
+    expect(toggle().querySelector('.filters-count')?.textContent).toContain('1');
+
+    element().querySelector<HTMLButtonElement>('.filters-reset')!.click();
+    fixture.detectChanges();
+
+    expect(lastFolders()).toEqual([]);
+    expect(component.pageIndex).toBe(0);
+    expect(component.folderFilter.selected()).toEqual(['disk:/Camera Uploads', 'disk:/Videos']);
+    expect(toggle().querySelector('.filters-count')).toBeNull();
+    expect(element().querySelector('.filters-reset')).toBeNull();
+  });
+
+  it('should widen the grid when full width is picked, and remember it', () => {
+    build();
+
+    component.selectedWidth.set('full');
+    fixture.detectChanges();
+
+    expect(element().querySelector('.grid')?.classList.contains('grid--full')).toBe(true);
+
+    build();
+
+    expect(component.selectedWidth()).toBe('full');
+  });
+
+  it('should switch to the duplicates and back from the sidebar', () => {
+    build();
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+
+    const viewLinks = () => [...element().querySelectorAll<HTMLButtonElement>('.view-link')];
+    viewLinks()[1].click();
+    fixture.detectChanges();
+
+    expect(getUserVideoDuplicates).toHaveBeenCalledWith(1);
+    expect(viewLinks()[1].getAttribute('aria-current')).toBe('page');
+    expect(element().querySelector('.toolbar-title')?.textContent).toContain('Duplicates');
+    expect(element().querySelector('.sidebar app-checklist')).toBeNull();
+
+    viewLinks()[0].click();
+    fixture.detectChanges();
+
+    expect(component.showDuplicates()).toBe(false);
+    expect(element().querySelector('.sidebar app-checklist')).not.toBeNull();
+    vi.restoreAllMocks();
+  });
+
   it('should play a video when its preview is clicked', () => {
     build();
 
@@ -127,7 +205,7 @@ describe('VideosComponent', () => {
     expect(text()).toContain('1.5 KB · 2 copies');
     expect(text()).toContain('/Camera Uploads');
     expect((fixture.nativeElement as HTMLElement).querySelectorAll('.group button.thumb').length).toBe(2);
-    expect(text()).toContain('Show all videos');
+    expect(element().querySelector('.toolbar-title')?.textContent).toContain('Duplicates');
   });
 
   it('should take the duplicates the address asks for', () => {
