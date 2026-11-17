@@ -10,6 +10,7 @@ describe('ChecklistComponent', () => {
   const element = () => fixture.nativeElement as HTMLElement;
   const heading = () => element().querySelector<HTMLButtonElement>('.heading')!;
   const checkboxes = () => [...element().querySelectorAll<HTMLInputElement>('.options input')];
+  const names = () => [...element().querySelectorAll<HTMLElement>('.option-label')];
   const click = (target: HTMLElement) => {
     target.click();
     fixture.detectChanges();
@@ -71,6 +72,31 @@ describe('ChecklistComponent', () => {
     expect(heading().textContent).toContain('None');
 
     click(checkboxes()[0]);
+
+    expect(component.value()).toEqual([1, 2]);
+  });
+
+  it('should pick the option alone when its name is clicked', () => {
+    click(names()[1]);
+
+    expect(component.value()).toEqual([2]);
+    expect(checkboxes().map((checkbox) => checkbox.checked)).toEqual([false, false, true]);
+  });
+
+  it('should pick an unpicked option alone when its name is clicked', () => {
+    fixture.componentRef.setInput('value', [1]);
+    fixture.detectChanges();
+
+    click(names()[1]);
+
+    expect(component.value()).toEqual([2]);
+  });
+
+  it('should bring all the options back when the name of the only one picked is clicked', () => {
+    fixture.componentRef.setInput('value', [2]);
+    fixture.detectChanges();
+
+    click(names()[1]);
 
     expect(component.value()).toEqual([1, 2]);
   });
