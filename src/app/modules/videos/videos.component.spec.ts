@@ -314,14 +314,17 @@ describe('VideosComponent', () => {
     expect(getUserVideoDuplicates).toHaveBeenCalledWith(1);
     expect(viewLinks()[2].getAttribute('aria-current')).toBe('page');
     expect(element().querySelector('.toolbar-title')?.textContent).toContain('Duplicates');
-    expect(element().querySelector('.sidebar app-checklist')).toBeNull();
+    // only the years apply to the copies
+    expect([...element().querySelectorAll('.sidebar app-checklist')].map((checklist) => checklist.textContent)).toEqual([
+      expect.stringContaining('Years'),
+    ]);
 
     viewLinks()[1].click();
     fixture.detectChanges();
 
     expect(component.showDuplicates()).toBe(false);
     expect(currentView()).toContain('All videos');
-    expect(element().querySelector('.sidebar app-checklist')).not.toBeNull();
+    expect(element().querySelectorAll('.sidebar app-checklist')).toHaveLength(2);
     vi.restoreAllMocks();
   });
 
@@ -347,6 +350,33 @@ describe('VideosComponent', () => {
     expect(text()).toContain('/Camera Uploads');
     expect((fixture.nativeElement as HTMLElement).querySelectorAll('.group button.thumb').length).toBe(2);
     expect(element().querySelector('.toolbar-title')?.textContent).toContain('Duplicates');
+  });
+
+  it('should narrow the duplicates down to the groups with a copy taken in the years picked, without loading them again', () => {
+    const old: Video = {...video, id: '9', fileName: 'old.mp4', dateTimeTaken: new Date('2016-03-01T10:00:00Z')};
+    getUserVideoDuplicates.mockReturnValue(of([group, {id: '9', fileName: 'old.mp4', size: 10, videos: [old, {...old, id: '10'}]}]));
+    queryParams = {duplicates: 'true'};
+    build();
+
+    component.filterUpdated(component.yearFilter, [2016]);
+    fixture.detectChanges();
+
+    expect(getUserVideoDuplicates).toHaveBeenCalledTimes(1);
+    expect(getUserVideos).not.toHaveBeenCalled();
+    expect(text()).toContain('2 videos in 1 groups of copies');
+    expect(text()).not.toContain('1.5 KB');
+    expect(toggle().querySelector('.filters-count')?.textContent).toContain('1');
+
+    component.filterUpdated(component.yearFilter, [2019]);
+    fixture.detectChanges();
+
+    expect(text()).toContain('No duplicate videos taken in the selected years.');
+
+    element().querySelector<HTMLButtonElement>('.filters-reset')!.click();
+    fixture.detectChanges();
+
+    expect(text()).toContain('4 videos in 2 groups of copies');
+    expect(getUserVideos).not.toHaveBeenCalled();
   });
 
   it('should take the duplicates the address asks for', () => {

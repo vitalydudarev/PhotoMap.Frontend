@@ -81,3 +81,8 @@ function parseNumber(value: string): number | undefined {
 
   return isNaN(number) ? undefined : number;
 }
+
+/** Whether the photo or the video was taken, in UTC, in one of the years given; in any year when none is given. */
+export function takenIn(dateTimeTaken: Date | string, years: readonly number[]): boolean {
+  return years.length === 0 || years.includes(new Date(dateTimeTaken).getUTCFullYear());
+}

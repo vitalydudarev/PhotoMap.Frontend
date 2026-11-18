@@ -844,5 +844,44 @@ describe('GalleryComponent', () => {
 
       expect((fixture.nativeElement as HTMLElement).textContent).toContain('No duplicate photos.');
     });
+
+    it('should narrow the copies down to the groups with one taken in the years picked, with only the years offered', () => {
+      flushPhotos(3);
+      flushMarks();
+      http()
+        .expectOne((request) => request.url.endsWith('/photos/years'))
+        .flush([2016, 2019]);
+      vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+
+      const dated = (id: string, date: string) => ({...photo(id, `/a/${id}.jpg`), dateTimeTaken: new Date(date)});
+      component.selectView('duplicates');
+      http()
+        .expectOne((request) => request.url.endsWith('/users/1/photos/duplicates'))
+        .flush([
+          {id: '1', photos: [dated('1', '2016-05-01T10:00:00Z'), dated('2', '2019-05-01T10:00:00Z')]},
+          {id: '3', photos: [dated('3', '2019-05-01T10:00:00Z'), dated('4', '2019-05-01T10:00:00Z')]},
+        ]);
+      fixture.detectChanges();
+
+      const element = fixture.nativeElement as HTMLElement;
+      expect([...element.querySelectorAll('.sidebar app-checklist')].map((checklist) => checklist.textContent)).toEqual([
+        expect.stringContaining('Years'),
+      ]);
+
+      component.filterUpdated(component.yearFilter, [2016]);
+      fixture.detectChanges();
+
+      // the group is listed whole, the copy of 2019 too
+      expect(copies()).toHaveLength(2);
+      expect(element.textContent).toContain('2 photos in 1 groups of copies');
+      expect(element.querySelector('.sidebar-toggle .filters-count')?.textContent).toContain('1');
+      http().expectNone((request) => request.url.endsWith('/photos/duplicates') || request.url.endsWith('/photos'));
+
+      element.querySelector<HTMLButtonElement>('.filters-reset')!.click();
+      fixture.detectChanges();
+
+      expect(copies()).toHaveLength(4);
+      http().expectNone((request) => request.url.endsWith('/photos/duplicates') || request.url.endsWith('/photos'));
+    });
   });
 });

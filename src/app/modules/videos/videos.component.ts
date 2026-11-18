@@ -16,7 +16,7 @@ import {ToastService} from '../../core/services/toast.service';
 import {VideosService} from '../../core/services/videos.service';
 import {IconComponent} from '../../shared/ui/icon/icon.component';
 import {LazySrcDirective} from '../../shared/ui/lazy-src/lazy-src.directive';
-import {GalleryFilter} from '../gallery/gallery-filter';
+import {GalleryFilter, takenIn} from '../gallery/gallery-filter';
 import {VideoPlayerComponent} from './video-player/video-player.component';
 import {ScrollControlComponent} from '../shared/scroll-control/scroll-control.component';
 import {isNarrowScreen, sidebarOpen} from '../shared/sidebar-page/sidebar-open';
@@ -76,7 +76,18 @@ export class VideosComponent implements OnInit {
   /** Whether the page lists the videos that are copies of one another, by their groups, rather than every video. */
   readonly showDuplicates = signal(false);
   readonly duplicateGroups = signal<VideoDuplicateGroup[]>([]);
-  readonly duplicateCount = computed(() => this.duplicateGroups().reduce((count, group) => count + group.videos.length, 0));
+
+  /**
+   * The groups of copies listed, those with a copy taken in one of the years picked. The copies of a group are all
+   * listed, so that they can still be told apart.
+   */
+  readonly shownDuplicateGroups = computed(() => {
+    const years = this.yearFilter.values();
+
+    return this.duplicateGroups().filter((group) => group.videos.some((video) => takenIn(video.dateTimeTaken, years)));
+  });
+
+  readonly duplicateCount = computed(() => this.shownDuplicateGroups().reduce((count, group) => count + group.videos.length, 0));
 
   /** Whether the videos of every folder are shown, rather than only the camera uploads, which are until the user asks. */
   readonly allFolders = signal(false);
@@ -85,7 +96,9 @@ export class VideosComponent implements OnInit {
   readonly view = computed<VideosView>(() => (this.showDuplicates() ? 'duplicates' : this.allFolders() ? 'all' : 'camera'));
 
   /** The videos the player steps through: the ones of the page, or every duplicate, group after group. */
-  readonly playerVideos = computed(() => (this.showDuplicates() ? this.duplicateGroups().flatMap((group) => group.videos) : this.videos()));
+  readonly playerVideos = computed(() =>
+    this.showDuplicates() ? this.shownDuplicateGroups().flatMap((group) => group.videos) : this.videos(),
+  );
 
   /** The video playing, of the ones of the player; none while the player is closed. */
   readonly playingIndex = signal<number | null>(null);
@@ -116,7 +129,10 @@ export class VideosComponent implements OnInit {
 
   /** How many filters narrow the videos down, so that a filter hidden with the sidebar is not forgotten. */
   readonly activeFilterCount = computed(
-    () => [this.folderFilter, this.yearFilter].filter((filter) => filter.values().length > 0 || filter.noneSelected()).length,
+    () =>
+      (this.showDuplicates() ? [this.yearFilter] : [this.folderFilter, this.yearFilter]).filter(
+        (filter) => filter.values().length > 0 || filter.noneSelected(),
+      ).length,
   );
 
   /**
@@ -213,6 +229,14 @@ export class VideosComponent implements OnInit {
 
   /** Shows the videos of every folder of the view, and of every year, again. */
   resetFilters(): void {
+    // the folders are left as they are while the copies, which only the years apply to, are listed
+    if (this.showDuplicates()) {
+      this.yearFilter.reset();
+      this.addQueryString();
+
+      return;
+    }
+
     this.folderFilter.reset();
     this.yearFilter.reset();
 
@@ -264,7 +288,11 @@ export class VideosComponent implements OnInit {
     this.pageIndex = 0;
 
     this.addQueryString();
-    this.loadVideos();
+
+    // the copies are all loaded, and narrowed down by the years as they are listed
+    if (!this.showDuplicates()) {
+      this.loadVideos();
+    }
   }
 
   onPreviewError(event: Event): void {
@@ -443,7 +471,14 @@ export class VideosComponent implements OnInit {
 
     // a request still on its way is dropped, so an answer for the previous page cannot land after this one
     this.videosRequest = this.videosService
-      .getUserVideos(USER_ID, this.pageSize, this.pageSize * this.pageIndex, this.selectedSortOrder(), folderPaths, this.yearFilter.values())
+      .getUserVideos(
+        USER_ID,
+        this.pageSize,
+        this.pageSize * this.pageIndex,
+        this.selectedSortOrder(),
+        folderPaths,
+        this.yearFilter.values(),
+      )
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (pagedResponse) => {

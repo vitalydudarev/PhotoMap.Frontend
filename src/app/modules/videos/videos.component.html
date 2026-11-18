@@ -13,15 +13,18 @@
           <app-icon name="video" [size]="16" />
           <span>All videos</span>
         </button>
-        <button type="button" class="view-link" [attr.aria-current]="view() === 'duplicates' ? 'page' : null" (click)="selectView('duplicates')">
+        <button
+          type="button"
+          class="view-link"
+          [attr.aria-current]="view() === 'duplicates' ? 'page' : null"
+          (click)="selectView('duplicates')"
+        >
           <app-icon name="copy" [size]="16" />
           <span>Duplicates</span>
         </button>
       </nav>
 
-      @if (showDuplicates()) {
-        <p class="sidebar-note">The copies are looked for among all the videos, so the filters do not apply to them.</p>
-      } @else if (folderFilter.options().length > 0 || yearFilter.options().length > 0) {
+      @if (yearFilter.options().length > 0 || (folderFilter.options().length > 0 && !showDuplicates())) {
         <div class="sidebar-section filters" role="group" aria-labelledby="videos-filters-heading">
           <div class="filters-heading">
             <h2 id="videos-filters-heading" class="sidebar-heading">Filters</h2>
@@ -29,6 +32,13 @@
               <button type="button" class="filters-reset" (click)="resetFilters()">Reset</button>
             }
           </div>
+
+          @if (showDuplicates()) {
+            <p class="sidebar-note">
+              The copies are looked for among all the videos, so only the years apply to them: a group is listed when any of its copies was
+              taken in one of them.
+            </p>
+          }
 
           @if (yearFilter.options().length > 0) {
             <app-checklist
@@ -40,7 +50,7 @@
             />
           }
 
-          @if (folderFilter.options().length > 0) {
+          @if (folderFilter.options().length > 0 && !showDuplicates()) {
             <app-checklist
               [collapsed]="true"
               label="Folders"
@@ -50,6 +60,8 @@
             />
           }
         </div>
+      } @else if (showDuplicates()) {
+        <p class="sidebar-note">The copies are looked for among all the videos, so the filters do not apply to them.</p>
       }
     </aside>
   }
@@ -68,7 +80,7 @@
           >
             <app-icon name="sidebar" [size]="16" />
             <span class="app-visually-hidden">Filters</span>
-            @if (activeFilterCount() > 0 && !showDuplicates()) {
+            @if (activeFilterCount() > 0) {
               <span class="filters-count">{{ activeFilterCount() }}<span class="app-visually-hidden"> active</span></span>
             }
           </button>
@@ -95,8 +107,8 @@
         </div>
 
         @if (showDuplicates()) {
-          @if (duplicateGroups().length > 0) {
-            <p class="summary">{{ duplicateCount() }} videos in {{ duplicateGroups().length }} groups of copies</p>
+          @if (shownDuplicateGroups().length > 0) {
+            <p class="summary">{{ duplicateCount() }} videos in {{ shownDuplicateGroups().length }} groups of copies</p>
           }
         } @else {
           <app-paginator
@@ -120,13 +132,21 @@
         <p>The videos could not be loaded.</p>
       </div>
     } @else if (showDuplicates()) {
-      @if (duplicateGroups().length === 0) {
+      @if (yearFilter.noneSelected()) {
+        <div class="state">
+          <p>No years are selected. Pick one to see the copies taken in it.</p>
+        </div>
+      } @else if (duplicateGroups().length === 0) {
         <div class="state">
           <p>No duplicate videos. Videos of the same size and file name are listed here as copies of one another.</p>
         </div>
+      } @else if (shownDuplicateGroups().length === 0) {
+        <div class="state">
+          <p>No duplicate videos taken in the selected years.</p>
+        </div>
       } @else {
         <section class="duplicates">
-          @for (group of duplicateGroups(); track group.id) {
+          @for (group of shownDuplicateGroups(); track group.id) {
             <article class="group">
               <h2 class="group-title">
                 <span class="group-name">{{ group.fileName }}</span>

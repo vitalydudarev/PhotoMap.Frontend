@@ -38,7 +38,7 @@ import {PhotosMapViewComponent} from '../shared/photos-map-view/photos-map-view.
 import {PhotoTagsChange, PhotosThumbViewComponent} from '../shared/photos-thumb-view/photos-thumb-view.component';
 import {isNarrowScreen, sidebarOpen} from '../shared/sidebar-page/sidebar-open';
 import {DeleteCopiesDialogComponent} from './delete-copies-dialog/delete-copies-dialog.component';
-import {GalleryFilter} from './gallery-filter';
+import {GalleryFilter, takenIn} from './gallery-filter';
 import {GalleryTimelineComponent} from './gallery-timeline/gallery-timeline.component';
 import {PhotoDuplicatesComponent} from './photo-duplicates/photo-duplicates.component';
 
@@ -143,11 +143,16 @@ export class GalleryComponent implements OnInit {
   /** Whether the page lists the deleted photos, of every folder, rather than those of the camera uploads or all of them. */
   readonly showDeleted = signal(false);
 
-  /** The filters that narrow the photos of the view down: the deleted photos are not of a category. */
+  /**
+   * The filters that narrow the photos of the view down: the deleted photos are not of a category, and the copies are
+   * narrowed down by the years alone.
+   */
   readonly viewFilters = computed(() =>
-    this.showDeleted()
-      ? [this.sourceFilter, this.yearFilter, this.gpsFilter, this.tagFilter]
-      : [this.sourceFilter, this.yearFilter, this.categoryFilter, this.gpsFilter, this.tagFilter],
+    this.showDuplicates()
+      ? [this.yearFilter]
+      : this.showDeleted()
+        ? [this.sourceFilter, this.yearFilter, this.gpsFilter, this.tagFilter]
+        : [this.sourceFilter, this.yearFilter, this.categoryFilter, this.gpsFilter, this.tagFilter],
   );
 
   readonly nothingSelected = computed(() => this.viewFilters().some((filter) => filter.noneSelected()));
@@ -174,7 +179,8 @@ export class GalleryComponent implements OnInit {
   /** How many filters narrow the photos down, so that a filter hidden with the sidebar is not forgotten. */
   readonly activeFilterCount = computed(
     () =>
-      this.viewFilters().filter((filter) => filter.values().length > 0 || filter.noneSelected()).length + (this.area() ? 1 : 0),
+      this.viewFilters().filter((filter) => filter.values().length > 0 || filter.noneSelected()).length +
+      (this.area() && !this.showDuplicates() ? 1 : 0),
   );
 
   /** Whether the page lists the photos that are copies of one another, by their groups, rather than the filtered ones. */
@@ -185,7 +191,18 @@ export class GalleryComponent implements OnInit {
   readonly view = computed<GalleryView>(() =>
     this.showDuplicates() ? 'duplicates' : this.showDeleted() ? 'deleted' : this.allFolders() ? 'all' : 'camera',
   );
-  readonly duplicateCount = computed(() => this.duplicateGroups().reduce((count, group) => count + group.photos.length, 0));
+
+  /**
+   * The groups of copies listed, those with a copy taken in one of the years picked. The copies of a group are all
+   * listed, so that they can still be told apart and picked from.
+   */
+  readonly shownDuplicateGroups = computed(() => {
+    const years = this.yearFilter.values();
+
+    return this.duplicateGroups().filter((group) => group.photos.some((photo) => takenIn(photo.dateTimeTaken, years)));
+  });
+
+  readonly duplicateCount = computed(() => this.shownDuplicateGroups().reduce((count, group) => count + group.photos.length, 0));
 
   /** How many copies each photo that has any has, besides itself, by the ID of the photo, to mark it in the grid. */
   readonly duplicateCopies = computed(() => {
@@ -396,7 +413,11 @@ export class GalleryComponent implements OnInit {
     this.pageIndex = 0;
 
     this.addQueryString();
-    this.setImages();
+
+    // the copies are all loaded, and narrowed down by the years as they are listed
+    if (!this.showDuplicates()) {
+      this.setImages();
+    }
   }
 
   /** Shows the photos taken anywhere again, not only those within the area of the map. */
@@ -412,6 +433,14 @@ export class GalleryComponent implements OnInit {
 
   /** Lets every photo of the view through the filters again, those taken anywhere too. */
   resetFilters(): void {
+    // the filters of the photos are left as they are while the copies, which only the years apply to, are listed
+    if (this.showDuplicates()) {
+      this.yearFilter.reset();
+      this.addQueryString();
+
+      return;
+    }
+
     for (const filter of [this.sourceFilter, this.yearFilter, this.categoryFilter, this.gpsFilter, this.tagFilter]) {
       filter.reset();
     }
