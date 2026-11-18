@@ -217,7 +217,8 @@ describe('GalleryComponent', () => {
       const [request] = photosRequests();
       expect(request.request.params.get('year')).toBeNull();
       expect(request.request.params.get('area')).toBeNull();
-      expect(request.request.params.get('allFolders')).toBeNull();
+      // the view is not a filter, so it stays
+      expect(request.request.params.get('allFolders')).toBe('true');
       expect(request.request.params.get('skip')).toBe('0');
       expect(component.yearFilter.selected()).toEqual([2016, 2019]);
       expect(toggle().querySelector('.filters-count')).toBeNull();
@@ -237,7 +238,6 @@ describe('GalleryComponent', () => {
 
       expect(component.sourceFilter.selected()).toEqual([1, 2]);
       expect(component.yearFilter.selected()).toEqual([2016, 2019]);
-      // the deleted photos are left out until they are picked
       expect(component.categoryFilter.selected()).toEqual([1, 2, 0]);
       expect(component.gpsFilter.selected()).toEqual([1, 0]);
       expect(request.request.params.getAll('source')).toBeNull();
@@ -250,44 +250,53 @@ describe('GalleryComponent', () => {
       expect(multiselects().map((multiselect) => multiselect.textContent)).toEqual([
         expect.stringContaining('All'),
         expect.stringContaining('All'),
-        expect.stringContaining('3 of 4'),
+        expect.stringContaining('All'),
         expect.stringContaining('All'),
       ]);
     });
 
-    it('should offer the screenshots, the drone footage, the other photos and the deleted ones as categories', () => {
+    it('should offer the screenshots, the drone footage and the other photos as categories, not the deleted ones', () => {
       photosRequests();
       flushYears();
 
-      expect(component.categoryFilter.options().map((option) => option.label)).toEqual([
-        'Screenshots',
-        'Drone footage',
-        'Other photos',
-        'Deleted',
-      ]);
+      expect(component.categoryFilter.options().map((option) => option.label)).toEqual(['Screenshots', 'Drone footage', 'Other photos']);
     });
 
-    it('should ask for the deleted photos alone, and say when there are none', () => {
+    it('should ask for the deleted photos of every folder alone in their view, without the categories, and say when there are none', () => {
       photosRequests();
       flushYears();
+      component.filterUpdated(component.categoryFilter, [1]);
+      photosRequests();
+      component.pageIndex = 2;
+      vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
 
-      component.filterUpdated(component.categoryFilter, [3]);
+      component.selectView('deleted');
       const [request] = photosRequests();
       request.flush({total: 0, values: []});
       fixture.detectChanges();
 
       expect(request.request.params.getAll('category')).toEqual(['3']);
+      expect(request.request.params.get('allFolders')).toBe('true');
+      expect(request.request.params.get('skip')).toBe('0');
+      expect(multiselects().map((multiselect) => multiselect.textContent)).not.toContainEqual(expect.stringContaining('Category'));
+      expect(toggle().querySelector('.filters-count')).toBeNull();
+      expect((fixture.nativeElement as HTMLElement).querySelector('.view-link[aria-current="page"]')?.textContent).toContain('Deleted');
       expect((fixture.nativeElement as HTMLElement).textContent).toContain('No deleted photos.');
+
+      // the view of the photos comes back with its categories
+      component.selectView('camera');
+      const [camera] = photosRequests();
+      expect(camera.request.params.getAll('category')).toEqual(['1']);
+      expect(camera.request.params.get('allFolders')).toBeNull();
+      vi.restoreAllMocks();
     });
 
-    it('should ask for every category by name once the deleted photos are picked too', () => {
+    it('should open on the deleted photos when the address asks for them', async () => {
       photosRequests();
-      flushYears();
+      await TestBed.inject(Router).navigateByUrl('/?deleted=true');
+      fixture.detectChanges();
 
-      component.filterUpdated(component.categoryFilter, [1, 2, 0, 3]);
-
-      const [request] = photosRequests();
-      expect(request.request.params.getAll('category')).toEqual(['1', '2', '0', '3']);
+      expect(component.view()).toBe('deleted');
     });
 
     it('should ask for the photos of the selected categories from the first page', () => {
@@ -376,26 +385,49 @@ describe('GalleryComponent', () => {
       expect((fixture.nativeElement as HTMLElement).textContent).toContain('Neither photos with GPS nor without');
     });
 
-    it('should ask for the photos of all folders from the first page once the box is checked, and count it', () => {
+    const viewLinks = () => [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('.view-link')];
+    const currentView = () => (fixture.nativeElement as HTMLElement).querySelector('.view-link[aria-current="page"]')?.textContent;
+
+    it('should show the camera uploads by default', () => {
+      const [request] = photosRequests();
+
+      expect(viewLinks().map((link) => link.textContent?.trim())).toEqual(['Camera Uploads', 'All photos', 'Duplicates', 'Deleted']);
+      expect(currentView()).toContain('Camera Uploads');
+      expect(component.view()).toBe('camera');
+      expect(request.request.params.get('allFolders')).toBeNull();
+    });
+
+    it('should ask for the photos of all folders from the first page once all the photos are picked, and not count it as a filter', () => {
       photosRequests();
       flushYears();
       component.pageIndex = 2;
+      vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
 
-      const checkbox = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('.all-folders input')!;
-      expect(checkbox.checked).toBe(false);
-
-      checkbox.click();
+      viewLinks()[1].click();
       fixture.detectChanges();
 
       const [allFolders] = photosRequests();
       expect(allFolders.request.params.get('allFolders')).toBe('true');
       expect(allFolders.request.params.get('skip')).toBe('0');
-      expect(toggle().querySelector('.filters-count')?.textContent).toContain('1');
+      expect(currentView()).toContain('All photos');
+      expect(toggle().querySelector('.filters-count')).toBeNull();
 
-      checkbox.click();
+      viewLinks()[0].click();
+      fixture.detectChanges();
 
-      const [defaultFolders] = photosRequests();
-      expect(defaultFolders.request.params.get('allFolders')).toBeNull();
+      const [cameraUploads] = photosRequests();
+      expect(cameraUploads.request.params.get('allFolders')).toBeNull();
+      expect(currentView()).toContain('Camera Uploads');
+      vi.restoreAllMocks();
+    });
+
+    it('should open on all the photos when the address asks for all folders', async () => {
+      photosRequests();
+      await TestBed.inject(Router).navigateByUrl('/?allFolders=true');
+      fixture.detectChanges();
+
+      expect(component.view()).toBe('all');
+      expect(currentView()).toContain('All photos');
     });
 
     describe('by the area of the map', () => {
@@ -418,7 +450,7 @@ describe('GalleryComponent', () => {
         expect(request.request.params.get('area')).toBe('-9.23,38.69,-9.09,38.8');
         expect(request.request.params.get('allFolders')).toBe('true');
         expect(chip()?.textContent).toContain('Map area');
-        expect(toggle().querySelector('.filters-count')?.textContent).toContain('2');
+        expect(toggle().querySelector('.filters-count')?.textContent).toContain('1');
       });
 
       it('should ask for the photos taken anywhere from the first page once the chip is cleared', async () => {
@@ -616,25 +648,10 @@ describe('GalleryComponent', () => {
       expect(actionButton(1).disabled).toBe(false);
     });
 
-    it('should keep a deleted photo in place, marked, while the deleted photos are shown too', () => {
-      flushPhotos(3);
-      component.filterUpdated(component.categoryFilter, [1, 2, 0, 3]);
-      flushPhotos(3);
-
-      actionButton(1).click();
-      http()
-        .expectOne((request) => request.url.endsWith('/photos/1/delete'))
-        .flush(null);
-      fixture.detectChanges();
-
-      expect(component.photos()).toHaveLength(3);
-      expect(thumbs()[1].classList).toContain('thumb--deleted');
-      expect(actionButton(1).getAttribute('aria-label')).toBe('Restore IMG_1.jpg');
-    });
-
     it('should take a restored photo out of the deleted photos', () => {
       flushPhotos();
-      component.filterUpdated(component.categoryFilter, [3]);
+      vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+      component.selectView('deleted');
       http()
         .expectOne((request) => request.url.endsWith('/photos'))
         .flush({
@@ -659,6 +676,7 @@ describe('GalleryComponent', () => {
 
       expect(component.photos().map((photo) => photo.id)).toEqual(['1']);
       expect(component.totalCount()).toBe(1);
+      vi.restoreAllMocks();
     });
   });
 

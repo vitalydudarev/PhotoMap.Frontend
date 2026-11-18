@@ -13,6 +13,7 @@ describe('VideosComponent', () => {
   let getUserVideos: ReturnType<typeof vi.fn>;
   let getUserVideoDuplicates: ReturnType<typeof vi.fn>;
   let queryParams: Record<string, string | string[]>;
+  let folders: string[];
 
   const video: Video = {
     id: '1',
@@ -47,6 +48,7 @@ describe('VideosComponent', () => {
     getUserVideos = vi.fn(() => of({values: [video], total: 1, limit: 100, offset: 0}));
     getUserVideoDuplicates = vi.fn(() => of([group]));
     queryParams = {};
+    folders = ['disk:/Camera Uploads', 'disk:/Videos'];
 
     TestBed.configureTestingModule({
       imports: [VideosComponent],
@@ -65,14 +67,85 @@ describe('VideosComponent', () => {
           useValue: {
             getUserVideos,
             getUserVideoDuplicates,
-            getUserVideoFolders: () => of(['disk:/Camera Uploads', 'disk:/Videos']),
+            getUserVideoFolders: vi.fn(() => of(folders)),
+            getUserVideoYears: () => of([2016, 2019]),
           },
         },
       ],
     });
   });
 
+  const viewLinks = () => [...element().querySelectorAll<HTMLButtonElement>('.view-link')];
+  const currentView = () => element().querySelector('.view-link[aria-current="page"]')?.textContent;
+
+  describe('camera uploads', () => {
+    beforeEach(() => {
+      folders = ['disk:/Videos', 'disk:/Фотокамера', 'disk:/Фотокамера/2020', 'disk:/Camera Uploads', '/Camera Uploads', '/Camera Uploads 2'];
+    });
+
+    it('should be shown by default, asking for the videos of the folders the phones upload to and theirs', () => {
+      build();
+
+      expect(viewLinks().map((link) => link.textContent?.trim())).toEqual(['Camera Uploads', 'All videos', 'Duplicates']);
+      expect(currentView()).toContain('Camera Uploads');
+      expect(getUserVideos).toHaveBeenCalledTimes(1);
+      expect(lastFolders()).toEqual(['disk:/Фотокамера', 'disk:/Фотокамера/2020', 'disk:/Camera Uploads', '/Camera Uploads']);
+      expect(component.folderFilter.options().map((option) => option.value)).toEqual([
+        'disk:/Фотокамера',
+        'disk:/Фотокамера/2020',
+        'disk:/Camera Uploads',
+        '/Camera Uploads',
+      ]);
+    });
+
+    it('should narrow the camera uploads down to the folders picked', () => {
+      build();
+
+      component.filterUpdated(component.folderFilter, ['disk:/Фотокамера']);
+
+      expect(lastFolders()).toEqual(['disk:/Фотокамера']);
+    });
+
+    it('should switch to all the videos and back from the sidebar, from the first page', () => {
+      build();
+      vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+      component.pageIndex = 2;
+
+      viewLinks()[1].click();
+      fixture.detectChanges();
+
+      expect(lastFolders()).toEqual([]);
+      expect(component.pageIndex).toBe(0);
+      expect(currentView()).toContain('All videos');
+      expect(component.folderFilter.options()).toHaveLength(6);
+
+      viewLinks()[0].click();
+      fixture.detectChanges();
+
+      expect(lastFolders()).toEqual(['disk:/Фотокамера', 'disk:/Фотокамера/2020', 'disk:/Camera Uploads', '/Camera Uploads']);
+      expect(currentView()).toContain('Camera Uploads');
+      vi.restoreAllMocks();
+    });
+
+    it('should open on all the videos when the address asks for all folders', () => {
+      queryParams = {allFolders: 'true'};
+      build();
+
+      expect(currentView()).toContain('All videos');
+      expect(lastFolders()).toEqual([]);
+    });
+
+    it('should ask for no video and say so when there is no camera folder', () => {
+      folders = ['disk:/Videos'];
+      build();
+
+      expect(getUserVideos).not.toHaveBeenCalled();
+      expect(text()).toContain('No videos in the camera uploads');
+    });
+  });
+
   it('should list the videos of every folder by their previews', () => {
+    queryParams = {allFolders: 'true'};
     build();
 
     expect(lastFolders()).toEqual([]);
@@ -80,33 +153,96 @@ describe('VideosComponent', () => {
   });
 
   it('should offer the folders without the name of the disk', () => {
+    queryParams = {allFolders: 'true'};
     build();
 
     expect(component.folderFilter.options().map((option) => option.label)).toEqual(['/Camera Uploads', '/Videos']);
   });
 
   it('should narrow the videos down to the folders picked', () => {
+    queryParams = {allFolders: 'true'};
     build();
 
-    component.folderFilterUpdated(['disk:/Videos']);
+    component.filterUpdated(component.folderFilter, ['disk:/Videos']);
 
     expect(lastFolders()).toEqual(['disk:/Videos']);
     expect(component.pageIndex).toBe(0);
   });
 
   it('should take the folders the address asks for', () => {
-    queryParams = {folder: 'disk:/Camera Uploads'};
+    queryParams = {folder: 'disk:/Camera Uploads', allFolders: 'true'};
     build();
 
     expect(lastFolders()).toEqual(['disk:/Camera Uploads']);
     expect(component.folderFilter.selected()).toEqual(['disk:/Camera Uploads']);
   });
 
+  describe('by year', () => {
+    const lastYears = () => getUserVideos.mock.lastCall![5];
+
+    it('should offer the years in the sidebar, above the folders, all picked, and ask for every year', () => {
+      build();
+
+      expect([...element().querySelectorAll('.sidebar app-checklist')].map((checklist) => checklist.textContent)).toEqual([
+        expect.stringContaining('Years'),
+        expect.stringContaining('Folders'),
+      ]);
+      expect(component.yearFilter.selected()).toEqual([2016, 2019]);
+      expect(lastYears()).toEqual([]);
+    });
+
+    it('should narrow the videos down to the years picked, from the first page, and count it', () => {
+      queryParams = {allFolders: 'true'};
+      build();
+      component.pageIndex = 2;
+
+      component.filterUpdated(component.yearFilter, [2019]);
+      fixture.detectChanges();
+
+      expect(lastYears()).toEqual([2019]);
+      expect(component.pageIndex).toBe(0);
+      expect(toggle().querySelector('.filters-count')?.textContent).toContain('1');
+    });
+
+    it('should take the years the address asks for', () => {
+      queryParams = {year: '2016', allFolders: 'true'};
+      build();
+
+      expect(lastYears()).toEqual([2016]);
+      expect(component.yearFilter.selected()).toEqual([2016]);
+    });
+
+    it('should show no videos while no year is picked', () => {
+      queryParams = {allFolders: 'true'};
+      build();
+      getUserVideos.mockClear();
+
+      component.filterUpdated(component.yearFilter, []);
+      fixture.detectChanges();
+
+      expect(getUserVideos).not.toHaveBeenCalled();
+      expect(text()).toContain('No years are selected');
+    });
+
+    it('should show every year again once the filters are reset', () => {
+      queryParams = {allFolders: 'true'};
+      build();
+      component.filterUpdated(component.yearFilter, [2019]);
+      fixture.detectChanges();
+
+      element().querySelector<HTMLButtonElement>('.filters-reset')!.click();
+
+      expect(lastYears()).toEqual([]);
+      expect(component.yearFilter.selected()).toEqual([2016, 2019]);
+    });
+  });
+
   it('should show no videos while no folder is picked', () => {
+    queryParams = {allFolders: 'true'};
     build();
     getUserVideos.mockClear();
 
-    component.folderFilterUpdated([]);
+    component.filterUpdated(component.folderFilter, []);
     fixture.detectChanges();
 
     expect(getUserVideos).not.toHaveBeenCalled();
@@ -114,9 +250,10 @@ describe('VideosComponent', () => {
   });
 
   it('should offer the folders in the sidebar, folded away, which a button hides and shows again', () => {
+    queryParams = {allFolders: 'true'};
     build();
 
-    const checklist = () => element().querySelector('.sidebar app-checklist');
+    const checklist = () => element().querySelectorAll('.sidebar app-checklist')[1];
     expect(checklist()?.textContent).toContain('Folders');
     expect(checklist()?.querySelector('.options')).toBeNull();
     expect(toggle().getAttribute('aria-expanded')).toBe('true');
@@ -133,10 +270,11 @@ describe('VideosComponent', () => {
   });
 
   it('should count the folder filter on the sidebar button, and show every folder again once it is reset', () => {
+    queryParams = {allFolders: 'true'};
     build();
     component.pageIndex = 2;
 
-    component.folderFilterUpdated(['disk:/Videos']);
+    component.filterUpdated(component.folderFilter, ['disk:/Videos']);
     fixture.detectChanges();
 
     expect(toggle().querySelector('.filters-count')?.textContent).toContain('1');
@@ -152,6 +290,7 @@ describe('VideosComponent', () => {
   });
 
   it('should widen the grid when full width is picked, and remember it', () => {
+    queryParams = {allFolders: 'true'};
     build();
 
     component.selectedWidth.set('full');
@@ -165,27 +304,29 @@ describe('VideosComponent', () => {
   });
 
   it('should switch to the duplicates and back from the sidebar', () => {
+    queryParams = {allFolders: 'true'};
     build();
     vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
 
-    const viewLinks = () => [...element().querySelectorAll<HTMLButtonElement>('.view-link')];
-    viewLinks()[1].click();
+    viewLinks()[2].click();
     fixture.detectChanges();
 
     expect(getUserVideoDuplicates).toHaveBeenCalledWith(1);
-    expect(viewLinks()[1].getAttribute('aria-current')).toBe('page');
+    expect(viewLinks()[2].getAttribute('aria-current')).toBe('page');
     expect(element().querySelector('.toolbar-title')?.textContent).toContain('Duplicates');
     expect(element().querySelector('.sidebar app-checklist')).toBeNull();
 
-    viewLinks()[0].click();
+    viewLinks()[1].click();
     fixture.detectChanges();
 
     expect(component.showDuplicates()).toBe(false);
+    expect(currentView()).toContain('All videos');
     expect(element().querySelector('.sidebar app-checklist')).not.toBeNull();
     vi.restoreAllMocks();
   });
 
   it('should play a video when its preview is clicked', () => {
+    queryParams = {allFolders: 'true'};
     build();
 
     (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('button.thumb')!.click();

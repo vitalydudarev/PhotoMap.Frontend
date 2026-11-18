@@ -24,13 +24,17 @@ export class VideosService {
 
   private readonly url = `${environment.photoMapApiUrl}/users`;
 
-  /** @param folderPaths The folders to take the videos from, all of them when empty. */
+  /**
+   * @param folderPaths The folders to take the videos from, all of them when empty.
+   * @param years The years, in UTC, the videos were taken in, all of them when empty.
+   */
   getUserVideos(
     userId: number,
     top: number,
     skip: number,
     sort: PhotoSortOrder,
     folderPaths: readonly string[] = [],
+    years: readonly number[] = [],
   ): Observable<PagedResponse<Video>> {
     let params = new HttpParams().set('top', top).set('skip', skip).set('sort', sort);
 
@@ -38,7 +42,16 @@ export class VideosService {
       params = params.append('folder', folderPath);
     }
 
+    for (const year of years) {
+      params = params.append('year', year);
+    }
+
     return this.httpClient.get<PagedResponse<Video>>(`${this.url}/${userId}/videos`, {params});
+  }
+
+  /** The years, in UTC, the videos of the user were taken in, oldest first. */
+  getUserVideoYears(userId: number): Observable<number[]> {
+    return this.httpClient.get<number[]>(`${this.url}/${userId}/videos/years`);
   }
 
   /** The folders the videos of the user are in, without the file names, by name. */

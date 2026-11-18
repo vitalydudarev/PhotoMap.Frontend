@@ -5,13 +5,21 @@
 
     <aside id="gallery-sidebar" class="sidebar" aria-label="Photos and filters">
       <nav class="sidebar-section" aria-label="Library">
-        <button type="button" class="view-link" [attr.aria-current]="showDuplicates() ? null : 'page'" (click)="selectDuplicates(false)">
+        <button type="button" class="view-link" [attr.aria-current]="view() === 'camera' ? 'page' : null" (click)="selectView('camera')">
+          <app-icon name="camera" [size]="16" />
+          <span>Camera Uploads</span>
+        </button>
+        <button type="button" class="view-link" [attr.aria-current]="view() === 'all' ? 'page' : null" (click)="selectView('all')">
           <app-icon name="image" [size]="16" />
           <span>All photos</span>
         </button>
-        <button type="button" class="view-link" [attr.aria-current]="showDuplicates() ? 'page' : null" (click)="selectDuplicates(true)">
+        <button type="button" class="view-link" [attr.aria-current]="view() === 'duplicates' ? 'page' : null" (click)="selectView('duplicates')">
           <app-icon name="copy" [size]="16" />
           <span>Duplicates</span>
+        </button>
+        <button type="button" class="view-link" [attr.aria-current]="view() === 'deleted' ? 'page' : null" (click)="selectView('deleted')">
+          <app-icon name="trash" [size]="16" />
+          <span>Deleted</span>
         </button>
       </nav>
 
@@ -57,13 +65,15 @@
             />
           }
 
-          <app-checklist
-            [collapsed]="true"
-            label="Category"
-            [options]="categoryFilter.options()"
-            [value]="categoryFilter.selected()"
-            (valueChange)="filterUpdated(categoryFilter, $event)"
-          />
+          @if (!showDeleted()) {
+            <app-checklist
+              [collapsed]="true"
+              label="Category"
+              [options]="categoryFilter.options()"
+              [value]="categoryFilter.selected()"
+              (valueChange)="filterUpdated(categoryFilter, $event)"
+            />
+          }
 
           <app-checklist
             [collapsed]="true"
@@ -82,11 +92,6 @@
               (valueChange)="filterUpdated(tagFilter, $event)"
             />
           }
-
-          <label class="all-folders" title="Also show the photos outside the folders the sources are processed from">
-            <input type="checkbox" [checked]="allFolders()" (change)="allFoldersUpdated($any($event.target).checked)" />
-            <span>Photos of all folders</span>
-          </label>
         </div>
       }
     </aside>
@@ -191,7 +196,7 @@
       <div class="state">
         <p>No years are selected. Pick one to see its photos.</p>
       </div>
-    } @else if (categoryFilter.noneSelected()) {
+    } @else if (categoryFilter.noneSelected() && !showDeleted()) {
       <div class="state">
         <p>No categories are selected. Pick one to see its photos.</p>
       </div>
@@ -203,7 +208,7 @@
       <div class="state">
         <p>No tags are selected. Pick one to see its photos.</p>
       </div>
-    } @else if (photos().length === 0 && onlyDeletedShown()) {
+    } @else if (photos().length === 0 && showDeleted() && !isFiltered()) {
       <div class="state">
         <p>No deleted photos.</p>
       </div>

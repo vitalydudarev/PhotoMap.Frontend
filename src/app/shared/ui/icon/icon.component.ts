@@ -4,6 +4,7 @@ export type IconName =
   | 'alert-triangle'
   | 'box'
   | 'calendar'
+  | 'camera'
   | 'check'
   | 'check-circle'
   | 'chevron-down'

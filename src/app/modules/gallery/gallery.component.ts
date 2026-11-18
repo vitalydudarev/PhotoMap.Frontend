@@ -45,18 +45,25 @@ import {PhotoDuplicatesComponent} from './photo-duplicates/photo-duplicates.comp
 type ViewMode = 'thumb' | 'map';
 type GalleryWidth = 'contained' | 'full';
 
+/**
+ * What the page lists: the camera uploads, the photos of the folders the sources are processed from (the Фотокамера
+ * folder of Yandex.Disk, the Camera Uploads folder of Dropbox); all the photos, those of the other folders too; the
+ * photos that are copies of one another; or the deleted photos, of every folder.
+ */
+export type GalleryView = 'camera' | 'all' | 'duplicates' | 'deleted';
+
 const WIDTH_STORAGE_KEY = 'gallery-width';
 const SIDEBAR_OPEN_STORAGE_KEY = 'gallery-sidebar-open';
 
 /**
- * Other photos are an option too, so that picking every category still leaves no photo out. The deleted photos are
- * left out of every other category, and are not picked until the user picks them.
+ * Other photos are an option too, so that picking every category still leaves no photo out. The deleted photos are a
+ * view of their own rather than a category, as the server takes them along with the photos of the other categories
+ * rather than narrowing them down.
  */
 const CATEGORY_OPTIONS: readonly MultiselectOption<number>[] = [
   {value: PhotoCategory.Screenshot, label: 'Screenshots'},
   {value: PhotoCategory.DroneFootage, label: 'Drone footage'},
   {value: PhotoCategory.Other, label: 'Other photos'},
-  {value: PhotoCategory.Deleted, label: 'Deleted'},
 ];
 
 const WITH_GPS = 1;
@@ -129,24 +136,29 @@ export class GalleryComponent implements OnInit {
    */
   readonly sourceFilter = new GalleryFilter();
   readonly yearFilter = new GalleryFilter();
-  readonly categoryFilter = new GalleryFilter<number>([PhotoCategory.Deleted]);
+  readonly categoryFilter = new GalleryFilter<number>();
   readonly gpsFilter = new GalleryFilter();
   readonly tagFilter = new GalleryFilter();
-  readonly nothingSelected = computed(
-    () =>
-      this.sourceFilter.noneSelected() ||
-      this.yearFilter.noneSelected() ||
-      this.categoryFilter.noneSelected() ||
-      this.gpsFilter.noneSelected() ||
-      this.tagFilter.noneSelected(),
+
+  /** Whether the page lists the deleted photos, of every folder, rather than those of the camera uploads or all of them. */
+  readonly showDeleted = signal(false);
+
+  /** The filters that narrow the photos of the view down: the deleted photos are not of a category. */
+  readonly viewFilters = computed(() =>
+    this.showDeleted()
+      ? [this.sourceFilter, this.yearFilter, this.gpsFilter, this.tagFilter]
+      : [this.sourceFilter, this.yearFilter, this.categoryFilter, this.gpsFilter, this.tagFilter],
   );
+
+  readonly nothingSelected = computed(() => this.viewFilters().some((filter) => filter.noneSelected()));
 
   /** The tags of the user, to give the photos and to filter them by; null until they are loaded. */
   readonly tags = signal<PhotoTag[] | null>(null);
 
   /**
    * Whether the photos of every folder are shown, those outside the folders the sources are processed from too, such as
-   * the other uploads of Yandex.Disk. Only the photos of the folders the sources are processed from until the user asks.
+   * the other uploads of Yandex.Disk. Only the camera uploads, the photos of the folders the sources are processed
+   * from, until the user picks all the photos.
    */
   readonly allFolders = signal(false);
 
@@ -162,23 +174,17 @@ export class GalleryComponent implements OnInit {
   /** How many filters narrow the photos down, so that a filter hidden with the sidebar is not forgotten. */
   readonly activeFilterCount = computed(
     () =>
-      [this.sourceFilter, this.yearFilter, this.categoryFilter, this.gpsFilter, this.tagFilter].filter(
-        (filter) => filter.values().length > 0 || filter.noneSelected(),
-      ).length +
-      (this.allFolders() ? 1 : 0) +
-      (this.area() ? 1 : 0),
+      this.viewFilters().filter((filter) => filter.values().length > 0 || filter.noneSelected()).length + (this.area() ? 1 : 0),
   );
-
-  /** Whether the photos shown are the deleted ones only. */
-  readonly onlyDeletedShown = computed(() => {
-    const categories = this.categoryFilter.values();
-
-    return categories.length > 0 && categories.every((category) => category === PhotoCategory.Deleted);
-  });
 
   /** Whether the page lists the photos that are copies of one another, by their groups, rather than the filtered ones. */
   readonly showDuplicates = signal(false);
   readonly duplicateGroups = signal<PhotoDuplicateGroup[]>([]);
+
+  /** The view of the sidebar the page shows, the camera uploads until the user picks another. */
+  readonly view = computed<GalleryView>(() =>
+    this.showDuplicates() ? 'duplicates' : this.showDeleted() ? 'deleted' : this.allFolders() ? 'all' : 'camera',
+  );
   readonly duplicateCount = computed(() => this.duplicateGroups().reduce((count, group) => count + group.photos.length, 0));
 
   /** How many copies each photo that has any has, besides itself, by the ID of the photo, to mark it in the grid. */
@@ -270,6 +276,7 @@ export class GalleryComponent implements OnInit {
   private allFoldersConst = 'allFolders';
   private areaConst = 'area';
   private duplicatesConst = 'duplicates';
+  private deletedConst = 'deleted';
 
   private photosRequest?: Subscription;
 
@@ -340,6 +347,7 @@ export class GalleryComponent implements OnInit {
         // an address that is not an area leaves the photos taken anywhere, rather than none
         this.area.set(parseMapArea(params[this.areaConst]));
         this.showDuplicates.set(params[this.duplicatesConst] === 'true');
+        this.showDeleted.set(!this.showDuplicates() && params[this.deletedConst] === 'true');
       },
     });
 
@@ -391,16 +399,6 @@ export class GalleryComponent implements OnInit {
     this.setImages();
   }
 
-  allFoldersUpdated(allFolders: boolean): void {
-    this.allFolders.set(allFolders);
-
-    // the other photos fill the pages differently, so the first page is the only one worth keeping
-    this.pageIndex = 0;
-
-    this.addQueryString();
-    this.setImages();
-  }
-
   /** Shows the photos taken anywhere again, not only those within the area of the map. */
   clearArea(): void {
     this.area.set(undefined);
@@ -412,13 +410,12 @@ export class GalleryComponent implements OnInit {
     this.setImages();
   }
 
-  /** Lets every photo through the filters again, those taken anywhere too. */
+  /** Lets every photo of the view through the filters again, those taken anywhere too. */
   resetFilters(): void {
     for (const filter of [this.sourceFilter, this.yearFilter, this.categoryFilter, this.gpsFilter, this.tagFilter]) {
       filter.reset();
     }
 
-    this.allFolders.set(false);
     this.area.set(undefined);
 
     // the other photos fill the pages differently, so the first page is the only one worth keeping
@@ -428,10 +425,26 @@ export class GalleryComponent implements OnInit {
     this.setImages();
   }
 
-  /** Shows the photos that are copies of one another, or all the photos again. */
-  selectDuplicates(duplicates: boolean): void {
-    if (duplicates !== this.showDuplicates()) {
-      this.toggleDuplicates();
+  /** Shows the camera uploads, all the photos, the photos that are copies of one another, or the deleted ones. */
+  selectView(view: GalleryView): void {
+    if (view !== this.view()) {
+      // the duplicates and the deleted photos are of all the folders, so the folders shown when coming back are kept
+      if ((view === 'camera' || view === 'all') && this.allFolders() !== (view === 'all')) {
+        this.allFolders.set(view === 'all');
+      }
+
+      // the other photos fill the pages differently, so the first page is the only one worth keeping
+      if (view !== 'duplicates') {
+        this.pageIndex = 0;
+      }
+
+      this.showDuplicates.set(view === 'duplicates');
+      this.showDeleted.set(view === 'deleted');
+
+      this.addQueryString();
+      this.setImages();
+
+      this.document.defaultView?.scrollTo({top: 0});
     }
 
     // on a narrow screen the sidebar covers the photos, so it goes once the user has picked what to see
@@ -600,10 +613,7 @@ export class GalleryComponent implements OnInit {
 
   /** Whether the photos are narrowed down by any of the filters. */
   isFiltered(): boolean {
-    return (
-      this.area() !== undefined ||
-      [this.sourceFilter, this.yearFilter, this.categoryFilter, this.gpsFilter, this.tagFilter].some((filter) => filter.values().length > 0)
-    );
+    return this.area() !== undefined || this.viewFilters().some((filter) => filter.values().length > 0);
   }
 
   private loadSources(): void {
@@ -727,6 +737,10 @@ export class GalleryComponent implements OnInit {
       params = params.append(this.duplicatesConst, 'true');
     }
 
+    if (this.showDeleted()) {
+      params = params.append(this.deletedConst, 'true');
+    }
+
     this.location.go(this.router.url.split('?')[0], params.toString());
   }
 
@@ -779,9 +793,9 @@ export class GalleryComponent implements OnInit {
     return {
       sourceIds: this.sourceFilter.values(),
       years: this.yearFilter.values(),
-      categories: this.categoryFilter.values() as PhotoCategory[],
+      categories: this.showDeleted() ? [PhotoCategory.Deleted] : (this.categoryFilter.values() as PhotoCategory[]),
       hasGps: this.hasGps(),
-      allFolders: this.allFolders(),
+      allFolders: this.showDeleted() || this.allFolders(),
       tagIds: this.tagFilter.values().filter((tag) => tag !== UNTAGGED),
       untagged: this.tagFilter.values().includes(UNTAGGED),
       area: this.area(),
@@ -911,13 +925,7 @@ export class GalleryComponent implements OnInit {
 
   /** Whether the photos shown take the deleted photos, or the ones that are not. */
   private shows(deleted: boolean): boolean {
-    const categories = this.categoryFilter.values();
-
-    if (categories.length === 0) {
-      return !deleted;
-    }
-
-    return deleted ? categories.includes(PhotoCategory.Deleted) : categories.some((category) => category !== PhotoCategory.Deleted);
+    return deleted === this.showDeleted();
   }
 
   private setBusy(photoId: string, busy: boolean): void {

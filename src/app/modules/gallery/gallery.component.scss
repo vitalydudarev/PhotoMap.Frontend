@@ -41,31 +41,6 @@
   color: var(--app-fg);
 }
 
-/* Lines up with the options of the groups of filters above. */
-.all-folders {
-  display: flex;
-  align-items: center;
-  gap: var(--app-space-2);
-  min-height: 32px;
-  margin-top: var(--app-space-1);
-  padding: 0 var(--app-space-2);
-  border-top: 1px solid var(--app-border);
-  color: var(--app-fg);
-  font-size: var(--app-text-sm);
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.all-folders:hover {
-  background: var(--app-surface-hover);
-}
-
-.all-folders input {
-  margin: 0;
-  accent-color: var(--app-accent);
-  cursor: pointer;
-}
-
 /* The grid, and the timeline on its right. */
 .thumbs {
   display: flex;

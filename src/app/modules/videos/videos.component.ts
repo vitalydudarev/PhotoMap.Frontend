@@ -25,12 +25,26 @@ const PAGE_PARAM = 'page';
 const PAGE_SIZE_PARAM = 'pageSize';
 const SORT_PARAM = 'sort';
 const FOLDER_PARAM = 'folder';
+const YEAR_PARAM = 'year';
 const DUPLICATES_PARAM = 'duplicates';
+const ALL_FOLDERS_PARAM = 'allFolders';
+
+/**
+ * The folders the phones upload to: the photostream of Yandex.Disk, named for the language of the disk, and the Camera
+ * Uploads folder of Dropbox.
+ */
+const CAMERA_FOLDERS = ['disk:/Фотокамера', 'disk:/Camera Uploads', '/Camera Uploads'];
 
 const WIDTH_STORAGE_KEY = 'videos-width';
 const SIDEBAR_OPEN_STORAGE_KEY = 'videos-sidebar-open';
 
 type VideosWidth = 'contained' | 'full';
+
+/**
+ * What the page lists: the camera uploads, the videos of the folders the phones upload to; all the videos, those of
+ * the other folders too; or the videos that are copies of one another.
+ */
+export type VideosView = 'camera' | 'all' | 'duplicates';
 
 // TODO: take the user ID from cookies
 const USER_ID = 1;
@@ -64,6 +78,12 @@ export class VideosComponent implements OnInit {
   readonly duplicateGroups = signal<VideoDuplicateGroup[]>([]);
   readonly duplicateCount = computed(() => this.duplicateGroups().reduce((count, group) => count + group.videos.length, 0));
 
+  /** Whether the videos of every folder are shown, rather than only the camera uploads, which are until the user asks. */
+  readonly allFolders = signal(false);
+
+  /** The view of the sidebar the page shows, the camera uploads until the user picks another. */
+  readonly view = computed<VideosView>(() => (this.showDuplicates() ? 'duplicates' : this.allFolders() ? 'all' : 'camera'));
+
   /** The videos the player steps through: the ones of the page, or every duplicate, group after group. */
   readonly playerVideos = computed(() => (this.showDuplicates() ? this.duplicateGroups().flatMap((group) => group.videos) : this.videos()));
 
@@ -88,8 +108,16 @@ export class VideosComponent implements OnInit {
   /** The folders of the videos, without the file names, to narrow the videos down to. */
   readonly folderFilter = new GalleryFilter<string>([], (value) => value || undefined);
 
+  /** The years, in UTC, the videos were taken in, to narrow the videos down to. */
+  readonly yearFilter = new GalleryFilter();
+
+  /** Whether a filter has nothing picked, so that no video can be shown. */
+  readonly nothingSelected = computed(() => this.folderFilter.noneSelected() || this.yearFilter.noneSelected());
+
   /** How many filters narrow the videos down, so that a filter hidden with the sidebar is not forgotten. */
-  readonly activeFilterCount = computed(() => (this.folderFilter.values().length > 0 || this.folderFilter.noneSelected() ? 1 : 0));
+  readonly activeFilterCount = computed(
+    () => [this.folderFilter, this.yearFilter].filter((filter) => filter.values().length > 0 || filter.noneSelected()).length,
+  );
 
   /**
    * The views and the filters sit in a sidebar on the left, which the user can hide to give the videos the whole
@@ -114,6 +142,9 @@ export class VideosComponent implements OnInit {
 
   private videosRequest?: Subscription;
 
+  /** The folders of the videos of the user, every one of them; null until they are loaded, or when they could not be. */
+  private folderPaths: readonly string[] | null = null;
+
   constructor() {
     effect(() => writeWidthPreference(this.selectedWidth()));
   }
@@ -137,17 +168,41 @@ export class VideosComponent implements OnInit {
     }
 
     this.folderFilter.request(params.getAll(FOLDER_PARAM));
+    this.yearFilter.request(params.getAll(YEAR_PARAM));
     this.showDuplicates.set(params.get(DUPLICATES_PARAM) === 'true');
+    this.allFolders.set(params.get(ALL_FOLDERS_PARAM) === 'true');
 
     this.addQueryString();
-    this.load();
+
+    // the camera uploads are asked for by their folders, which are only known once loaded
+    if (this.view() !== 'camera') {
+      this.load();
+    } else {
+      this.showSpinner.set(true);
+    }
+
     this.loadFolders();
+    this.loadYears();
   }
 
-  /** Shows the videos that are copies of one another, or all the videos again. */
-  selectDuplicates(duplicates: boolean): void {
-    if (duplicates !== this.showDuplicates()) {
-      this.toggleDuplicates();
+  /** Shows the camera uploads, all the videos, or the videos that are copies of one another. */
+  selectView(view: VideosView): void {
+    if (view !== this.view()) {
+      // the duplicates are looked for among all the videos, so the folders shown when coming back are kept
+      if (view !== 'duplicates' && this.allFolders() !== (view === 'all')) {
+        this.allFolders.set(view === 'all');
+        this.setFolderOptions();
+
+        // the other videos fill the pages differently, so the first page is the only one worth keeping
+        this.pageIndex = 0;
+      }
+
+      this.showDuplicates.set(view === 'duplicates');
+
+      this.addQueryString();
+      this.load();
+
+      this.document.defaultView?.scrollTo({top: 0});
     }
 
     // on a narrow screen the sidebar covers the videos, so it goes once the user has picked what to see
@@ -156,9 +211,10 @@ export class VideosComponent implements OnInit {
     }
   }
 
-  /** Shows the videos of every folder again. */
+  /** Shows the videos of every folder of the view, and of every year, again. */
   resetFilters(): void {
     this.folderFilter.reset();
+    this.yearFilter.reset();
 
     // the other videos fill the pages differently, so the first page is the only one worth keeping
     this.pageIndex = 0;
@@ -201,8 +257,8 @@ export class VideosComponent implements OnInit {
     this.loadVideos();
   }
 
-  folderFilterUpdated(folderPaths: readonly string[]): void {
-    this.folderFilter.selected.set(folderPaths);
+  filterUpdated<T extends number | string>(filter: GalleryFilter<T>, values: readonly T[]): void {
+    filter.selected.set(values);
 
     // the other videos fill the pages differently, so the first page is the only one worth keeping
     this.pageIndex = 0;
@@ -226,22 +282,89 @@ export class VideosComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (folderPaths) => {
+          this.folderPaths = folderPaths;
+
           // the address asked for a folder there is no video in, so the videos shown are not the ones now selected
-          if (this.folderFilter.setOptions(folderPaths.map((folderPath) => ({value: folderPath, label: folderLabel(folderPath)})))) {
+          const changed = this.setFolderOptions();
+
+          if (changed) {
             this.pageIndex = 0;
             this.addQueryString();
+          }
 
-            // the duplicates are of every folder
-            if (!this.showDuplicates()) {
-              this.loadVideos();
-            }
+          // the camera uploads waited for their folders; the duplicates are of every folder
+          if (this.view() === 'camera' || (changed && this.view() === 'all')) {
+            this.loadVideos();
           }
         },
         error: (error) => {
           this.folderFilter.setOptions([]);
           this.toastService.error('Could not load the folders to filter the videos by.', error);
+
+          // the camera uploads are then asked for by the folders the phones upload to, without their subfolders
+          if (this.view() === 'camera') {
+            this.loadVideos();
+          }
         },
       });
+  }
+
+  private loadYears(): void {
+    this.videosService
+      .getUserVideoYears(USER_ID)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (years) => {
+          // the address asked for a year there is no video of, so the videos shown are not the ones now selected
+          if (this.yearFilter.setOptions(years.map((year) => ({value: year, label: year.toString()})))) {
+            this.pageIndex = 0;
+            this.addQueryString();
+
+            // the duplicates are of every year; the camera uploads wait for their folders
+            if (this.view() === 'all' || (this.view() === 'camera' && this.folderPaths !== null)) {
+              this.loadVideos();
+            }
+          }
+        },
+        error: (error) => {
+          this.yearFilter.setOptions([]);
+          this.toastService.error('Could not load the years to filter the videos by.', error);
+        },
+      });
+  }
+
+  /**
+   * Offers the folders of the view to filter the videos by: those of the camera uploads, or every one.
+   * @returns Whether the address asked for a folder that is not among them.
+   */
+  private setFolderOptions(): boolean {
+    if (this.folderPaths === null) {
+      return false;
+    }
+
+    const folderPaths = this.allFolders() ? this.folderPaths : this.folderPaths.filter(isCameraFolder);
+
+    return this.folderFilter.setOptions(folderPaths.map((folderPath) => ({value: folderPath, label: folderLabel(folderPath)})));
+  }
+
+  /**
+   * The folders to ask for the videos of; none for every folder, and null when no video can be in the ones asked for.
+   * The camera uploads are always asked for by their folders, as the videos come from every folder of the sources.
+   */
+  private requestedFolders(): readonly string[] | null {
+    const selected = this.folderFilter.values();
+
+    if (this.allFolders() || selected.length > 0) {
+      return selected;
+    }
+
+    if (this.folderPaths === null) {
+      return CAMERA_FOLDERS;
+    }
+
+    const cameraFolders = this.folderFilter.options().map((option) => option.value);
+
+    return cameraFolders.length > 0 ? cameraFolders : null;
   }
 
   private addQueryString(): void {
@@ -252,6 +375,14 @@ export class VideosComponent implements OnInit {
 
     for (const folderPath of this.folderFilter.values()) {
       params = params.append(FOLDER_PARAM, folderPath);
+    }
+
+    for (const year of this.yearFilter.values()) {
+      params = params.append(YEAR_PARAM, year.toString());
+    }
+
+    if (this.allFolders()) {
+      params = params.append(ALL_FOLDERS_PARAM, 'true');
     }
 
     if (this.showDuplicates()) {
@@ -296,7 +427,9 @@ export class VideosComponent implements OnInit {
     this.videosRequest?.unsubscribe();
     this.playingIndex.set(null);
 
-    if (this.folderFilter.noneSelected()) {
+    const folderPaths = this.requestedFolders();
+
+    if (this.nothingSelected() || folderPaths === null) {
       this.videos.set([]);
       this.totalCount.set(0);
       this.failed.set(false);
@@ -310,7 +443,7 @@ export class VideosComponent implements OnInit {
 
     // a request still on its way is dropped, so an answer for the previous page cannot land after this one
     this.videosRequest = this.videosService
-      .getUserVideos(USER_ID, this.pageSize, this.pageSize * this.pageIndex, this.selectedSortOrder(), this.folderFilter.values())
+      .getUserVideos(USER_ID, this.pageSize, this.pageSize * this.pageIndex, this.selectedSortOrder(), folderPaths, this.yearFilter.values())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (pagedResponse) => {
@@ -343,6 +476,17 @@ function writeWidthPreference(width: VideosWidth): void {
   } catch {
     // Ignore: the preference just will not survive a reload.
   }
+}
+
+/** Whether the videos of the folder are camera uploads: it is one of the folders the phones upload to, or in one. */
+function isCameraFolder(folderPath: string): boolean {
+  const path = folderPath.toLowerCase();
+
+  return CAMERA_FOLDERS.some((cameraFolder) => {
+    const folder = cameraFolder.toLowerCase();
+
+    return path === folder || path.startsWith(folder + '/');
+  });
 }
 
 /** A folder without the name of the disk it is on, `disk:/Camera Uploads` as `/Camera Uploads`. */

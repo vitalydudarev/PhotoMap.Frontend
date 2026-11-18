@@ -5,11 +5,15 @@
 
     <aside id="videos-sidebar" class="sidebar" aria-label="Videos and filters">
       <nav class="sidebar-section" aria-label="Library">
-        <button type="button" class="view-link" [attr.aria-current]="showDuplicates() ? null : 'page'" (click)="selectDuplicates(false)">
+        <button type="button" class="view-link" [attr.aria-current]="view() === 'camera' ? 'page' : null" (click)="selectView('camera')">
+          <app-icon name="camera" [size]="16" />
+          <span>Camera Uploads</span>
+        </button>
+        <button type="button" class="view-link" [attr.aria-current]="view() === 'all' ? 'page' : null" (click)="selectView('all')">
           <app-icon name="video" [size]="16" />
           <span>All videos</span>
         </button>
-        <button type="button" class="view-link" [attr.aria-current]="showDuplicates() ? 'page' : null" (click)="selectDuplicates(true)">
+        <button type="button" class="view-link" [attr.aria-current]="view() === 'duplicates' ? 'page' : null" (click)="selectView('duplicates')">
           <app-icon name="copy" [size]="16" />
           <span>Duplicates</span>
         </button>
@@ -17,7 +21,7 @@
 
       @if (showDuplicates()) {
         <p class="sidebar-note">The copies are looked for among all the videos, so the filters do not apply to them.</p>
-      } @else if (folderFilter.options().length > 0) {
+      } @else if (folderFilter.options().length > 0 || yearFilter.options().length > 0) {
         <div class="sidebar-section filters" role="group" aria-labelledby="videos-filters-heading">
           <div class="filters-heading">
             <h2 id="videos-filters-heading" class="sidebar-heading">Filters</h2>
@@ -26,13 +30,25 @@
             }
           </div>
 
-          <app-checklist
-            [collapsed]="true"
-            label="Folders"
-            [options]="folderFilter.options()"
-            [value]="folderFilter.selected()"
-            (valueChange)="folderFilterUpdated($event)"
-          />
+          @if (yearFilter.options().length > 0) {
+            <app-checklist
+              [collapsed]="true"
+              label="Years"
+              [options]="yearFilter.options()"
+              [value]="yearFilter.selected()"
+              (valueChange)="filterUpdated(yearFilter, $event)"
+            />
+          }
+
+          @if (folderFilter.options().length > 0) {
+            <app-checklist
+              [collapsed]="true"
+              label="Folders"
+              [options]="folderFilter.options()"
+              [value]="folderFilter.selected()"
+              (valueChange)="filterUpdated(folderFilter, $event)"
+            />
+          }
         </div>
       }
     </aside>
@@ -140,9 +156,17 @@
       <div class="state">
         <p>No folders are selected. Pick one to see its videos.</p>
       </div>
-    } @else if (videos().length === 0 && folderFilter.values().length > 0) {
+    } @else if (yearFilter.noneSelected()) {
       <div class="state">
-        <p>No videos in the selected folders.</p>
+        <p>No years are selected. Pick one to see its videos.</p>
+      </div>
+    } @else if (videos().length === 0 && (folderFilter.values().length > 0 || yearFilter.values().length > 0)) {
+      <div class="state">
+        <p>No videos match the selected filters.</p>
+      </div>
+    } @else if (videos().length === 0 && view() === 'camera') {
+      <div class="state">
+        <p>No videos in the camera uploads. Pick All videos to see the videos of the other folders.</p>
       </div>
     } @else if (videos().length === 0) {
       <div class="state">
