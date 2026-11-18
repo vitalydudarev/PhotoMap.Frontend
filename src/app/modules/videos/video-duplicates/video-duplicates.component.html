@@ -1,0 +1,39 @@
+<app-duplicate-sections [sections]="sections()" [groupId]="groupId" noun="videos">
+  <ng-template #card let-group>
+    @let first = group.videos[0];
+    <article class="card">
+      <button class="card-thumb" type="button" [attr.aria-label]="'Play ' + first.fileName" (click)="playCopy.emit(first)">
+        <img [appLazySrc]="first.previewUrl" [alt]="first.fileName" width="88" height="88" (error)="onPreviewError($event)" />
+        <span class="badge" aria-hidden="true">
+          <app-icon name="play" [size]="10" />
+        </span>
+      </button>
+
+      <div class="card-body">
+        <h3 class="card-name" [title]="group.fileName">{{ group.fileName }}</h3>
+        <p class="card-meta">
+          {{ first.dateTimeTaken | date: 'mediumDate' }} · {{ sizeLabel(group.size) }} · {{ group.videos.length }} copies
+        </p>
+
+        <ul class="copies">
+          @for (video of group.videos; track video.id) {
+            <li class="copy">
+              <button
+                class="copy-open"
+                type="button"
+                [title]="(video.folderPath ?? '') + ' · ' + (video.dateTimeTaken | date: 'medium')"
+                [attr.aria-label]="'Play the copy in ' + folder(video)"
+                (click)="playCopy.emit(video)"
+              >
+                <span class="copy-folder">{{ folder(video) }}</span>
+                @if (!sameTime(video.dateTimeTaken, first.dateTimeTaken)) {
+                  <span class="copy-detail">{{ video.dateTimeTaken | date: 'medium' }}</span>
+                }
+              </button>
+            </li>
+          }
+        </ul>
+      </div>
+    </article>
+  </ng-template>
+</app-duplicate-sections>

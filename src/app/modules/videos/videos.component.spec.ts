@@ -80,7 +80,14 @@ describe('VideosComponent', () => {
 
   describe('camera uploads', () => {
     beforeEach(() => {
-      folders = ['disk:/Videos', 'disk:/Фотокамера', 'disk:/Фотокамера/2020', 'disk:/Camera Uploads', '/Camera Uploads', '/Camera Uploads 2'];
+      folders = [
+        'disk:/Videos',
+        'disk:/Фотокамера',
+        'disk:/Фотокамера/2020',
+        'disk:/Camera Uploads',
+        '/Camera Uploads',
+        '/Camera Uploads 2',
+      ];
     });
 
     it('should be shown by default, asking for the videos of the folders the phones upload to and theirs', () => {
@@ -348,7 +355,9 @@ describe('VideosComponent', () => {
     expect(getUserVideoDuplicates).toHaveBeenCalledWith(1);
     expect(text()).toContain('1.5 KB · 2 copies');
     expect(text()).toContain('/Camera Uploads');
-    expect((fixture.nativeElement as HTMLElement).querySelectorAll('.group button.thumb').length).toBe(2);
+    // a group shows once, beside the folder of each of its copies
+    expect(element().querySelectorAll('app-video-duplicates .card').length).toBe(1);
+    expect(element().querySelectorAll('app-video-duplicates .copy').length).toBe(2);
     expect(element().querySelector('.toolbar-title')?.textContent).toContain('Duplicates');
   });
 
@@ -391,11 +400,42 @@ describe('VideosComponent', () => {
     queryParams = {duplicates: 'true'};
     build();
 
-    (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button.thumb')[1].click();
+    element().querySelectorAll<HTMLButtonElement>('app-video-duplicates .copy-open')[1].click();
     fixture.detectChanges();
 
     expect(component.playerVideos()).toEqual([video, copy]);
     expect(component.playingIndex()).toBe(1);
+  });
+
+  it('should sort the duplicates into closed sections by the folders of their copies when there are several', () => {
+    const other = (id: string, folderPath: string): Video => ({...video, id, fileName: `${id}.mp4`, folderPath});
+    getUserVideoDuplicates.mockReturnValue(
+      of([
+        group,
+        {id: '20', fileName: '20.mp4', size: 10, videos: [other('20', 'disk:/Videos'), other('21', 'disk:/Camera Uploads')]},
+        {id: '30', fileName: '30.mp4', size: 10, videos: [other('30', 'disk:/Backup'), other('31', 'disk:/Camera Uploads')]},
+      ]),
+    );
+    queryParams = {duplicates: 'true'};
+    build();
+
+    const sections = () => [...element().querySelectorAll<HTMLDetailsElement>('app-video-duplicates details.section')];
+    expect(sections().map((section) => [...section.querySelectorAll('.folder')].map((folder) => folder.textContent?.trim()))).toEqual([
+      ['/Camera Uploads', '/Videos'],
+      ['/Backup', '/Camera Uploads'],
+    ]);
+    expect(sections().map((section) => section.querySelector('.count')?.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
+      '2 groups · 4 videos',
+      '1 group · 2 videos',
+    ]);
+    expect(element().querySelectorAll('app-video-duplicates .card').length).toBe(0);
+
+    sections()[0].open = true;
+    sections()[0].dispatchEvent(new Event('toggle'));
+    fixture.detectChanges();
+
+    expect(sections()[0].querySelectorAll('.card').length).toBe(2);
+    expect(sections()[1].querySelectorAll('.card').length).toBe(0);
   });
 
   it('should say so when there are no duplicates', () => {

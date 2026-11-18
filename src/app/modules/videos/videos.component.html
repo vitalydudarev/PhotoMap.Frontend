@@ -145,32 +145,7 @@
           <p>No duplicate videos taken in the selected years.</p>
         </div>
       } @else {
-        <section class="duplicates">
-          @for (group of shownDuplicateGroups(); track group.id) {
-            <article class="group">
-              <h2 class="group-title">
-                <span class="group-name">{{ group.fileName }}</span>
-                <span class="group-meta">{{ sizeLabel(group.size) }} · {{ group.videos.length }} copies</span>
-              </h2>
-
-              <div class="group-videos">
-                @for (video of group.videos; track video.id) {
-                  <figure class="copy">
-                    <ng-container *ngTemplateOutlet="thumb; context: {$implicit: video}" />
-                    <figcaption>
-                      <span class="copy-folder" [title]="video.folderPath ?? ''">{{
-                        video.folderPath ? folderLabel(video.folderPath) : '—'
-                      }}</span>
-                      <span class="copy-date">{{ video.dateTimeTaken | date: 'medium' }}</span>
-                    </figcaption>
-                  </figure>
-                }
-              </div>
-            </article>
-          }
-        </section>
-
-        <app-scroll-control />
+        <app-video-duplicates [groups]="shownDuplicateGroups()" (playCopy)="play($event)" />
       }
     } @else if (folderFilter.noneSelected()) {
       <div class="state">

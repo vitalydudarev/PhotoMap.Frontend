@@ -809,6 +809,39 @@ describe('GalleryComponent', () => {
       expect(copies()).toHaveLength(3);
     });
 
+    it('should keep only the copies of the folder picked in a section, deleting the ones in the others once agreed', () => {
+      flushPhotos(3);
+      flushMarks();
+      vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+      component.toggleDuplicates();
+      http()
+        .expectOne((request) => request.url.endsWith('/users/1/photos/duplicates'))
+        .flush([
+          {id: '1', photos: [photo('1', 'disk:/Camera Uploads/IMG_1.jpg'), photo('2', 'disk:/Photos/IMG_1.jpg')]},
+          {id: '3', photos: [photo('3', 'disk:/Photos/IMG_3.jpg'), photo('4', 'disk:/Camera Uploads/IMG_3.jpg')]},
+        ]);
+      fixture.detectChanges();
+
+      const element = fixture.nativeElement as HTMLElement;
+      expect(element.querySelectorAll('app-photo-duplicates .card')).toHaveLength(2);
+
+      const keep = [...element.querySelectorAll<HTMLButtonElement>('app-photo-duplicates .keep button')];
+      expect(keep.map((button) => button.textContent?.trim())).toEqual(['/Camera Uploads', '/Photos']);
+
+      keep[0].click();
+      expect(confirmSpy).toHaveBeenCalledWith('Delete the 2 copies in /Photos, and keep the ones in /Camera Uploads?');
+
+      http()
+        .match((request) => /\/users\/1\/photos\/[23]\/delete$/.test(request.url))
+        .forEach((request) => request.flush(null));
+      fixture.detectChanges();
+
+      expect(component.duplicateGroups()).toEqual([]);
+      http().expectNone((request) => request.url.includes('/delete'));
+    });
+
     it('should mark the photos that have copies in the grid', () => {
       flushPhotos(3);
       flushMarks([{id: '0', photos: [photo('0', '/a/IMG_1.jpg'), photo('2', '/b/IMG_1.jpg')]}]);

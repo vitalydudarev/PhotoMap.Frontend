@@ -15,7 +15,7 @@ import {
 } from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {ActivatedRoute, Router} from '@angular/router';
-import {Observable, Subscription, catchError, forkJoin, map, of} from 'rxjs';
+import {Observable, Subscription, catchError, forkJoin, from, map, mergeMap, of} from 'rxjs';
 import {PhotoCategory} from 'src/app/core/models/photo-category.model';
 import {MapArea, formatMapArea, parseMapArea} from 'src/app/core/models/map-area.model';
 import {PhotoFilter} from 'src/app/core/models/photo-filter.model';
@@ -50,6 +50,9 @@ type GalleryWidth = 'contained' | 'full';
  * folder of Yandex.Disk, the Camera Uploads folder of Dropbox); all the photos, those of the other folders too; the
  * photos that are copies of one another; or the deleted photos, of every folder.
  */
+/** How many photos are deleted at once when many are deleted together. */
+const DELETE_CONCURRENCY = 4;
+
 export type GalleryView = 'camera' | 'all' | 'duplicates' | 'deleted';
 
 const WIDTH_STORAGE_KEY = 'gallery-width';
@@ -493,23 +496,61 @@ export class GalleryComponent implements OnInit {
 
   /** Deletes a copy, which leaves its group, and the group too once a single photo is left in it. */
   deleteDuplicate(photo: Photo): void {
-    this.setBusy(photo.id, true);
+    this.deleteDuplicates([photo]);
+  }
 
-    this.userPhotosService
-      .markPhotoAsDeleted(this.userId, photo.id)
-      .pipe(takeUntilDestroyed(this.destroyRef))
+  /**
+   * Deletes the copies a few at a time, each leaving its group as soon as it is deleted, and the group too once a single
+   * photo is left in it. The copies that could not be deleted stay, and a toast tells how many.
+   */
+  deleteDuplicates(photos: readonly Photo[]): void {
+    photos.forEach((photo) => this.setBusy(photo.id, true));
+
+    let failures = 0;
+    let firstError: unknown;
+
+    from(photos)
+      .pipe(
+        mergeMap(
+          (photo) =>
+            this.userPhotosService.markPhotoAsDeleted(this.userId, photo.id).pipe(
+              map(() => ({photo, deleted: true})),
+              catchError((error) => {
+                failures++;
+                firstError ??= error;
+
+                return of({photo, deleted: false});
+              }),
+            ),
+          DELETE_CONCURRENCY,
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe({
-        next: () => {
+        next: ({photo, deleted}) => {
           this.setBusy(photo.id, false);
-          this.duplicateGroups.update((groups) =>
-            groups
-              .map((group) => ({...group, photos: group.photos.filter((copy) => copy.id !== photo.id)}))
-              .filter((group) => group.photos.length > 1),
-          );
+
+          if (deleted) {
+            this.duplicateGroups.update((groups) =>
+              groups
+                .map((group) => ({...group, photos: group.photos.filter((copy) => copy.id !== photo.id)}))
+                .filter((group) => group.photos.length > 1),
+            );
+          }
         },
-        error: (error) => {
-          this.setBusy(photo.id, false);
-          this.toastService.error('Could not delete the photo.', error);
+        complete: () => {
+          if (failures === 0) {
+            return;
+          }
+
+          const message =
+            photos.length === 1
+              ? 'Could not delete the photo.'
+              : failures === photos.length
+                ? 'Could not delete the copies.'
+                : `Could not delete ${failures} of the copies.`;
+
+          this.toastService.error(message, firstError);
         },
       });
   }

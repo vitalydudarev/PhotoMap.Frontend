@@ -12,11 +12,13 @@ import {PageEvent, PaginatorComponent} from 'src/app/shared/ui/paginator/paginat
 import {SegmentedComponent, SegmentedOption} from 'src/app/shared/ui/segmented/segmented.component';
 import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
 
+import {folderLabel} from '../../core/helpers/file-labels.helper';
 import {ToastService} from '../../core/services/toast.service';
 import {VideosService} from '../../core/services/videos.service';
 import {IconComponent} from '../../shared/ui/icon/icon.component';
 import {LazySrcDirective} from '../../shared/ui/lazy-src/lazy-src.directive';
 import {GalleryFilter, takenIn} from '../gallery/gallery-filter';
+import {VideoDuplicatesComponent} from './video-duplicates/video-duplicates.component';
 import {VideoPlayerComponent} from './video-player/video-player.component';
 import {ScrollControlComponent} from '../shared/scroll-control/scroll-control.component';
 import {isNarrowScreen, sidebarOpen} from '../shared/sidebar-page/sidebar-open';
@@ -64,6 +66,7 @@ const USER_ID = 1;
     ScrollControlComponent,
     SegmentedComponent,
     SpinnerComponent,
+    VideoDuplicatesComponent,
     VideoPlayerComponent,
   ],
 })
@@ -144,9 +147,6 @@ export class VideosComponent implements OnInit {
   pageIndex = 0;
   pageSize = 1000;
   readonly pageSizes: number[] = [100, 250, 500, 1000];
-
-  readonly folderLabel = folderLabel;
-  readonly sizeLabel = sizeLabel;
 
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
@@ -522,23 +522,4 @@ function isCameraFolder(folderPath: string): boolean {
 
     return path === folder || path.startsWith(folder + '/');
   });
-}
-
-/** A folder without the name of the disk it is on, `disk:/Camera Uploads` as `/Camera Uploads`. */
-function folderLabel(folderPath: string): string {
-  return folderPath.replace(/^[^/]*:(?=\/)/, '');
-}
-
-/** A size in bytes the way a file manager shows it, such as `1.2 GB`. */
-function sizeLabel(bytes: number): string {
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let size = bytes;
-  let unit = 0;
-
-  while (size >= 1024 && unit < units.length - 1) {
-    size /= 1024;
-    unit++;
-  }
-
-  return `${unit === 0 ? size : size.toFixed(1)} ${units[unit]}`;
 }

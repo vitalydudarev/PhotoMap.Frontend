@@ -1,0 +1,49 @@
+@if (sections().length > 1) {
+  <div class="bar">
+    <button type="button" class="toggle-all" (click)="setAll(!allOpen())">
+      {{ allOpen() ? 'Collapse all' : 'Expand all' }}
+    </button>
+  </div>
+}
+
+<div class="sections">
+  @for (section of sections(); track section.key) {
+    @let open = isOpen(section);
+    <details class="section" [open]="open" (toggle)="onToggle(section, $event)">
+      <summary class="summary">
+        <app-icon class="chevron" name="chevron-right" [size]="16" />
+        <span class="folders">
+          @if (section.key === otherKey) {
+            <span class="folder folder--other">Other folders</span>
+          } @else {
+            @for (folder of section.folders; track folder; let last = $last) {
+              <span class="folder" [title]="folder">{{ folder }}</span>
+              @if (!last) {
+                <span class="plus" aria-hidden="true">+</span>
+              }
+            }
+          }
+        </span>
+        <span class="count">
+          {{ section.groups.length }} {{ section.groups.length === 1 ? 'group' : 'groups' }} · {{ section.copyCount }} {{ noun() }}
+        </span>
+      </summary>
+
+      @if (open) {
+        <div class="body">
+          @if (actions(); as actionsTemplate) {
+            <ng-container *ngTemplateOutlet="actionsTemplate; context: {$implicit: section}" />
+          }
+
+          <div class="cards">
+            @for (group of section.groups; track groupId()(group)) {
+              <ng-container *ngTemplateOutlet="card(); context: {$implicit: group}" />
+            }
+          </div>
+        </div>
+      }
+    </details>
+  }
+</div>
+
+<app-scroll-control />

@@ -204,7 +204,12 @@
           <p>No duplicate photos taken in the selected years.</p>
         </div>
       } @else {
-        <app-photo-duplicates [groups]="shownDuplicateGroups()" [busy]="busyPhotoIds()" (markAsDeleted)="deleteDuplicate($event)" />
+        <app-photo-duplicates
+          [groups]="shownDuplicateGroups()"
+          [busy]="busyPhotoIds()"
+          (markAsDeleted)="deleteDuplicate($event)"
+          (markManyAsDeleted)="deleteDuplicates($event)"
+        />
       }
     } @else if (sourceFilter.noneSelected()) {
       <div class="state">

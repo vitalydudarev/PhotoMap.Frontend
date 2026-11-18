@@ -1,0 +1,20 @@
+@use '../../shared/duplicate-sections/duplicate-card';
+
+:host {
+  display: block;
+}
+
+/* Tells a video from a photo at a glance, as on the grid of the videos. */
+.badge {
+  position: absolute;
+  right: var(--app-space-1);
+  bottom: var(--app-space-1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 55%);
+  color: #fff;
+}

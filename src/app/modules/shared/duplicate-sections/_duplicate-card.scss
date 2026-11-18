@@ -1,0 +1,140 @@
+/* A group of copies laid out by `app-duplicate-sections`: one thumbnail, as the copies look the same, beside where each
+   copy is kept. Used by the duplicates of the photos and of the videos, whose templates the cards are rendered from. */
+
+.card {
+  display: flex;
+  gap: var(--app-space-3);
+  min-width: 0;
+  margin: 0;
+  padding: var(--app-space-2);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface);
+}
+
+.card-thumb {
+  position: relative;
+  flex: none;
+  align-self: flex-start;
+  width: 88px;
+  height: 88px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--app-radius-sm);
+  overflow: hidden;
+  background: var(--app-surface-sunken);
+  cursor: pointer;
+  transition: box-shadow var(--app-transition);
+}
+
+.card-thumb:hover {
+  box-shadow: var(--app-shadow);
+}
+
+.card-thumb img {
+  display: block;
+  width: 88px;
+  height: 88px;
+  object-fit: cover;
+  /* Hides the alt text while the thumbnail loads; the file name is beside it. */
+  color: transparent;
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.card-name {
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--app-text-sm);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-meta {
+  margin: 0 0 var(--app-space-1);
+  color: var(--app-fg-muted);
+  font-size: var(--app-text-xs);
+}
+
+.copies {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.copy {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-1);
+  min-width: 0;
+  border-radius: var(--app-radius-sm);
+}
+
+.copy:hover {
+  background: var(--app-surface-hover);
+}
+
+/* The folder opens the copy kept in it, which tells which one plays or shows. */
+.copy-open {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  padding: 3px var(--app-space-1);
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: var(--app-text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.copy-folder,
+.copy-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copy-detail {
+  color: var(--app-fg-muted);
+  font-size: var(--app-text-xs);
+}
+
+.action {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--app-fg-muted);
+  cursor: pointer;
+  transition:
+    background var(--app-transition),
+    color var(--app-transition);
+}
+
+.action:hover {
+  background: var(--app-danger-soft);
+  color: var(--app-danger);
+}
+
+.action:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
