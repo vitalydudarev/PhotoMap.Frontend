@@ -102,13 +102,17 @@
           @if (showDuplicates()) {
             <span class="toolbar-title">Duplicates</span>
           } @else {
-            <app-segmented
-              class="width-modes"
-              aria-label="Grid width"
-              [options]="widthModes"
-              [(value)]="selectedWidth"
-              [iconsOnly]="true"
-            />
+            <app-segmented aria-label="View mode" [options]="viewModes" [(value)]="selectedViewMode" [iconsOnly]="true" />
+
+            @if (selectedViewMode() === 'grid') {
+              <app-segmented
+                class="width-modes"
+                aria-label="Grid width"
+                [options]="widthModes"
+                [(value)]="selectedWidth"
+                [iconsOnly]="true"
+              />
+            }
 
             <app-segmented
               aria-label="Sort order"
@@ -187,6 +191,8 @@
       <div class="state">
         <p>No videos yet. Connect Yandex.Disk and start processing its videos on the Data Sources page to see them here.</p>
       </div>
+    } @else if (selectedViewMode() === 'map') {
+      <app-photos-map-view class="map" noun="video" [photos]="mapVideos()" [openInViewer]="false" (opened)="playFromMap($event)" />
     } @else {
       <section class="grid" [class.grid--full]="isFullWidth()">
         @for (video of videos(); track video.id) {

@@ -18,6 +18,7 @@ class MapStubComponent {
   readonly photos = input.required<readonly GeotaggedPhoto[]>();
   readonly highlighted = input<readonly GeotaggedPhoto[] | undefined>(undefined);
   readonly showAccuracyAreas = input(false);
+  readonly noun = input('photo');
   readonly photosSelected = output<PhotoSelection>();
   readonly groupOpened = output<readonly GeotaggedPhoto[]>();
   readonly areaChanged = output<MapArea>();
@@ -105,6 +106,28 @@ describe('PhotosMapViewComponent', () => {
     moveMapTo({west: 100, south: 0, east: 110, north: 10});
 
     expect(galleryLink()).toBeNull();
+  });
+
+  it('should name the items as asked, on the map and in its notice', () => {
+    fixture.componentRef.setInput('noun', 'video');
+    fixture.componentRef.setInput('photos', [photo('4')]);
+    fixture.detectChanges();
+
+    const map = fixture.debugElement.query((debug) => debug.componentInstance instanceof MapStubComponent);
+    expect((map.componentInstance as MapStubComponent).noun()).toBe('video');
+    expect(element().querySelector('.notice')?.textContent).toContain('None of these videos has a location.');
+  });
+
+  it('should tell of the photos clicked rather than open them, when asked to', () => {
+    const selections: PhotoSelection[] = [];
+    fixture.componentRef.setInput('openInViewer', false);
+    fixture.componentInstance.opened.subscribe((selection) => selections.push(selection));
+
+    const map = fixture.debugElement.query((debug) => debug.componentInstance instanceof MapStubComponent);
+    const selection = {photos: [photo('1', 38.72, -9.14)], index: 0};
+    (map.componentInstance as MapStubComponent).photosSelected.emit(selection);
+
+    expect(selections).toEqual([selection]);
   });
 
   it('should not offer the gallery unless asked to', () => {

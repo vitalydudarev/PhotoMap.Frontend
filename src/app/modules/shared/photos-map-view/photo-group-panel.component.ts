@@ -3,7 +3,7 @@ import {ChangeDetectionStrategy, Component, ElementRef, afterNextRender, compute
 import {ButtonDirective} from 'src/app/shared/ui/button/button.directive';
 import {IconComponent} from 'src/app/shared/ui/icon/icon.component';
 
-import {GeotaggedPhoto, PhotoSelection, groupByDay, hasInaccurateLocation, photoTitle, selectAround} from './photo-map.model';
+import {GeotaggedPhoto, MapNoun, PhotoSelection, groupByDay, hasInaccurateLocation, photoTitle, selectAround} from './photo-map.model';
 
 /**
  * All the photos of a spot too crowded to spread on the map, in a panel over the map, split by the day they were
@@ -26,6 +26,9 @@ export class PhotoGroupPanelComponent {
   readonly photos = input.required<readonly GeotaggedPhoto[]>();
   readonly photosSelected = output<PhotoSelection>();
   readonly closed = output<void>();
+
+  /** What the panel names the items: photos, or videos. */
+  readonly noun = input<MapNoun>('photo');
 
   readonly days = computed(() => groupByDay(this.photos()));
 

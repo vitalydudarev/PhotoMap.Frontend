@@ -52,6 +52,11 @@ describe('photo map helpers', () => {
     expect(createPhotoMarkerElement(photo(2, '2020-01-01', 53.9, 27.5)).classList).not.toContain('photo-marker--inaccurate');
   });
 
+  it('names the items of a cluster in its title, photos unless asked otherwise', () => {
+    expect(createPhotoMarkerElement(photo(1, '2020-01-01', 53.9, 27.5), 3).title).toBe('3 photos');
+    expect(createPhotoMarkerElement(photo(1, '2020-01-01', 53.9, 27.5), 3, 'video').title).toBe('3 videos');
+  });
+
   it('tells which photo with an inaccurate location the pointer is over, and when it leaves it', () => {
     const container = document.createElement('div');
     const inaccurate = createPhotoMarkerElement({...photo(1, '2020-01-01', 53.9, 27.5), horizontalPositioningError: 65});

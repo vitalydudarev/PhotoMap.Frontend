@@ -32,6 +32,7 @@ import {
   PhotoSelection,
   createPhotoMarkerElement,
   createPhotoSpreadElement,
+  MapNoun,
   fitSpreads,
   hasInaccurateLocation,
   inaccuratePhotosById,
@@ -120,6 +121,9 @@ export class GooglePhotoMapComponent {
   readonly highlighted = input<readonly GeotaggedPhoto[] | undefined>(undefined);
   /** Whether the areas of all the photos whose location may be far off are circled, not only the hovered one's. */
   readonly showAccuracyAreas = input(false);
+
+  /** What the markers are named in their titles: photos, or videos. */
+  readonly noun = input<MapNoun>('photo');
 
   readonly error = signal<string | undefined>(undefined);
 
@@ -225,7 +229,8 @@ export class GooglePhotoMapComponent {
           const photos = cluster.markers.map((marker) => this.photoOf(marker as Marker));
           const tiles = this.isDeepest(map) ? (this.spreadTiles.get(cluster) ?? 1) : 1;
           // a cluster without room to spread is drawn as at the other zooms
-          const content = tiles > 1 ? this.createSpread(map, photos, tiles) : createPhotoMarkerElement(photos[0], cluster.count);
+          const content =
+            tiles > 1 ? this.createSpread(map, photos, tiles) : createPhotoMarkerElement(photos[0], cluster.count, this.noun());
 
           markHighlighted(content, photos, this.highlightedIds);
           this.clusterMarkers.set(content, photos);
@@ -386,6 +391,7 @@ export class GooglePhotoMapComponent {
       (photo) => this.onPhotoClick(map, photo),
       () => this.zone.run(() => this.groupOpened.emit(photos)),
       maxTiles,
+      this.noun(),
     ).element;
   }
 

@@ -26,6 +26,7 @@ import {
   PhotoSelection,
   createPhotoMarkerElement,
   createPhotoSpreadElement,
+  MapNoun,
   fitSpreads,
   hasInaccurateLocation,
   inaccuratePhotosById,
@@ -74,6 +75,9 @@ export class LeafletPhotoMapComponent {
   readonly highlighted = input<readonly GeotaggedPhoto[] | undefined>(undefined);
   /** Whether the areas of all the photos whose location may be far off are circled, not only the hovered one's. */
   readonly showAccuracyAreas = input(false);
+
+  /** What the markers are named in their titles: photos, or videos. */
+  readonly noun = input<MapNoun>('photo');
 
   private readonly container = viewChild.required<ElementRef<HTMLElement>>('map');
   private readonly map = signal<L.Map | undefined>(undefined);
@@ -157,7 +161,7 @@ export class LeafletPhotoMapComponent {
         const count = cluster.getChildCount();
         const size = markerSize(count);
         const photos = cluster.getAllChildMarkers().map((marker) => this.photoOf(marker));
-        const element = createPhotoMarkerElement(photos[0], count);
+        const element = createPhotoMarkerElement(photos[0], count, this.noun());
 
         markHighlighted(element, photos, this.highlightedIds);
 
@@ -328,6 +332,7 @@ export class LeafletPhotoMapComponent {
       (photo) => unlessDragged(() => this.onPhotoClick(map, photo)),
       () => unlessDragged(() => this.zone.run(() => this.groupOpened.emit(photos))),
       maxTiles,
+      this.noun(),
     );
 
     markHighlighted(spread.element, photos, this.highlightedIds);

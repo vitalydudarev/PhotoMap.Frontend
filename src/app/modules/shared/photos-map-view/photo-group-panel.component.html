@@ -1,5 +1,5 @@
 <header class="header">
-  <h2 id="photo-group-title" class="title">{{ photos().length }} photos here</h2>
+  <h2 id="photo-group-title" class="title">{{ photos().length }} {{ noun() }}s here</h2>
   <button appButton="ghost" size="sm" iconOnly type="button" aria-label="Close" (click)="closed.emit()">
     <app-icon name="x" [size]="18" />
   </button>

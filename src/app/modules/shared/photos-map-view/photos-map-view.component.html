@@ -3,6 +3,7 @@
     [photos]="geotaggedPhotos()"
     [highlighted]="group()"
     [showAccuracyAreas]="showAccuracyAreas()"
+    [noun]="noun()"
     (photosSelected)="openPhotos($event)"
     (groupOpened)="group.set($event)"
     (areaChanged)="area.set($event)"
@@ -12,6 +13,7 @@
     [photos]="geotaggedPhotos()"
     [highlighted]="group()"
     [showAccuracyAreas]="showAccuracyAreas()"
+    [noun]="noun()"
     (photosSelected)="openPhotos($event)"
     (groupOpened)="group.set($event)"
     (areaChanged)="area.set($event)"
@@ -19,7 +21,7 @@
 }
 
 @if (group(); as groupPhotos) {
-  <app-photo-group-panel [photos]="groupPhotos" (photosSelected)="openPhotos($event)" (closed)="group.set(undefined)" />
+  <app-photo-group-panel [photos]="groupPhotos" [noun]="noun()" (photosSelected)="openPhotos($event)" (closed)="group.set(undefined)" />
 }
 
 <div class="controls">
@@ -56,5 +58,5 @@
 </div>
 
 @if (geotaggedPhotos().length === 0) {
-  <p class="notice">None of these photos has a location.</p>
+  <p class="notice">None of these {{ noun() }}s has a location.</p>
 }

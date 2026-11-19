@@ -2,6 +2,9 @@ import {Photo} from 'src/app/core/models/photo.model';
 
 export type MapProvider = 'osm' | 'google';
 
+/** What the map shows, as its texts name them: photos, or the videos of the Videos page. */
+export type MapNoun = 'photo' | 'video';
+
 export interface GeotaggedPhoto extends Photo {
   latitude: number;
   longitude: number;
@@ -169,6 +172,7 @@ export function createPhotoSpreadElement(
   onClick: (photo: GeotaggedPhoto) => void,
   onMore: () => void,
   maxTiles = SPREAD_TILE_STEPS[0],
+  noun: MapNoun = 'photo',
 ): SizedElement {
   const sorted = [...photos].sort((a, b) => new Date(a.dateTimeTaken).getTime() - new Date(b.dateTimeTaken).getTime());
   const shown = sorted.length > maxTiles ? maxTiles - 1 : sorted.length;
@@ -199,7 +203,7 @@ export function createPhotoSpreadElement(
     more.style.width = `${size}px`;
     more.style.height = `${size}px`;
     more.textContent = `+${hidden}`;
-    more.title = `Show all ${sorted.length} photos`;
+    more.title = `Show all ${sorted.length} ${noun}s`;
     addTile(more, onMore);
   }
 
@@ -308,7 +312,7 @@ export function markHighlighted(element: HTMLElement, photos: readonly Geotagged
  * badge. The thumbnail is a background image, so it is only downloaded once the marker is
  * actually on the screen. Styled by `src/styles/_map.scss`, as map libraries render markers outside the component.
  */
-export function createPhotoMarkerElement(photo: Photo, count = 1): HTMLElement {
+export function createPhotoMarkerElement(photo: Photo, count = 1, noun: MapNoun = 'photo'): HTMLElement {
   const marker = document.createElement('div');
   const size = markerSize(count);
 
@@ -327,7 +331,7 @@ export function createPhotoMarkerElement(photo: Photo, count = 1): HTMLElement {
     badge.className = 'photo-marker__count';
     badge.textContent = count >= 10000 ? `${Math.floor(count / 1000)}k` : String(count);
     marker.appendChild(badge);
-    marker.title = `${count} photos`;
+    marker.title = `${count} ${noun}s`;
   } else {
     marker.title = photoTitle(photo);
 

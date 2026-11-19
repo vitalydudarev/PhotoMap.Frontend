@@ -1,4 +1,4 @@
-import {ChangeDetectionStrategy, Component, computed, effect, inject, input, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal} from '@angular/core';
 import {Params, Router} from '@angular/router';
 import {MapArea, formatMapArea, mapAreaContains} from 'src/app/core/models/map-area.model';
 import {Photo} from 'src/app/core/models/photo.model';
@@ -10,7 +10,7 @@ import {SegmentedComponent, SegmentedOption} from 'src/app/shared/ui/segmented/s
 import {GooglePhotoMapComponent} from './google-photo-map.component';
 import {LeafletPhotoMapComponent} from './leaflet-photo-map.component';
 import {PhotoGroupPanelComponent} from './photo-group-panel.component';
-import {GeotaggedPhoto, MapProvider, PhotoSelection, hasInaccurateLocation, isGeotagged} from './photo-map.model';
+import {GeotaggedPhoto, MapNoun, MapProvider, PhotoSelection, hasInaccurateLocation, isGeotagged} from './photo-map.model';
 
 const PROVIDER_STORAGE_KEY = 'map-provider';
 const ACCURACY_STORAGE_KEY = 'map-accuracy-areas';
@@ -42,6 +42,15 @@ export class PhotosMapViewComponent {
 
   /** More of the address the gallery is opened with, such as the locations the photos are narrowed down to. */
   readonly galleryQueryParams = input<Params>({});
+
+  /** What the map shows, as its texts name them: photos, or videos made to look like photos, by their previews. */
+  readonly noun = input<MapNoun>('photo');
+
+  /** Whether a photo clicked opens in the photo viewer; otherwise it is only told of, to be opened by the page. */
+  readonly openInViewer = input(true);
+
+  /** The photos clicked, with the rest to step through, when they are not opened in the photo viewer. */
+  readonly opened = output<PhotoSelection>();
 
   readonly geotaggedPhotos = computed(() => this.photos().filter(isGeotagged));
 
@@ -86,7 +95,11 @@ export class PhotosMapViewComponent {
   }
 
   openPhotos(selection: PhotoSelection): void {
-    this.photoViewerService.open(selection.photos, selection.index);
+    if (this.openInViewer()) {
+      this.photoViewerService.open(selection.photos, selection.index);
+    } else {
+      this.opened.emit(selection);
+    }
   }
 
   /**

@@ -1,3 +1,4 @@
+import {Component, input, output} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {ActivatedRoute, convertToParamMap, provideRouter} from '@angular/router';
 import {of} from 'rxjs';
@@ -5,8 +6,20 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {VideoLocation} from '../../core/models/photo-location.model';
 import {Video, VideoDuplicateGroup} from '../../core/models/video.model';
+import {Photo} from '../../core/models/photo.model';
 import {VideosService} from '../../core/services/videos.service';
+import {PhotoSelection} from '../shared/photos-map-view/photo-map.model';
+import {PhotosMapViewComponent} from '../shared/photos-map-view/photos-map-view.component';
 import {VideosComponent} from './videos.component';
+
+/** Stands in for the map, which draws nothing in a test: tells the photos it is given, and what is clicked on it. */
+@Component({selector: 'app-photos-map-view', template: ''})
+class MapViewStubComponent {
+  readonly photos = input<readonly Photo[]>([]);
+  readonly noun = input('photo');
+  readonly openInViewer = input(true);
+  readonly opened = output<PhotoSelection>();
+}
 
 describe('VideosComponent', () => {
   let fixture: ComponentFixture<VideosComponent>;
@@ -322,6 +335,70 @@ describe('VideosComponent', () => {
       build();
 
       expect(checklists()).not.toContainEqual(expect.stringContaining('Location'));
+    });
+  });
+
+  describe('on the map', () => {
+    const minsk: Video = {...video, id: '3', fileName: 'minsk.mp4', latitude: 53.9, longitude: 27.56};
+    const mapView = () =>
+      fixture.debugElement.query((debug) => debug.componentInstance instanceof MapViewStubComponent)?.componentInstance as
+        MapViewStubComponent | undefined;
+    const showMap = () => {
+      component.selectedViewMode.set('map');
+      fixture.detectChanges();
+    };
+
+    beforeEach(() => {
+      TestBed.overrideComponent(VideosComponent, {remove: {imports: [PhotosMapViewComponent]}, add: {imports: [MapViewStubComponent]}});
+      getUserVideos.mockReturnValue(of({values: [video, minsk], total: 2, limit: 100, offset: 0}));
+      queryParams = {allFolders: 'true'};
+    });
+
+    it('should show the videos of the page on the map by their previews, named as videos, and play them itself', () => {
+      build();
+      showMap();
+
+      expect(element().querySelector('.grid')).toBeNull();
+      expect(mapView()?.noun()).toBe('video');
+      expect(mapView()?.openInViewer()).toBe(false);
+      expect(mapView()?.photos()[1]).toEqual(
+        expect.objectContaining({id: '3', thumbnailSmallUrl: minsk.previewUrl, latitude: 53.9, longitude: 27.56}),
+      );
+    });
+
+    it('should hide the width switcher on the map, where it does nothing', () => {
+      build();
+      showMap();
+
+      expect(element().querySelector('.width-modes')).toBeNull();
+    });
+
+    it('should play the video clicked on the map, stepping through the others of its spot', () => {
+      build();
+      showMap();
+
+      mapView()!.opened.emit({photos: mapView()!.photos().slice().reverse(), index: 0});
+      fixture.detectChanges();
+
+      expect(component.playerVideos()).toEqual([minsk, video]);
+      expect(component.playingIndex()).toBe(0);
+
+      // played from the grid, the player steps through the videos of the page again
+      component.play(video);
+
+      expect(component.playerVideos()).toEqual([video, minsk]);
+    });
+
+    it('should narrow the videos of the map down by the filters of the sidebar, as the grid', () => {
+      locations = [{id: 8, level: 'City', name: 'Minsk', description: 'Belarus', videoCount: 1}];
+      build();
+      showMap();
+
+      component.filterUpdated(component.locationFilter, [8]);
+      fixture.detectChanges();
+
+      expect(getUserVideos.mock.lastCall!.slice(6, 8)).toEqual([[8], false]);
+      expect(mapView()).toBeDefined();
     });
   });
 

@@ -5,6 +5,7 @@ import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {ActivatedRoute, Router} from '@angular/router';
 import {Subscription} from 'rxjs';
 import {PhotoSortOrder} from 'src/app/core/models/photo-sort-order.model';
+import {Photo} from 'src/app/core/models/photo.model';
 import {Video, VideoDuplicateGroup} from 'src/app/core/models/video.model';
 import {UNAVAILABLE_IMAGE} from 'src/app/core/services/photo-viewer.service';
 import {ChecklistComponent} from 'src/app/shared/ui/checklist/checklist.component';
@@ -21,6 +22,8 @@ import {GalleryFilter, takenIn} from '../gallery/gallery-filter';
 import {UNKNOWN_LOCATION, locationOptions} from '../gallery/location-options';
 import {VideoDuplicatesComponent} from './video-duplicates/video-duplicates.component';
 import {VideoPlayerComponent} from './video-player/video-player.component';
+import {PhotoSelection} from '../shared/photos-map-view/photo-map.model';
+import {PhotosMapViewComponent} from '../shared/photos-map-view/photos-map-view.component';
 import {ScrollControlComponent} from '../shared/scroll-control/scroll-control.component';
 import {isNarrowScreen, sidebarOpen} from '../shared/sidebar-page/sidebar-open';
 
@@ -44,6 +47,9 @@ const SIDEBAR_OPEN_STORAGE_KEY = 'videos-sidebar-open';
 
 type VideosWidth = 'contained' | 'full';
 
+/** How the videos of the page are shown: by their previews in a grid, or on a map, where they were taken. */
+type VideosViewMode = 'grid' | 'map';
+
 /**
  * What the page lists: the camera uploads, the videos of the folders the phones upload to; all the videos, those of
  * the other folders too; or the videos that are copies of one another.
@@ -65,6 +71,7 @@ const USER_ID = 1;
     LazySrcDirective,
     NgTemplateOutlet,
     PaginatorComponent,
+    PhotosMapViewComponent,
     ScrollControlComponent,
     SegmentedComponent,
     SpinnerComponent,
@@ -100,9 +107,40 @@ export class VideosComponent implements OnInit {
   /** The view of the sidebar the page shows, the camera uploads until the user picks another. */
   readonly view = computed<VideosView>(() => (this.showDuplicates() ? 'duplicates' : this.allFolders() ? 'all' : 'camera'));
 
-  /** The videos the player steps through: the ones of the page, or every duplicate, group after group. */
+  readonly viewModes: readonly SegmentedOption<VideosViewMode>[] = [
+    {value: 'grid', label: 'Previews', icon: 'grid'},
+    {value: 'map', label: 'Map', icon: 'map'},
+  ];
+
+  /** Whether the videos of the page are shown in a grid, or on a map. The duplicates are always in a list. */
+  readonly selectedViewMode = signal<VideosViewMode>('grid');
+
+  /**
+   * The videos of the page as the map shows them: by their previews, where their GPS locations say they were taken.
+   * The map is made for photos, so a video stands in for a photo there, by its ID.
+   */
+  readonly mapVideos = computed<Photo[]>(() =>
+    this.videos().map((video) => ({
+      id: video.id,
+      photoUrl: video.videoUrl,
+      thumbnailSmallUrl: video.previewUrl,
+      thumbnailLargeUrl: video.previewUrl,
+      dateTimeTaken: video.dateTimeTaken,
+      fileName: video.fileName,
+      latitude: video.latitude,
+      longitude: video.longitude,
+    })),
+  );
+
+  /** The videos of a spot of the map the player steps through, once one of them is played from the map. */
+  private readonly mapPlaylist = signal<Video[] | null>(null);
+
+  /**
+   * The videos the player steps through: the ones of the page, those of the spot of the map played from, or every
+   * duplicate, group after group.
+   */
   readonly playerVideos = computed(() =>
-    this.showDuplicates() ? this.shownDuplicateGroups().flatMap((group) => group.videos) : this.videos(),
+    this.showDuplicates() ? this.shownDuplicateGroups().flatMap((group) => group.videos) : (this.mapPlaylist() ?? this.videos()),
   );
 
   /** The video playing, of the ones of the player; none while the player is closed. */
@@ -270,7 +308,19 @@ export class VideosComponent implements OnInit {
   }
 
   play(video: Video): void {
+    this.mapPlaylist.set(null);
     this.playingIndex.set(this.playerVideos().indexOf(video));
+  }
+
+  /** Plays the video clicked on the map, the player stepping through the others of its spot, in the order taken. */
+  playFromMap(selection: PhotoSelection): void {
+    const videos = new Map(this.videos().map((video) => [video.id, video]));
+    const playlist = selection.photos.map((photo) => videos.get(photo.id)).filter((video): video is Video => video !== undefined);
+
+    if (playlist.length > 0) {
+      this.mapPlaylist.set(playlist);
+      this.playingIndex.set(Math.min(selection.index, playlist.length - 1));
+    }
   }
 
   pageUpdated(event: PageEvent): void {
@@ -499,6 +549,7 @@ export class VideosComponent implements OnInit {
   private loadVideos(): void {
     this.videosRequest?.unsubscribe();
     this.playingIndex.set(null);
+    this.mapPlaylist.set(null);
 
     const folderPaths = this.requestedFolders();
 

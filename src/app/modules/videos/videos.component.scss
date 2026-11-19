@@ -20,6 +20,11 @@
   justify-content: center;
 }
 
+/* Fills the height left under the toolbar. */
+.map {
+  flex: 1;
+}
+
 .thumb {
   position: relative;
   display: block;
