@@ -268,8 +268,8 @@ describe('VideosComponent', () => {
 
     beforeEach(() => {
       locations = [
-        {id: 8, level: 'City', name: 'Minsk', description: 'Belarus', videoCount: 2},
-        {id: 3, level: 'Country', name: 'Belarus', description: null, videoCount: 4},
+        {id: 8, level: 'City', name: 'Minsk', description: 'Belarus', videoCount: 2, parentIds: [3]},
+        {id: 3, level: 'Country', name: 'Belarus', description: null, videoCount: 4, parentIds: []},
       ];
     });
 
@@ -278,8 +278,8 @@ describe('VideosComponent', () => {
 
       expect(component.locationFilter.options()).toEqual([
         {value: 0, label: 'Unknown location'},
-        {value: 3, label: 'Belarus', group: 'Countries', hint: undefined},
-        {value: 8, label: 'Minsk', group: 'Cities', hint: 'Belarus'},
+        {value: 3, label: 'Belarus', group: 'Countries', hint: undefined, within: []},
+        {value: 8, label: 'Minsk', group: 'Cities', hint: 'Belarus', within: [3]},
       ]);
       expect(component.locationFilter.selected()).toEqual([0, 3, 8]);
       expect(checklists()).toEqual([
@@ -390,7 +390,7 @@ describe('VideosComponent', () => {
     });
 
     it('should narrow the videos of the map down by the filters of the sidebar, as the grid', () => {
-      locations = [{id: 8, level: 'City', name: 'Minsk', description: 'Belarus', videoCount: 1}];
+      locations = [{id: 8, level: 'City', name: 'Minsk', description: 'Belarus', videoCount: 1, parentIds: [3]}];
       build();
       showMap();
 

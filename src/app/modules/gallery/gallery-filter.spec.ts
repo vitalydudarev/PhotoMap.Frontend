@@ -118,4 +118,91 @@ describe('GalleryFilter', () => {
     expect(filter.selected()).toEqual(['disk:/Videos']);
     expect(filter.values()).toEqual(['disk:/Videos']);
   });
+
+  describe('with nested options, as the locations are', () => {
+    const locations = [
+      {value: 0, label: 'Unknown location'},
+      {value: 1, label: 'Italy', group: 'Countries', within: []},
+      {value: 2, label: 'Spain', group: 'Countries', within: []},
+      {value: 3, label: 'Madrid', group: 'Cities', within: [2]},
+      {value: 4, label: 'Rome', group: 'Cities', within: [1]},
+      {value: 5, label: 'Milan', group: 'Cities', within: [1]},
+    ];
+
+    it('should take the country picked, whatever is picked of the cities of others', () => {
+      const filter = new GalleryFilter();
+      filter.setOptions(locations);
+
+      filter.selected.set([1, 3, 4, 5]);
+
+      expect(filter.values()).toEqual([1]);
+    });
+
+    it('should take the city picked of the cities of the country picked', () => {
+      const filter = new GalleryFilter();
+      filter.setOptions(locations);
+
+      filter.selected.set([1, 3, 4]);
+
+      expect(filter.values()).toEqual([4]);
+    });
+
+    it('should take the country picked when none of its cities is picked, as the cities do not narrow then', () => {
+      const filter = new GalleryFilter();
+      filter.setOptions(locations);
+
+      filter.selected.set([1, 3]);
+
+      expect(filter.values()).toEqual([1]);
+    });
+
+    it('should take a country alone, not the cities within it, while nothing narrows', () => {
+      const filter = new GalleryFilter();
+      filter.setOptions(locations);
+
+      filter.selected.set([1, 2, 3, 4, 5]);
+
+      expect(filter.values()).toEqual([1, 2]);
+    });
+
+    it('should take none when nothing is picked', () => {
+      const filter = new GalleryFilter();
+      filter.setOptions(locations);
+
+      filter.selected.set([]);
+
+      expect(filter.values()).toEqual([]);
+      expect(filter.noneSelected()).toBe(true);
+    });
+
+    it('should pick the country of the city the address asked for, and narrow the cities down to it', () => {
+      const filter = new GalleryFilter();
+      filter.request(['4']);
+
+      filter.setOptions(locations);
+
+      expect(filter.selected()).toEqual([1, 4]);
+      expect(filter.values()).toEqual([4]);
+    });
+
+    it('should pick every city of the country the address asked for', () => {
+      const filter = new GalleryFilter();
+      filter.request(['0', '1']);
+
+      filter.setOptions(locations);
+
+      expect(filter.selected()).toEqual([0, 1, 3, 4, 5]);
+      expect(filter.values()).toEqual([0, 1]);
+    });
+
+    it('should pick nothing else for the photos in no location alone', () => {
+      const filter = new GalleryFilter();
+      filter.request(['0']);
+
+      filter.setOptions(locations);
+
+      expect(filter.selected()).toEqual([0]);
+      expect(filter.values()).toEqual([0]);
+    });
+  });
 });

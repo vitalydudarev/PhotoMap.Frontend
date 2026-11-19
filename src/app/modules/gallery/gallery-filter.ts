@@ -1,4 +1,5 @@
 import {computed, signal} from '@angular/core';
+import {narrow, pickForNarrowing} from 'src/app/shared/ui/checklist/narrowing';
 import {MultiselectOption} from 'src/app/shared/ui/multiselect/multiselect.component';
 
 /**
@@ -8,11 +9,16 @@ import {MultiselectOption} from 'src/app/shared/ui/multiselect/multiselect.compo
  *
  * Some options take photos that are left out unless asked for, such as the deleted ones. Those are not picked until
  * the user picks them, and picking them narrows the photos down to the ones picked, so they are asked for.
+ *
+ * Options in nested groups, such as the locations from the countries down, are picked in effect as `narrow` tells:
+ * picking Italy among the countries takes the photos in Italy, and picking Rome then among its cities, those in Rome.
  */
 export class GalleryFilter<T extends number | string = number> {
   readonly options = signal<readonly MultiselectOption<T>[]>([]);
   readonly selected = signal<readonly T[]>([]);
-  readonly noneSelected = computed(() => this.options().length > 0 && this.selected().length === 0);
+  /** What is picked in effect, see `narrow`; all those picked unless the options are nested. */
+  readonly picked = computed(() => narrow(this.options(), this.selected()).picked);
+  readonly noneSelected = computed(() => this.options().length > 0 && this.picked().length === 0);
 
   private requested: readonly T[] = [];
 
@@ -37,7 +43,7 @@ export class GalleryFilter<T extends number | string = number> {
     const everyDefaultSelected = this.defaults(options).every((value) => selected.includes(value));
     const optInSelected = selected.some((value) => this.optIn.includes(value));
 
-    return everyDefaultSelected && !optInSelected ? [] : selected;
+    return everyDefaultSelected && !optInSelected ? [] : this.picked();
   }
 
   /** Takes the values the address asks for, as one value or a list of them. */
@@ -59,7 +65,7 @@ export class GalleryFilter<T extends number | string = number> {
     const changed = requested.length !== this.requested.length;
 
     this.options.set(options);
-    this.selected.set(requested.length > 0 ? requested : this.defaults(options));
+    this.selected.set(requested.length > 0 ? pickForNarrowing(options, requested) : this.defaults(options));
     this.requested = [];
 
     return changed;

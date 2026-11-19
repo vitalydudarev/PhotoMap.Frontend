@@ -675,10 +675,10 @@ describe('GalleryComponent', () => {
     describe('by location', () => {
       const flushLocations = (
         locations = [
-          {id: 3, level: 'Country', name: 'Belarus', description: null, photoCount: 20},
-          {id: 8, level: 'City', name: 'Minsk', description: 'Belarus', photoCount: 15},
-          {id: 5, level: 'Country', name: 'Italy', description: null, photoCount: 4},
-          {id: 21, level: 'Postcode', name: '220073', description: 'Minsk, Belarus', photoCount: 2},
+          {id: 3, level: 'Country', name: 'Belarus', description: null, photoCount: 20, parentIds: []},
+          {id: 8, level: 'City', name: 'Minsk', description: 'Belarus', photoCount: 15, parentIds: [3]},
+          {id: 5, level: 'Country', name: 'Italy', description: null, photoCount: 4, parentIds: []},
+          {id: 21, level: 'Postcode', name: '220073', description: 'Minsk, Belarus', photoCount: 2, parentIds: [3, 8]},
         ],
       ) => {
         http()
@@ -694,10 +694,10 @@ describe('GalleryComponent', () => {
 
         expect(component.locationFilter.options()).toEqual([
           {value: 0, label: 'Unknown location'},
-          {value: 3, label: 'Belarus', group: 'Countries', hint: undefined},
-          {value: 5, label: 'Italy', group: 'Countries', hint: undefined},
-          {value: 8, label: 'Minsk', group: 'Cities', hint: 'Belarus'},
-          {value: 21, label: '220073', group: 'Postcodes', hint: 'Minsk, Belarus'},
+          {value: 3, label: 'Belarus', group: 'Countries', hint: undefined, within: []},
+          {value: 5, label: 'Italy', group: 'Countries', hint: undefined, within: []},
+          {value: 8, label: 'Minsk', group: 'Cities', hint: 'Belarus', within: [3]},
+          {value: 21, label: '220073', group: 'Postcodes', hint: 'Minsk, Belarus', within: [3, 8]},
         ]);
         expect(component.locationFilter.selected()).toEqual([0, 3, 5, 8, 21]);
         expect(request.request.params.getAll('location')).toBeNull();
@@ -719,10 +719,11 @@ describe('GalleryComponent', () => {
         flushLocations();
         component.pageIndex = 2;
 
-        component.filterUpdated(component.locationFilter, [8, 5]);
+        // Minsk, which Belarus takes already, but not its postcode
+        component.filterUpdated(component.locationFilter, [3, 5, 8]);
         const [request] = photosRequests();
 
-        expect(request.request.params.getAll('location')).toEqual(['8', '5']);
+        expect(request.request.params.getAll('location')).toEqual(['3', '5']);
         expect(request.request.params.get('unknownLocation')).toBeNull();
         expect(request.request.params.get('skip')).toBe('0');
       });
@@ -749,7 +750,8 @@ describe('GalleryComponent', () => {
         fixture.detectChanges();
         flushLocations();
 
-        expect(component.locationFilter.selected()).toEqual([8]);
+        // and its postcode, but not Belarus, as Minsk is its only city, so Belarus would take the photos of no city too
+        expect(component.locationFilter.selected()).toEqual([8, 21]);
         expect(component.locationFilter.values()).toEqual([8]);
       });
 

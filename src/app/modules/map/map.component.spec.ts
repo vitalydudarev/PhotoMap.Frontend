@@ -65,8 +65,8 @@ describe('MapComponent', () => {
     getUserGeotaggedPhotos = vi.fn(() => of([photo]));
     queryParams = {};
     locations = [
-      {id: 8, level: 'City', name: 'Minsk', description: 'Belarus', photoCount: 2},
-      {id: 3, level: 'Country', name: 'Belarus', description: null, photoCount: 4},
+      {id: 8, level: 'City', name: 'Minsk', description: 'Belarus', photoCount: 2, parentIds: [3]},
+      {id: 3, level: 'Country', name: 'Belarus', description: null, photoCount: 4, parentIds: []},
     ];
 
     TestBed.configureTestingModule({
@@ -117,7 +117,8 @@ describe('MapComponent', () => {
     build();
 
     expect(lastLocations()).toEqual([[3], false]);
-    expect(component.locationFilter.selected()).toEqual([3]);
+    // the cities of the country too, which do not narrow it down
+    expect(component.locationFilter.selected()).toEqual([3, 8]);
   });
 
   it('should show no photos while no location is picked', () => {

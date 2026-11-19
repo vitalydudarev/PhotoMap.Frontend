@@ -238,6 +238,69 @@ describe('ChecklistComponent', () => {
     });
   });
 
+  describe('nested, as the locations are', () => {
+    const groupHeadings = () => [...element().querySelectorAll<HTMLButtonElement>('.group-heading')];
+    const shownNames = () => names().map((name) => name.firstChild?.textContent?.trim());
+    const nameOf = (label: string) => names().find((name) => name.firstChild?.textContent?.trim() === label)!;
+
+    beforeEach(() => {
+      fixture.componentRef.setInput('label', 'Location');
+      fixture.componentRef.setInput('options', [
+        {value: 0, label: 'Unknown location'},
+        {value: 1, label: 'Italy', group: 'Countries', within: []},
+        {value: 2, label: 'Spain', group: 'Countries', within: []},
+        {value: 3, label: 'Madrid', group: 'Cities', within: [2]},
+        {value: 4, label: 'Milan', group: 'Cities', within: [1]},
+        {value: 5, label: 'Rome', group: 'Cities', within: [1]},
+        {value: 6, label: 'Trastevere', group: 'Localities', within: [1, 5]},
+      ]);
+      fixture.componentRef.setInput('value', [0, 1, 2, 3, 4, 5, 6]);
+      fixture.detectChanges();
+      groupHeadings().forEach((groupHeading) => click(groupHeading));
+    });
+
+    it('should list every option while every one is picked', () => {
+      expect(shownNames()).toEqual(['Unknown location', 'Italy', 'Spain', 'Madrid', 'Milan', 'Rome', 'Trastevere']);
+    });
+
+    it('should list only the options within the country picked alone, keeping what is picked below', () => {
+      click(nameOf('Italy'));
+
+      expect(component.value()).toEqual([1, 3, 4, 5, 6]);
+      expect(shownNames()).toEqual(['Unknown location', 'Italy', 'Spain', 'Milan', 'Rome', 'Trastevere']);
+      expect(heading().textContent).toContain('Italy');
+      expect(groupHeadings()[1].textContent).toContain('All');
+    });
+
+    it('should pick a city alone among the cities of the country picked, and drop the groups with nothing to list', () => {
+      click(nameOf('Italy'));
+      click(nameOf('Milan'));
+
+      expect(component.value()).toEqual([1, 3, 4, 6]);
+      expect(shownNames()).toEqual(['Unknown location', 'Italy', 'Spain', 'Milan', 'Rome']);
+      expect(groupHeadings().map((groupHeading) => groupHeading.textContent)).toEqual([
+        expect.stringContaining('Countries'),
+        expect.stringContaining('Cities'),
+      ]);
+      expect(heading().textContent).toContain('Milan');
+    });
+
+    it('should pick the cities of the country back with a click on the only one picked', () => {
+      click(nameOf('Italy'));
+      click(nameOf('Milan'));
+      click(nameOf('Milan'));
+
+      expect(component.value()).toEqual([1, 3, 4, 5, 6]);
+    });
+
+    it('should list the options of the countries picked when some are unchecked', () => {
+      // the first checkbox picks all of them, the second the unknown location, the third all the countries
+      click(checkboxes()[4]);
+
+      expect(shownNames()).toEqual(['Unknown location', 'Italy', 'Spain', 'Milan', 'Rome', 'Trastevere']);
+    });
+  });
+
   it('should take the height left to it only while open, when asked to fill', () => {
     fixture.componentRef.setInput('fill', true);
     fixture.detectChanges();

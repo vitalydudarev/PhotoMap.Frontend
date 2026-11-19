@@ -3,6 +3,7 @@ import {ChangeDetectionStrategy, Component, computed, input, model, signal} from
 
 import {IconComponent} from '../icon/icon.component';
 import {MultiselectOption} from '../multiselect/multiselect.component';
+import {narrow} from './narrowing';
 
 let nextId = 0;
 
@@ -36,6 +37,12 @@ interface ShownGroup<T> {
  * The options of a group, such as the cities among the locations, are listed under a heading of their own, which folds
  * them away and says what is picked of them, as the heading of the whole list does. Each group has its own search, and
  * its own checkbox to pick or clear its options; the options of no group come first.
+ *
+ * Options that say what they are within, such as the locations from the countries down, are narrowed down as `narrow`
+ * tells: once Italy alone is picked among the countries, the cities list those of Italy alone, and a group left with
+ * nothing to list is not shown. A click on the name of such an option then picks it alone among its group, keeping
+ * what is picked of the groups above, so that Rome can be picked among the cities of Italy; the options of no group
+ * are cleared, as they are not narrowed down.
  *
  * Asked to fill, the list takes the height left to it, such as the rest of a sidebar, and scrolls within it.
  */
@@ -74,6 +81,9 @@ export class ChecklistComponent<T> {
   /** The text the options of each group are searched for, by the name of the group. */
   readonly groupQueries = signal<ReadonlyMap<string, string>>(new Map());
 
+  /** How the options are narrowed down by what is picked, when they are nested. */
+  readonly narrowing = computed(() => narrow(this.options(), this.value()));
+
   /** The options of no group, listed first, above the groups. */
   readonly ungroupedOptions = computed(() => this.options().filter((option) => option.group === undefined));
 
@@ -81,8 +91,10 @@ export class ChecklistComponent<T> {
   readonly groups = computed<ShownGroup<T>[]>(() => {
     const byName = new Map<string, MultiselectOption<T>[]>();
 
+    const narrowing = this.narrowing();
+
     for (const option of this.options()) {
-      if (option.group !== undefined) {
+      if (option.group !== undefined && narrowing.shown.has(option.value)) {
         byName.set(option.group, [...(byName.get(option.group) ?? []), option]);
       }
     }
@@ -122,12 +134,20 @@ export class ChecklistComponent<T> {
   readonly allSelected = computed(() => this.options().every((option) => this.value().includes(option.value)));
   readonly noneSelected = computed(() => !this.options().some((option) => this.value().includes(option.value)));
 
-  readonly summary = computed(() =>
-    summarize(
-      this.options(),
-      this.options().filter((option) => this.value().includes(option.value)),
-    ),
-  );
+  /** What is picked: of all the options, or, once they are narrowed down, of those what is picked in effect is of. */
+  readonly summary = computed(() => {
+    const {narrowed, picked, candidates} = this.narrowing();
+
+    return narrowed
+      ? summarize(
+          candidates,
+          candidates.filter((option) => picked.includes(option.value)),
+        )
+      : summarize(
+          this.options(),
+          this.options().filter((option) => this.value().includes(option.value)),
+        );
+  });
 
   isSelected(option: MultiselectOption<T>): boolean {
     return this.value().includes(option.value);
@@ -153,8 +173,36 @@ export class ChecklistComponent<T> {
     // the label would otherwise pass the click on to its checkbox and toggle it
     event.preventDefault();
 
+    if (option.group !== undefined && this.narrowing().nested) {
+      this.pickOnlyInGroup(option);
+      return;
+    }
+
     const onlyThis = this.isSelected(option) && this.value().length === 1;
     this.value.set(onlyThis ? this.options().map((candidate) => candidate.value) : [option.value]);
+  }
+
+  /**
+   * Picks the option alone among the options listed of its group, keeping what is picked of the other groups, and of
+   * those of its group not listed, and clearing the options of no group; or all those listed of its group back when it
+   * is the only one of them picked already.
+   */
+  private pickOnlyInGroup(option: MultiselectOption<T>): void {
+    const listed = this.groups().find((group) => group.name === option.group)?.options ?? [];
+    const onlyThis = this.isSelected(option) && listed.filter((candidate) => this.isSelected(candidate)).length === 1;
+
+    this.value.set(
+      this.options()
+        .filter((candidate) => {
+          if (listed.includes(candidate)) {
+            return onlyThis || candidate === option;
+          }
+
+          return candidate.group !== undefined && this.isSelected(candidate);
+          // the options of its group not listed are kept as they are, as are those of the other groups
+        })
+        .map((candidate) => candidate.value),
+    );
   }
 
   /**

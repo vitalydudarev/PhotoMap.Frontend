@@ -10,10 +10,11 @@ export const UNKNOWN_LOCATION = 0;
 
 /**
  * The options of the location filter: the locations listed under their levels, from the countries down, after the
- * unknown location; none with no location at all, as there is nothing to filter by then.
+ * unknown location; none with no location at all, as there is nothing to filter by then. Each is within the larger
+ * locations it is in, so that picking a country lists only the regions, cities and so on of that country.
  */
 export function locationOptions(
-  locations: readonly {id: number; level: LocationLevel; name: string; description: string | null}[],
+  locations: readonly {id: number; level: LocationLevel; name: string; description: string | null; parentIds?: number[]}[],
 ): MultiselectOption<number>[] {
   if (locations.length === 0) {
     return [];
@@ -29,6 +30,8 @@ export function locationOptions(
           label: location.name,
           group: label,
           hint: location.description ?? undefined,
+          // none from a backend that does not tell, so the locations are not nested then
+          within: location.parentIds,
         })),
     ),
   ];

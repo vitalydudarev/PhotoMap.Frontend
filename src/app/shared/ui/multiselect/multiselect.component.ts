@@ -9,6 +9,12 @@ export interface MultiselectOption<T> {
   group?: string;
   /** What tells the option apart from others of the same label, such as the country of a city; muted, after the label. */
   hint?: string;
+  /**
+   * The options of the groups above that it is within, such as the region and the country of a city; none for one of
+   * the top group. Given, the checklist lists it only while it is within those picked of a group above that narrows,
+   * see `narrow`.
+   */
+  within?: readonly T[];
 }
 
 /**

@@ -20,6 +20,8 @@ export interface PhotoLocation {
   description: string | null;
   /** How many photos of the user were taken in it, the deleted ones too. */
   photoCount: number;
+  /** The IDs of the larger locations of the user it is in, such as the region and the country of a city; none for a country. */
+  parentIds: number[];
 }
 
 /** Mirrors the backend's `VideoLocationDto`: a location the videos of the user were taken in, as the reverse geocoding tells. */
@@ -32,4 +34,6 @@ export interface VideoLocation {
   description: string | null;
   /** How many videos of the user were taken in it. */
   videoCount: number;
+  /** The IDs of the larger locations of the user it is in, such as the region and the country of a city; none for a country. */
+  parentIds: number[];
 }
