@@ -415,6 +415,17 @@ export class GalleryComponent implements OnInit {
     this.setImages();
   }
 
+  /**
+   * Shows the photos of the page in the grid, or every photo with a location the filters take on the map, which
+   * clusters them, rather than the page of the grid only.
+   */
+  viewModeUpdated(viewMode: ViewMode): void {
+    if (viewMode !== this.selectedViewMode()) {
+      this.selectedViewMode.set(viewMode);
+      this.setImages();
+    }
+  }
+
   filterUpdated(filter: GalleryFilter, values: readonly number[]): void {
     filter.selected.set(values);
 
@@ -864,6 +875,12 @@ export class GalleryComponent implements OnInit {
 
     const filter = this.photoFilter();
 
+    if (this.selectedViewMode() === 'map') {
+      this.loadMapPhotos(filter);
+
+      return;
+    }
+
     // a request still on its way is dropped, so an answer for the previous filter cannot land after this one
     this.photosRequest = this.userPhotosService
       .getUserPhotos(this.userId, this.pageSize, this.pageSize * this.pageIndex, this.selectedSortOrder(), filter)
@@ -876,6 +893,26 @@ export class GalleryComponent implements OnInit {
 
           // the grid of the new photos is drawn first
           afterNextRender(() => this.updateActiveMonth(), {injector: this.injector});
+        },
+        error: (error) => {
+          this.photos.set([]);
+          this.failed.set(true);
+          this.showSpinner.set(false);
+          this.toastService.error('Could not load the photos.', error);
+        },
+      });
+  }
+
+  /** Every photo with a location the filter takes, at once: the map clusters them, so it has no pages. */
+  private loadMapPhotos(filter: PhotoFilter): void {
+    this.photosRequest = this.userPhotosService
+      .getUserGeotaggedPhotos(this.userId, filter)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (photos) => {
+          this.totalCount.set(photos.length);
+          this.photos.set(photos);
+          this.showSpinner.set(false);
         },
         error: (error) => {
           this.photos.set([]);

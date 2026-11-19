@@ -28,70 +28,17 @@ export class UserPhotosService {
     sort: PhotoSortOrder,
     filter: PhotoFilter = {sourceIds: [], years: [], categories: []},
   ): Observable<PagedResponse<Photo>> {
-    let params = new HttpParams().set('top', top).set('skip', skip).set('sort', sort);
-
-    for (const sourceId of filter.sourceIds) {
-      params = params.append('source', sourceId);
-    }
-
-    for (const year of filter.years) {
-      params = params.append('year', year);
-    }
-
-    for (const category of filter.categories) {
-      params = params.append('category', category);
-    }
-
-    if (filter.hasGps !== undefined) {
-      params = params.set('gps', filter.hasGps);
-    }
-
-    if (filter.allFolders) {
-      params = params.set('allFolders', true);
-    }
-
-    for (const tagId of filter.tagIds ?? []) {
-      params = params.append('tag', tagId);
-    }
-
-    if (filter.untagged) {
-      params = params.set('untagged', true);
-    }
-
-    if (filter.area) {
-      params = params.set('area', formatMapArea(filter.area));
-    }
-
-    for (const locationId of filter.locationIds ?? []) {
-      params = params.append('location', locationId);
-    }
-
-    if (filter.unknownLocation) {
-      params = params.set('unknownLocation', true);
-    }
+    const params = filterParams(new HttpParams().set('top', top).set('skip', skip).set('sort', sort), filter);
 
     return this._httpClient.get<PagedResponse<Photo>>(`${this.url}/${userId}/photos`, {params});
   }
 
   /**
-   * The photos of the user with a GPS location, all of them, oldest first. The deleted photos are left out.
-   * @param locationIds The locations the photos were taken in, any of them; with neither these nor `unknownLocation`,
-   * the photos taken anywhere, and those in no location.
-   * @param unknownLocation Whether the photos in no location are taken too: those not geocoded yet, or where the
-   * geocoding found nothing.
+   * The photos of the user with a GPS location that the filter takes, all of them, oldest first, for the map; a photo
+   * with copies once, as in the gallery. The deleted photos are left out unless the filter asks for them.
    */
-  public getUserGeotaggedPhotos(userId: number, locationIds: readonly number[] = [], unknownLocation = false): Observable<Photo[]> {
-    let params = new HttpParams();
-
-    for (const locationId of locationIds) {
-      params = params.append('location', locationId);
-    }
-
-    if (unknownLocation) {
-      params = params.set('unknownLocation', true);
-    }
-
-    return this._httpClient.get<Photo[]>(`${this.url}/${userId}/photos/geotagged`, {params});
+  public getUserGeotaggedPhotos(userId: number, filter: PhotoFilter = ALL_PHOTOS): Observable<Photo[]> {
+    return this._httpClient.get<Photo[]>(`${this.url}/${userId}/photos/geotagged`, {params: filterParams(new HttpParams(), filter)});
   }
 
   /**
@@ -150,4 +97,52 @@ export class UserPhotosService {
   public getUserPhotoYears(userId: number): Observable<number[]> {
     return this._httpClient.get<number[]>(`${this.url}/${userId}/photos/years`);
   }
+}
+
+/** Takes every photo but the deleted ones, of the folders the sources are processed from. */
+const ALL_PHOTOS: PhotoFilter = {sourceIds: [], years: [], categories: []};
+
+/** The query that asks for the photos the filter takes, added to the one given. */
+function filterParams(params: HttpParams, filter: PhotoFilter): HttpParams {
+  for (const sourceId of filter.sourceIds) {
+    params = params.append('source', sourceId);
+  }
+
+  for (const year of filter.years) {
+    params = params.append('year', year);
+  }
+
+  for (const category of filter.categories) {
+    params = params.append('category', category);
+  }
+
+  if (filter.hasGps !== undefined) {
+    params = params.set('gps', filter.hasGps);
+  }
+
+  if (filter.allFolders) {
+    params = params.set('allFolders', true);
+  }
+
+  for (const tagId of filter.tagIds ?? []) {
+    params = params.append('tag', tagId);
+  }
+
+  if (filter.untagged) {
+    params = params.set('untagged', true);
+  }
+
+  if (filter.area) {
+    params = params.set('area', formatMapArea(filter.area));
+  }
+
+  for (const locationId of filter.locationIds ?? []) {
+    params = params.append('location', locationId);
+  }
+
+  if (filter.unknownLocation) {
+    params = params.set('unknownLocation', true);
+  }
+
+  return params;
 }

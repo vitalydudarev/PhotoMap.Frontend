@@ -141,7 +141,13 @@
           @if (showDuplicates()) {
             <span class="toolbar-title">Duplicates</span>
           } @else {
-            <app-segmented aria-label="View mode" [options]="viewModes" [(value)]="selectedViewMode" [iconsOnly]="true" />
+            <app-segmented
+              aria-label="View mode"
+              [options]="viewModes"
+              [value]="selectedViewMode()"
+              (valueChange)="viewModeUpdated($event)"
+              [iconsOnly]="true"
+            />
 
             @if (selectedViewMode() === 'thumb') {
               <app-segmented
@@ -153,15 +159,15 @@
               />
             }
 
-            <app-segmented
-              aria-label="Sort order"
-              [options]="sortOrders"
-              [value]="selectedSortOrder()"
-              (valueChange)="sortOrderUpdated($event)"
-              [iconsOnly]="true"
-            />
-
             @if (selectedViewMode() === 'thumb') {
+              <app-segmented
+                aria-label="Sort order"
+                [options]="sortOrders"
+                [value]="selectedSortOrder()"
+                (valueChange)="sortOrderUpdated($event)"
+                [iconsOnly]="true"
+              />
+
               <button
                 appButton="outline"
                 type="button"
@@ -180,6 +186,11 @@
         @if (showDuplicates()) {
           @if (shownDuplicateGroups().length > 0) {
             <p class="summary">{{ duplicateCount() }} photos in {{ shownDuplicateGroups().length }} groups of copies</p>
+          }
+        } @else if (selectedViewMode() === 'map') {
+          <!-- the map shows every photo with a location the filters take, so it has no pages -->
+          @if (!showSpinner() && !failed()) {
+            <p class="summary">{{ photos().length }} {{ photos().length === 1 ? 'photo' : 'photos' }} with a location</p>
           }
         } @else {
           <app-paginator

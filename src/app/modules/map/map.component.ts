@@ -109,11 +109,15 @@ export class MapComponent implements OnInit {
 
     // the map clusters what it shows, so it takes every photo with a location at once
     this.photosRequest = this.userPhotosService
-      .getUserGeotaggedPhotos(
-        this.userId,
-        locations.filter((location) => location !== UNKNOWN_LOCATION),
-        locations.includes(UNKNOWN_LOCATION),
-      )
+      .getUserGeotaggedPhotos(this.userId, {
+        sourceIds: [],
+        years: [],
+        categories: [],
+        // every photo with a location, those of the other uploads of Yandex.Disk too
+        allFolders: true,
+        locationIds: locations.filter((location) => location !== UNKNOWN_LOCATION),
+        unknownLocation: locations.includes(UNKNOWN_LOCATION),
+      })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (photos) => {

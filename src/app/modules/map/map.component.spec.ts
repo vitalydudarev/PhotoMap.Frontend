@@ -4,6 +4,7 @@ import {ActivatedRoute, Params, convertToParamMap, provideRouter} from '@angular
 import {of} from 'rxjs';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
+import {PhotoFilter} from '../../core/models/photo-filter.model';
 import {PhotoLocation} from '../../core/models/photo-location.model';
 import {Photo} from '../../core/models/photo.model';
 import {UserPhotosService} from '../../core/services/user-photos.service';
@@ -40,7 +41,13 @@ describe('MapComponent', () => {
 
   const element = () => fixture.nativeElement as HTMLElement;
   const text = () => element().textContent ?? '';
-  const lastLocations = () => getUserGeotaggedPhotos.mock.lastCall!.slice(1, 3);
+  const lastLocations = () => {
+    const filter = getUserGeotaggedPhotos.mock.lastCall![1] as PhotoFilter;
+
+    expect(filter.allFolders).toBe(true);
+
+    return [filter.locationIds, filter.unknownLocation];
+  };
   const mapView = () =>
     fixture.debugElement.query((debug) => debug.componentInstance instanceof MapViewStubComponent)?.componentInstance as
       MapViewStubComponent | undefined;

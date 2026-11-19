@@ -99,6 +99,77 @@ describe('GalleryComponent', () => {
     expect(widthButtons()).toHaveLength(0);
   });
 
+  describe('on the map', () => {
+    const http = () => TestBed.inject(HttpTestingController);
+    const text = () => (fixture.nativeElement as HTMLElement).textContent ?? '';
+    const geotagged = (count: number) =>
+      Array.from({length: count}, (_, index) => ({
+        id: String(index),
+        photoUrl: `/photo-${index}.jpg`,
+        thumbnailSmallUrl: `/thumb-${index}.jpg`,
+        thumbnailLargeUrl: `/thumb-${index}.jpg`,
+        dateTimeTaken: new Date(),
+        fileName: `IMG_${index}.jpg`,
+        latitude: 53.9,
+        longitude: 27.56,
+      }));
+    const showMap = () => {
+      component.viewModeUpdated('map');
+      fixture.detectChanges();
+    };
+
+    it('should show every photo with a location the filters take, not the page of the grid only', () => {
+      flushPhotos();
+      component.yearFilter.setOptions([
+        {value: 2016, label: '2016'},
+        {value: 2019, label: '2019'},
+      ]);
+      component.filterUpdated(component.yearFilter, [2019]);
+      http().expectOne((request) => request.url.endsWith('/photos'));
+
+      showMap();
+      const request = http().expectOne((candidate) => candidate.url.endsWith('/photos/geotagged'));
+      request.flush(geotagged(1200));
+      fixture.detectChanges();
+
+      expect(request.request.params.getAll('year')).toEqual(['2019']);
+      expect(request.request.params.has('top')).toBe(false);
+      expect(component.photos()).toHaveLength(1200);
+      expect(text()).toContain('1200 photos with a location');
+      expect((fixture.nativeElement as HTMLElement).querySelector('app-paginator')).toBeNull();
+      expect(sortButtons()).toHaveLength(0);
+    });
+
+    it('should ask for the photos of the map again as the filters change', () => {
+      flushPhotos();
+      showMap();
+      http()
+        .expectOne((request) => request.url.endsWith('/photos/geotagged'))
+        .flush(geotagged(2));
+
+      component.locationFilter.setOptions([
+        {value: 0, label: 'Unknown location'},
+        {value: 8, label: 'Minsk', group: 'Cities'},
+      ]);
+      component.filterUpdated(component.locationFilter, [8]);
+
+      const request = http().expectOne((candidate) => candidate.url.endsWith('/photos/geotagged'));
+      expect(request.request.params.getAll('location')).toEqual(['8']);
+    });
+
+    it('should show the page of the grid again when coming back from the map', () => {
+      flushPhotos();
+      showMap();
+      http()
+        .expectOne((request) => request.url.endsWith('/photos/geotagged'))
+        .flush(geotagged(2));
+
+      component.viewModeUpdated('thumb');
+
+      http().expectOne((request) => request.url.endsWith('/photos'));
+    });
+  });
+
   it('should widen the grid when full width is picked', () => {
     flushPhotos();
 
