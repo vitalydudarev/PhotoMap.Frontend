@@ -1,0 +1,29 @@
+<button
+  type="button"
+  class="trigger"
+  aria-haspopup="true"
+  [attr.aria-expanded]="open()"
+  [attr.aria-label]="'Colour theme: ' + current().label"
+  [title]="'Colour theme: ' + current().label"
+  (click)="toggleOpen()"
+>
+  <app-icon [name]="current().icon" [size]="18" />
+</button>
+
+@if (open()) {
+  <div class="panel" role="group" aria-label="Colour theme">
+    @for (option of options; track option.value) {
+      <button
+        type="button"
+        class="option"
+        [class.option--selected]="option.value === themeService.preference()"
+        [attr.aria-pressed]="option.value === themeService.preference()"
+        [attr.aria-label]="option.label"
+        [title]="option.label"
+        (click)="select(option)"
+      >
+        <app-icon [name]="option.icon" [size]="18" />
+      </button>
+    }
+  </div>
+}
