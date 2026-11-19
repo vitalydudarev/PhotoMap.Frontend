@@ -1,5 +1,5 @@
 import {ChangeDetectionStrategy, Component, computed, effect, inject, input, signal} from '@angular/core';
-import {Router} from '@angular/router';
+import {Params, Router} from '@angular/router';
 import {MapArea, formatMapArea, mapAreaContains} from 'src/app/core/models/map-area.model';
 import {Photo} from 'src/app/core/models/photo.model';
 import {PhotoViewerService} from 'src/app/core/services/photo-viewer.service';
@@ -39,6 +39,9 @@ export class PhotosMapViewComponent {
 
   /** Whether a button opens the gallery on the photos the map shows. */
   readonly showInGallery = input(false);
+
+  /** More of the address the gallery is opened with, such as the locations the photos are narrowed down to. */
+  readonly galleryQueryParams = input<Params>({});
 
   readonly geotaggedPhotos = computed(() => this.photos().filter(isGeotagged));
 
@@ -94,7 +97,9 @@ export class PhotosMapViewComponent {
     const area = this.area();
 
     if (area) {
-      void this.router.navigate(['/gallery'], {queryParams: {area: formatMapArea(area), allFolders: true}});
+      void this.router.navigate(['/gallery'], {
+        queryParams: {...this.galleryQueryParams(), area: formatMapArea(area), allFolders: true},
+      });
     }
   }
 

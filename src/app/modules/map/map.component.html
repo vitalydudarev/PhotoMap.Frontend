@@ -1,16 +1,82 @@
-@if (loading()) {
-  <div class="state">
-    <app-spinner [size]="28" label="Loading photos" />
-    <p>Loading photos…</p>
+<div class="map-page sidebar-page">
+  @if (sidebarOpen()) {
+    <!-- on a narrow screen the sidebar slides over the map, and a click beside it closes it -->
+    <button type="button" class="sidebar-backdrop" tabindex="-1" aria-hidden="true" (click)="sidebarOpen.set(false)"></button>
+
+    <aside id="map-sidebar" class="sidebar" aria-label="Filters">
+      <div class="sidebar-section filters" role="group" aria-labelledby="map-filters-heading">
+        <div class="filters-heading">
+          <h2 id="map-filters-heading" class="sidebar-heading">Filters</h2>
+          @if (activeFilterCount() > 0) {
+            <button type="button" class="filters-reset" (click)="resetFilters()">Reset</button>
+          }
+        </div>
+
+        @if (locationFilter.options().length > 0) {
+          <app-checklist
+            [searchable]="true"
+            [fill]="true"
+            label="Location"
+            [options]="locationFilter.options()"
+            [value]="locationFilter.selected()"
+            (valueChange)="locationsUpdated($event)"
+          />
+        } @else {
+          <p class="sidebar-note">The photos can be narrowed down by their locations once they are geocoded.</p>
+        }
+      </div>
+    </aside>
+  }
+
+  <div class="main">
+    <div class="toolbar">
+      <div class="toolbar-inner">
+        <div class="view-controls">
+          <button
+            type="button"
+            class="sidebar-toggle"
+            [title]="sidebarOpen() ? 'Hide the sidebar' : 'Show the sidebar'"
+            [attr.aria-controls]="sidebarOpen() ? 'map-sidebar' : null"
+            [attr.aria-expanded]="sidebarOpen()"
+            (click)="sidebarOpen.set(!sidebarOpen())"
+          >
+            <app-icon name="sidebar" [size]="16" />
+            <span class="app-visually-hidden">Filters</span>
+            @if (activeFilterCount() > 0) {
+              <span class="filters-count">{{ activeFilterCount() }}<span class="app-visually-hidden"> active</span></span>
+            }
+          </button>
+
+          @if (!loading() && !failed()) {
+            <span class="summary">{{ photos().length }} {{ photos().length === 1 ? 'photo' : 'photos' }}</span>
+          }
+        </div>
+      </div>
+    </div>
+
+    @if (loading()) {
+      <div class="state">
+        <app-spinner [size]="28" label="Loading photos" />
+        <p>Loading photos…</p>
+      </div>
+    } @else if (failed()) {
+      <div class="state">
+        <p>The photos could not be loaded.</p>
+      </div>
+    } @else if (locationFilter.noneSelected()) {
+      <div class="state">
+        <p>No locations are selected. Pick one to see the photos taken there.</p>
+      </div>
+    } @else if (photos().length === 0 && locationFilter.values().length > 0) {
+      <div class="state">
+        <p>No photos taken in the selected locations.</p>
+      </div>
+    } @else if (photos().length === 0) {
+      <div class="state">
+        <p>No photos with a location yet. Connect a photo source and start processing to see them here.</p>
+      </div>
+    } @else {
+      <app-photos-map-view class="map" [photos]="photos()" [showInGallery]="true" [galleryQueryParams]="galleryQueryParams()" />
+    }
   </div>
-} @else if (failed()) {
-  <div class="state">
-    <p>The photos could not be loaded.</p>
-  </div>
-} @else if (photos().length === 0) {
-  <div class="state">
-    <p>No photos with a location yet. Connect a photo source and start processing to see them here.</p>
-  </div>
-} @else {
-  <app-photos-map-view class="map" [photos]="photos()" [showInGallery]="true" />
-}
+</div>

@@ -87,6 +87,18 @@ describe('PhotosMapViewComponent', () => {
     });
   });
 
+  it('should open the gallery with the rest of the address it is given, such as the locations', () => {
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    fixture.componentRef.setInput('galleryQueryParams', {location: ['0', '8']});
+    moveMapTo(lisbon);
+
+    galleryLink()!.click();
+
+    expect(navigate).toHaveBeenCalledWith(['/gallery'], {
+      queryParams: {location: ['0', '8'], area: '-9.23,38.69,-9.09,38.8', allFolders: true},
+    });
+  });
+
   it('should not offer the gallery until the map has been drawn, or when it shows none of the photos', () => {
     expect(galleryLink()).toBeNull();
 

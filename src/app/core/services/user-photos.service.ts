@@ -73,9 +73,25 @@ export class UserPhotosService {
     return this._httpClient.get<PagedResponse<Photo>>(`${this.url}/${userId}/photos`, {params});
   }
 
-  /** The photos of the user with a GPS location, all of them, oldest first. The deleted photos are left out. */
-  public getUserGeotaggedPhotos(userId: number): Observable<Photo[]> {
-    return this._httpClient.get<Photo[]>(`${this.url}/${userId}/photos/geotagged`);
+  /**
+   * The photos of the user with a GPS location, all of them, oldest first. The deleted photos are left out.
+   * @param locationIds The locations the photos were taken in, any of them; with neither these nor `unknownLocation`,
+   * the photos taken anywhere, and those in no location.
+   * @param unknownLocation Whether the photos in no location are taken too: those not geocoded yet, or where the
+   * geocoding found nothing.
+   */
+  public getUserGeotaggedPhotos(userId: number, locationIds: readonly number[] = [], unknownLocation = false): Observable<Photo[]> {
+    let params = new HttpParams();
+
+    for (const locationId of locationIds) {
+      params = params.append('location', locationId);
+    }
+
+    if (unknownLocation) {
+      params = params.set('unknownLocation', true);
+    }
+
+    return this._httpClient.get<Photo[]>(`${this.url}/${userId}/photos/geotagged`, {params});
   }
 
   /**
