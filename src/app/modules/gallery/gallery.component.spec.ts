@@ -601,6 +601,100 @@ describe('GalleryComponent', () => {
       });
     });
 
+    describe('by location', () => {
+      const flushLocations = (
+        locations = [
+          {id: 3, level: 'Country', name: 'Belarus', description: null, photoCount: 20},
+          {id: 8, level: 'City', name: 'Minsk', description: 'Belarus', photoCount: 15},
+          {id: 5, level: 'Country', name: 'Italy', description: null, photoCount: 4},
+          {id: 21, level: 'Postcode', name: '220073', description: 'Minsk, Belarus', photoCount: 2},
+        ],
+      ) => {
+        http()
+          .expectOne((request) => request.url.endsWith('/users/1/photos/locations'))
+          .flush(locations);
+        fixture.detectChanges();
+      };
+
+      it('should offer the locations under their levels, from the countries down, all of them selected', () => {
+        const [request] = photosRequests();
+        flushYears();
+        flushLocations();
+
+        expect(component.locationFilter.options()).toEqual([
+          {value: 0, label: 'Unknown location'},
+          {value: 3, label: 'Belarus', group: 'Countries', hint: undefined},
+          {value: 5, label: 'Italy', group: 'Countries', hint: undefined},
+          {value: 8, label: 'Minsk', group: 'Cities', hint: 'Belarus'},
+          {value: 21, label: '220073', group: 'Postcodes', hint: 'Minsk, Belarus'},
+        ]);
+        expect(component.locationFilter.selected()).toEqual([0, 3, 5, 8, 21]);
+        expect(request.request.params.getAll('location')).toBeNull();
+        expect(request.request.params.get('unknownLocation')).toBeNull();
+        expect(multiselects().at(-1)?.textContent).toContain('Location');
+      });
+
+      it('should offer no location filter while no photo is geocoded', () => {
+        photosRequests();
+        flushYears();
+        flushLocations([]);
+
+        expect(multiselects().map((multiselect) => multiselect.textContent)).not.toContainEqual(expect.stringContaining('Location'));
+      });
+
+      it('should ask for the photos taken in the selected locations from the first page', () => {
+        photosRequests();
+        flushYears();
+        flushLocations();
+        component.pageIndex = 2;
+
+        component.filterUpdated(component.locationFilter, [8, 5]);
+        const [request] = photosRequests();
+
+        expect(request.request.params.getAll('location')).toEqual(['8', '5']);
+        expect(request.request.params.get('unknownLocation')).toBeNull();
+        expect(request.request.params.get('skip')).toBe('0');
+      });
+
+      it('should ask for the photos in no location, alone or along with those of the locations', () => {
+        photosRequests();
+        flushYears();
+        flushLocations();
+
+        component.filterUpdated(component.locationFilter, [0]);
+        const [unknown] = photosRequests();
+        component.filterUpdated(component.locationFilter, [0, 3]);
+        const [unknownOrBelarus] = photosRequests();
+
+        expect(unknown.request.params.getAll('location')).toBeNull();
+        expect(unknown.request.params.get('unknownLocation')).toBe('true');
+        expect(unknownOrBelarus.request.params.getAll('location')).toEqual(['3']);
+        expect(unknownOrBelarus.request.params.get('unknownLocation')).toBe('true');
+      });
+
+      it('should pick the locations the address asks for once they load', async () => {
+        photosRequests();
+        await TestBed.inject(Router).navigateByUrl('/?location=8');
+        fixture.detectChanges();
+        flushLocations();
+
+        expect(component.locationFilter.selected()).toEqual([8]);
+        expect(component.locationFilter.values()).toEqual([8]);
+      });
+
+      it('should not ask for photos when no location is selected', () => {
+        photosRequests();
+        flushYears();
+        flushLocations();
+
+        component.filterUpdated(component.locationFilter, []);
+        fixture.detectChanges();
+
+        expect(photosRequests()).toHaveLength(0);
+        expect((fixture.nativeElement as HTMLElement).textContent).toContain('No locations are selected');
+      });
+    });
+
     it('should hide the year filter while there are no photos to take years from', () => {
       photosRequests();
       flushYears([]);

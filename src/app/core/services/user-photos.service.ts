@@ -6,6 +6,7 @@ import {environment} from 'src/environments/environment';
 import {formatMapArea} from '../models/map-area.model';
 import {PagedResponse} from '../models/paged-response.model';
 import {PhotoFilter} from '../models/photo-filter.model';
+import {PhotoLocation} from '../models/photo-location.model';
 import {PhotoSortOrder} from '../models/photo-sort-order.model';
 import {PhotoTag, PhotoTags, TagSuggestion} from '../models/photo-tag.model';
 import {Photo, PhotoDuplicateGroup} from '../models/photo.model';
@@ -61,6 +62,14 @@ export class UserPhotosService {
       params = params.set('area', formatMapArea(filter.area));
     }
 
+    for (const locationId of filter.locationIds ?? []) {
+      params = params.append('location', locationId);
+    }
+
+    if (filter.unknownLocation) {
+      params = params.set('unknownLocation', true);
+    }
+
     return this._httpClient.get<PagedResponse<Photo>>(`${this.url}/${userId}/photos`, {params});
   }
 
@@ -86,6 +95,11 @@ export class UserPhotosService {
   /** Takes the photo back from the deleted photos. */
   public restorePhoto(userId: number, photoId: string): Observable<void> {
     return this._httpClient.post<void>(`${this.url}/${userId}/photos/${photoId}/restore`, null);
+  }
+
+  /** The locations the photos of the user were taken in, by level, from the countries down, and by name. */
+  public getUserPhotoLocations(userId: number): Observable<PhotoLocation[]> {
+    return this._httpClient.get<PhotoLocation[]>(`${this.url}/${userId}/photos/locations`);
   }
 
   /** The tags of the user that a photo has at least, by name. */

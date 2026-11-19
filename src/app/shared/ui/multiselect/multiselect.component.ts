@@ -5,6 +5,10 @@ import {IconComponent} from '../icon/icon.component';
 export interface MultiselectOption<T> {
   value: T;
   label: string;
+  /** The heading the option is listed under, by the checklist; the options of a group come one after another. */
+  group?: string;
+  /** What tells the option apart from others of the same label, such as the country of a city; muted, after the label. */
+  hint?: string;
 }
 
 /**

@@ -103,6 +103,17 @@
             (valueChange)="filterUpdated(tagFilter, $event)"
           />
         }
+
+        @if (locationFilter.options().length > 0 && !showDuplicates()) {
+          <app-checklist
+            [collapsed]="true"
+            [searchable]="true"
+            label="Location"
+            [options]="locationFilter.options()"
+            [value]="locationFilter.selected()"
+            (valueChange)="filterUpdated(locationFilter, $event)"
+          />
+        }
       </div>
     </aside>
   }
@@ -230,6 +241,10 @@
     } @else if (tagFilter.noneSelected()) {
       <div class="state">
         <p>No tags are selected. Pick one to see its photos.</p>
+      </div>
+    } @else if (locationFilter.noneSelected()) {
+      <div class="state">
+        <p>No locations are selected. Pick one to see the photos taken there.</p>
       </div>
     } @else if (photos().length === 0 && showDeleted() && !isFiltered()) {
       <div class="state">

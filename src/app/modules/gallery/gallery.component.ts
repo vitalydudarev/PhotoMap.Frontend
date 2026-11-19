@@ -21,6 +21,7 @@ import {MapArea, formatMapArea, parseMapArea} from 'src/app/core/models/map-area
 import {PhotoFilter} from 'src/app/core/models/photo-filter.model';
 import {PhotoMonth, photoMonthKey} from 'src/app/core/models/photo-month.model';
 import {PhotoSortOrder} from 'src/app/core/models/photo-sort-order.model';
+import {LOCATION_LEVELS} from 'src/app/core/models/photo-location.model';
 import {PhotoTag, PhotoTags} from 'src/app/core/models/photo-tag.model';
 import {Photo, PhotoDuplicateGroup} from 'src/app/core/models/photo.model';
 import {UsersPhotoSourcesClient} from 'src/app/shared/models/photomap-backend.swagger';
@@ -83,6 +84,12 @@ const GPS_OPTIONS: readonly MultiselectOption<number>[] = [
  */
 const UNTAGGED = 0;
 
+/**
+ * The photos in no location are an option of the locations too, so that picking every location still leaves no photo
+ * out: those with no GPS, not geocoded yet, or where the geocoding found nothing. The IDs of the locations start at 1.
+ */
+const UNKNOWN_LOCATION = 0;
+
 @Component({
   selector: 'app-gallery-page',
   templateUrl: './gallery.component.html',
@@ -142,6 +149,8 @@ export class GalleryComponent implements OnInit {
   readonly categoryFilter = new GalleryFilter<number>();
   readonly gpsFilter = new GalleryFilter();
   readonly tagFilter = new GalleryFilter();
+  /** The countries, regions, cities, localities and postcodes the photos were taken in, as their geocoding tells. */
+  readonly locationFilter = new GalleryFilter();
 
   /** Whether the page lists the deleted photos, of every folder, rather than those of the camera uploads or all of them. */
   readonly showDeleted = signal(false);
@@ -154,8 +163,8 @@ export class GalleryComponent implements OnInit {
     this.showDuplicates()
       ? [this.yearFilter]
       : this.showDeleted()
-        ? [this.sourceFilter, this.yearFilter, this.gpsFilter, this.tagFilter]
-        : [this.sourceFilter, this.yearFilter, this.categoryFilter, this.gpsFilter, this.tagFilter],
+        ? [this.sourceFilter, this.yearFilter, this.gpsFilter, this.tagFilter, this.locationFilter]
+        : [this.sourceFilter, this.yearFilter, this.categoryFilter, this.gpsFilter, this.tagFilter, this.locationFilter],
   );
 
   readonly nothingSelected = computed(() => this.viewFilters().some((filter) => filter.noneSelected()));
@@ -293,6 +302,7 @@ export class GalleryComponent implements OnInit {
   private categoryConst = 'category';
   private gpsConst = 'gps';
   private tagConst = 'tag';
+  private locationConst = 'location';
   private allFoldersConst = 'allFolders';
   private areaConst = 'area';
   private duplicatesConst = 'duplicates';
@@ -363,6 +373,7 @@ export class GalleryComponent implements OnInit {
         this.categoryFilter.request(params[this.categoryConst]);
         this.gpsFilter.request(params[this.gpsConst]);
         this.tagFilter.request(params[this.tagConst]);
+        this.locationFilter.request(params[this.locationConst]);
         this.allFolders.set(params[this.allFoldersConst] === 'true');
         // an address that is not an area leaves the photos taken anywhere, rather than none
         this.area.set(parseMapArea(params[this.areaConst]));
@@ -380,6 +391,7 @@ export class GalleryComponent implements OnInit {
     this.loadSources();
     this.loadYears();
     this.loadTags();
+    this.loadLocations();
 
     // the duplicates list loads them itself
     if (!this.showDuplicates()) {
@@ -444,7 +456,7 @@ export class GalleryComponent implements OnInit {
       return;
     }
 
-    for (const filter of [this.sourceFilter, this.yearFilter, this.categoryFilter, this.gpsFilter, this.tagFilter]) {
+    for (const filter of [this.sourceFilter, this.yearFilter, this.categoryFilter, this.gpsFilter, this.tagFilter, this.locationFilter]) {
       filter.reset();
     }
 
@@ -754,7 +766,43 @@ export class GalleryComponent implements OnInit {
       });
   }
 
-  private setFilterOptions(filter: GalleryFilter, options: {value: number; label: string}[]): void {
+  /**
+   * The locations the photos were taken in, listed under their levels, from the countries down, after the photos in
+   * no location.
+   */
+  private loadLocations(): void {
+    this.userPhotosService
+      .getUserPhotoLocations(this.userId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (locations) =>
+          this.setFilterOptions(
+            this.locationFilter,
+            // with no location at all, there is nothing to filter by
+            locations.length === 0
+              ? []
+              : [
+                  {value: UNKNOWN_LOCATION, label: 'Unknown location'},
+                  ...LOCATION_LEVELS.flatMap(({level, label}) =>
+                    locations
+                      .filter((location) => location.level === level)
+                      .map((location) => ({
+                        value: location.id,
+                        label: location.name,
+                        group: label,
+                        hint: location.description ?? undefined,
+                      })),
+                  ),
+                ],
+          ),
+        error: (error) => {
+          this.locationFilter.setOptions([]);
+          this.toastService.error('Could not load the locations to filter the photos by.', error);
+        },
+      });
+  }
+
+  private setFilterOptions(filter: GalleryFilter, options: MultiselectOption<number>[]): void {
     // the address asked for a value there is no photo for, so the photos shown are not the ones now selected
     if (filter.setOptions(options)) {
       this.pageIndex = 0;
@@ -791,6 +839,10 @@ export class GalleryComponent implements OnInit {
 
     for (const tag of this.tagFilter.values()) {
       params = params.append(this.tagConst, tag.toString());
+    }
+
+    for (const location of this.locationFilter.values()) {
+      params = params.append(this.locationConst, location.toString());
     }
 
     if (this.allFolders()) {
@@ -869,6 +921,8 @@ export class GalleryComponent implements OnInit {
       tagIds: this.tagFilter.values().filter((tag) => tag !== UNTAGGED),
       untagged: this.tagFilter.values().includes(UNTAGGED),
       area: this.area(),
+      locationIds: this.locationFilter.values().filter((location) => location !== UNKNOWN_LOCATION),
+      unknownLocation: this.locationFilter.values().includes(UNKNOWN_LOCATION),
     };
   }
 

@@ -98,3 +98,44 @@
 .option--all {
   color: var(--app-fg-muted);
 }
+
+.search {
+  box-sizing: border-box;
+  width: 100%;
+  height: 30px;
+  margin: 2px 0 var(--app-space-1);
+  padding: 0 var(--app-space-2);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-surface);
+  color: var(--app-fg);
+  font: inherit;
+  font-size: var(--app-text-sm);
+}
+
+.search:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: -1px;
+}
+
+/* The heading of a group of options, such as the cities among the locations. */
+.group {
+  padding: var(--app-space-2) var(--app-space-2) 2px;
+  color: var(--app-fg-subtle);
+  font-size: var(--app-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.option-hint {
+  margin-inline-start: var(--app-space-1);
+  color: var(--app-fg-subtle);
+}
+
+.no-match {
+  margin: 0;
+  padding: var(--app-space-1) var(--app-space-2);
+  color: var(--app-fg-subtle);
+  font-size: var(--app-text-sm);
+}

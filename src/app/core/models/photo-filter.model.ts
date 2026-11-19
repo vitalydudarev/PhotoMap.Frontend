@@ -24,4 +24,14 @@ export interface PhotoFilter {
   untagged?: boolean;
   /** The area of the map the photos were taken within, which leaves out the photos with no GPS location; anywhere when not given. */
   area?: MapArea;
+  /**
+   * The locations the photos were taken in, any of them, which leaves out the photos not geocoded; anywhere when
+   * neither this nor unknownLocation is given.
+   */
+  locationIds?: readonly number[];
+  /**
+   * Whether the photos in no location are taken, along with those of the locations: those with no GPS, not geocoded
+   * yet, or where the geocoding found nothing. Only they are when no location is given.
+   */
+  unknownLocation?: boolean;
 }
