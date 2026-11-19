@@ -82,7 +82,9 @@
     color: var(--app-accent-soft-fg);
   }
 
+  /* Takes the rest of the height of the sidebar, for a filter that fills it, such as the locations. */
   .filters {
+    flex: 1 0 auto;
     gap: var(--app-space-1);
   }
 

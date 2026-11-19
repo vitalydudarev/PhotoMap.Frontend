@@ -118,14 +118,88 @@
   outline-offset: -1px;
 }
 
-/* The heading of a group of options, such as the cities among the locations. */
+/* The groups of options, such as the cities among the locations, each under a heading that folds it away. */
 .group {
-  padding: var(--app-space-2) var(--app-space-2) 2px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Stays at the top of the list while the options of its group scroll by under it. */
+.group-heading {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-1);
+  width: 100%;
+  min-height: 28px;
+  margin-top: var(--app-space-1);
+  padding: 0 var(--app-space-2);
+  border: 0;
+  border-radius: var(--app-radius-sm);
+  background: var(--app-surface);
   color: var(--app-fg-subtle);
   font-size: var(--app-text-xs);
   font-weight: 600;
   letter-spacing: 0.04em;
+  text-align: start;
   text-transform: uppercase;
+  cursor: pointer;
+}
+
+.group-heading:hover {
+  background: var(--app-surface-hover);
+  color: var(--app-fg-muted);
+}
+
+.group-heading .heading-summary {
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.group-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-chevron {
+  flex: none;
+  transform: rotate(-90deg);
+  transition: transform var(--app-transition);
+}
+
+.group-chevron--open {
+  transform: none;
+}
+
+.group-options {
+  display: flex;
+  flex-direction: column;
+  padding-inline-start: var(--app-space-2);
+}
+
+.search--group {
+  height: 28px;
+  margin: 2px 0;
+}
+
+/* Takes the height left to it, such as the rest of the sidebar, and scrolls within it, though never so short that
+   only a few options show. */
+:host(.checklist--fill) {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 280px;
+}
+
+:host(.checklist--fill) .options {
+  flex: 1 1 auto;
+  height: 0;
+  max-height: none;
 }
 
 .option-hint {

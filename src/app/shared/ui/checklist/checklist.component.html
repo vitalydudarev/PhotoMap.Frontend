@@ -11,7 +11,7 @@
 </button>
 
 @if (!collapsed()) {
-  @if (searchable()) {
+  @if (searchable() && !grouped()) {
     <input
       type="search"
       class="search"
@@ -38,24 +38,74 @@
       <p class="no-match">Nothing found.</p>
     }
 
-    @for (option of shownOptions(); track option.value; let index = $index) {
-      @if (startsGroup(index)) {
-        <span class="group" role="presentation">{{ option.group }}</span>
-      }
+    @for (option of grouped() ? ungroupedOptions() : shownOptions(); track option.value) {
+      <ng-container *ngTemplateOutlet="row; context: {$implicit: option}" />
+    }
 
-      <!-- the checkbox adds or drops the option, while the rest of the row picks it alone: a shortcut for the mouse,
-           since the keyboard reaches the checkbox -->
-      <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
-      <label class="option" (click)="pickOnly(option, $event)">
-        <input type="checkbox" [checked]="isSelected(option)" (change)="toggle(option)" />
-        <!-- a long label, such as a folder, is cut short, so the whole of it shows on hover -->
-        <span class="option-label" [title]="option.hint ? option.label + ', ' + option.hint : option.label"
-          >{{ option.label }}
-          @if (option.hint) {
-            <span class="option-hint">{{ option.hint }}</span>
-          }
-        </span>
-      </label>
+    @for (group of groups(); track group.name) {
+      <div class="group" role="group" [attr.aria-label]="group.name">
+        <button
+          type="button"
+          class="group-heading"
+          [attr.aria-expanded]="group.expanded"
+          [attr.aria-controls]="group.id"
+          (click)="toggleGroup(group.name)"
+        >
+          <app-icon class="group-chevron" [class.group-chevron--open]="group.expanded" name="chevron-down" [size]="14" />
+          <span class="group-label">{{ group.name }}</span>
+          <span class="heading-summary" [class.heading-summary--narrowed]="!group.allSelected">{{ group.summary }}</span>
+        </button>
+
+        @if (group.expanded) {
+          <div class="group-options" [id]="group.id">
+            @if (searchable()) {
+              <input
+                type="search"
+                class="search search--group"
+                [attr.aria-label]="'Search ' + group.name"
+                [attr.aria-controls]="group.id"
+                [placeholder]="'Search ' + group.name.toLocaleLowerCase()"
+                [value]="group.query"
+                (input)="searchGroup(group.name, $any($event.target).value)"
+              />
+            }
+
+            @if (group.shown.length > 0) {
+              <label class="option option--all">
+                <input
+                  type="checkbox"
+                  [checked]="group.allShownSelected"
+                  [indeterminate]="!group.allShownSelected && !group.noneShownSelected"
+                  (change)="toggleAll(group.shown)"
+                />
+                <span>{{ group.searching ? 'All found' : 'All ' + group.name.toLocaleLowerCase() }}</span>
+              </label>
+            } @else {
+              <p class="no-match">Nothing found.</p>
+            }
+
+            @for (option of group.shown; track option.value) {
+              <ng-container *ngTemplateOutlet="row; context: {$implicit: option}" />
+            }
+          </div>
+        }
+      </div>
     }
   </div>
 }
+
+<ng-template #row let-option>
+  <!-- the checkbox adds or drops the option, while the rest of the row picks it alone: a shortcut for the mouse,
+       since the keyboard reaches the checkbox -->
+  <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
+  <label class="option" (click)="pickOnly(option, $event)">
+    <input type="checkbox" [checked]="isSelected(option)" (change)="toggle(option)" />
+    <!-- a long label, such as a folder, is cut short, so the whole of it shows on hover -->
+    <span class="option-label" [title]="option.hint ? option.label + ', ' + option.hint : option.label"
+      >{{ option.label }}
+      @if (option.hint) {
+        <span class="option-hint">{{ option.hint }}</span>
+      }
+    </span>
+  </label>
+</ng-template>
