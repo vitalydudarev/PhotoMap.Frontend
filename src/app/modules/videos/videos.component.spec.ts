@@ -3,6 +3,7 @@ import {ActivatedRoute, convertToParamMap, provideRouter} from '@angular/router'
 import {of} from 'rxjs';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
+import {VideoLocation} from '../../core/models/photo-location.model';
 import {Video, VideoDuplicateGroup} from '../../core/models/video.model';
 import {VideosService} from '../../core/services/videos.service';
 import {VideosComponent} from './videos.component';
@@ -14,6 +15,7 @@ describe('VideosComponent', () => {
   let getUserVideoDuplicates: ReturnType<typeof vi.fn>;
   let queryParams: Record<string, string | string[]>;
   let folders: string[];
+  let locations: VideoLocation[];
 
   const video: Video = {
     id: '1',
@@ -49,6 +51,8 @@ describe('VideosComponent', () => {
     getUserVideoDuplicates = vi.fn(() => of([group]));
     queryParams = {};
     folders = ['disk:/Camera Uploads', 'disk:/Videos'];
+    // no video is geocoded, unless a test says otherwise
+    locations = [];
 
     TestBed.configureTestingModule({
       imports: [VideosComponent],
@@ -69,6 +73,7 @@ describe('VideosComponent', () => {
             getUserVideoDuplicates,
             getUserVideoFolders: vi.fn(() => of(folders)),
             getUserVideoYears: () => of([2016, 2019]),
+            getUserVideoLocations: () => of(locations),
           },
         },
       ],
@@ -241,6 +246,82 @@ describe('VideosComponent', () => {
 
       expect(lastYears()).toEqual([]);
       expect(component.yearFilter.selected()).toEqual([2016, 2019]);
+    });
+  });
+
+  describe('by location', () => {
+    const lastLocations = () => getUserVideos.mock.lastCall!.slice(6, 8);
+    const checklists = () => [...element().querySelectorAll('.sidebar app-checklist')].map((checklist) => checklist.textContent);
+
+    beforeEach(() => {
+      locations = [
+        {id: 8, level: 'City', name: 'Minsk', description: 'Belarus', videoCount: 2},
+        {id: 3, level: 'Country', name: 'Belarus', description: null, videoCount: 4},
+      ];
+    });
+
+    it('should offer the locations under their levels, from the countries down, below the folders, all picked', () => {
+      build();
+
+      expect(component.locationFilter.options()).toEqual([
+        {value: 0, label: 'Unknown location'},
+        {value: 3, label: 'Belarus', group: 'Countries', hint: undefined},
+        {value: 8, label: 'Minsk', group: 'Cities', hint: 'Belarus'},
+      ]);
+      expect(component.locationFilter.selected()).toEqual([0, 3, 8]);
+      expect(checklists()).toEqual([
+        expect.stringContaining('Years'),
+        expect.stringContaining('Folders'),
+        expect.stringContaining('Location'),
+      ]);
+      expect(lastLocations()).toEqual([[], false]);
+    });
+
+    it('should offer no location filter while no video is geocoded', () => {
+      locations = [];
+      build();
+
+      expect(checklists()).not.toContainEqual(expect.stringContaining('Location'));
+    });
+
+    it('should narrow the videos down to the locations picked, the unknown one apart, from the first page', () => {
+      queryParams = {allFolders: 'true'};
+      build();
+      component.pageIndex = 2;
+
+      component.filterUpdated(component.locationFilter, [0, 8]);
+      fixture.detectChanges();
+
+      expect(lastLocations()).toEqual([[8], true]);
+      expect(component.pageIndex).toBe(0);
+      expect(toggle().querySelector('.filters-count')?.textContent).toContain('1');
+    });
+
+    it('should take the locations the address asks for', () => {
+      queryParams = {location: ['3', '8'], allFolders: 'true'};
+      build();
+
+      expect(lastLocations()).toEqual([[3, 8], false]);
+      expect(component.locationFilter.selected()).toEqual([3, 8]);
+    });
+
+    it('should show no videos while no location is picked', () => {
+      queryParams = {allFolders: 'true'};
+      build();
+      getUserVideos.mockClear();
+
+      component.filterUpdated(component.locationFilter, []);
+      fixture.detectChanges();
+
+      expect(getUserVideos).not.toHaveBeenCalled();
+      expect(text()).toContain('No locations are selected');
+    });
+
+    it('should hide the locations while the duplicates are listed', () => {
+      queryParams = {duplicates: 'true'};
+      build();
+
+      expect(checklists()).not.toContainEqual(expect.stringContaining('Location'));
     });
   });
 

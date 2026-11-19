@@ -18,6 +18,7 @@ import {VideosService} from '../../core/services/videos.service';
 import {IconComponent} from '../../shared/ui/icon/icon.component';
 import {LazySrcDirective} from '../../shared/ui/lazy-src/lazy-src.directive';
 import {GalleryFilter, takenIn} from '../gallery/gallery-filter';
+import {UNKNOWN_LOCATION, locationOptions} from '../gallery/location-options';
 import {VideoDuplicatesComponent} from './video-duplicates/video-duplicates.component';
 import {VideoPlayerComponent} from './video-player/video-player.component';
 import {ScrollControlComponent} from '../shared/scroll-control/scroll-control.component';
@@ -28,6 +29,7 @@ const PAGE_SIZE_PARAM = 'pageSize';
 const SORT_PARAM = 'sort';
 const FOLDER_PARAM = 'folder';
 const YEAR_PARAM = 'year';
+const LOCATION_PARAM = 'location';
 const DUPLICATES_PARAM = 'duplicates';
 const ALL_FOLDERS_PARAM = 'allFolders';
 
@@ -127,13 +129,21 @@ export class VideosComponent implements OnInit {
   /** The years, in UTC, the videos were taken in, to narrow the videos down to. */
   readonly yearFilter = new GalleryFilter();
 
+  /**
+   * The locations the videos were taken in, as the reverse geocoding of their GPS locations tells, from the countries
+   * down, to narrow the videos down to; the videos in no location are an option too.
+   */
+  readonly locationFilter = new GalleryFilter();
+
   /** Whether a filter has nothing picked, so that no video can be shown. */
-  readonly nothingSelected = computed(() => this.folderFilter.noneSelected() || this.yearFilter.noneSelected());
+  readonly nothingSelected = computed(
+    () => this.folderFilter.noneSelected() || this.yearFilter.noneSelected() || this.locationFilter.noneSelected(),
+  );
 
   /** How many filters narrow the videos down, so that a filter hidden with the sidebar is not forgotten. */
   readonly activeFilterCount = computed(
     () =>
-      (this.showDuplicates() ? [this.yearFilter] : [this.folderFilter, this.yearFilter]).filter(
+      (this.showDuplicates() ? [this.yearFilter] : [this.folderFilter, this.yearFilter, this.locationFilter]).filter(
         (filter) => filter.values().length > 0 || filter.noneSelected(),
       ).length,
   );
@@ -185,6 +195,7 @@ export class VideosComponent implements OnInit {
 
     this.folderFilter.request(params.getAll(FOLDER_PARAM));
     this.yearFilter.request(params.getAll(YEAR_PARAM));
+    this.locationFilter.request(params.getAll(LOCATION_PARAM));
     this.showDuplicates.set(params.get(DUPLICATES_PARAM) === 'true');
     this.allFolders.set(params.get(ALL_FOLDERS_PARAM) === 'true');
 
@@ -199,6 +210,7 @@ export class VideosComponent implements OnInit {
 
     this.loadFolders();
     this.loadYears();
+    this.loadLocations();
   }
 
   /** Shows the camera uploads, all the videos, or the videos that are copies of one another. */
@@ -227,7 +239,7 @@ export class VideosComponent implements OnInit {
     }
   }
 
-  /** Shows the videos of every folder of the view, and of every year, again. */
+  /** Shows the videos of every folder of the view, of every year and of every location, again. */
   resetFilters(): void {
     // the folders are left as they are while the copies, which only the years apply to, are listed
     if (this.showDuplicates()) {
@@ -239,6 +251,7 @@ export class VideosComponent implements OnInit {
 
     this.folderFilter.reset();
     this.yearFilter.reset();
+    this.locationFilter.reset();
 
     // the other videos fill the pages differently, so the first page is the only one worth keeping
     this.pageIndex = 0;
@@ -362,6 +375,34 @@ export class VideosComponent implements OnInit {
   }
 
   /**
+   * The locations the videos were taken in, listed under their levels, from the countries down, after the videos in
+   * no location.
+   */
+  private loadLocations(): void {
+    this.videosService
+      .getUserVideoLocations(USER_ID)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (locations) => {
+          // the address asked for a location there is no video in, so the videos shown are not the ones now selected
+          if (this.locationFilter.setOptions(locationOptions(locations))) {
+            this.pageIndex = 0;
+            this.addQueryString();
+
+            // the duplicates are of every location; the camera uploads wait for their folders
+            if (this.view() === 'all' || (this.view() === 'camera' && this.folderPaths !== null)) {
+              this.loadVideos();
+            }
+          }
+        },
+        error: (error) => {
+          this.locationFilter.setOptions([]);
+          this.toastService.error('Could not load the locations to filter the videos by.', error);
+        },
+      });
+  }
+
+  /**
    * Offers the folders of the view to filter the videos by: those of the camera uploads, or every one.
    * @returns Whether the address asked for a folder that is not among them.
    */
@@ -407,6 +448,10 @@ export class VideosComponent implements OnInit {
 
     for (const year of this.yearFilter.values()) {
       params = params.append(YEAR_PARAM, year.toString());
+    }
+
+    for (const location of this.locationFilter.values()) {
+      params = params.append(LOCATION_PARAM, location.toString());
     }
 
     if (this.allFolders()) {
@@ -478,6 +523,8 @@ export class VideosComponent implements OnInit {
         this.selectedSortOrder(),
         folderPaths,
         this.yearFilter.values(),
+        this.locationFilter.values().filter((location) => location !== UNKNOWN_LOCATION),
+        this.locationFilter.values().includes(UNKNOWN_LOCATION),
       )
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({

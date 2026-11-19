@@ -21,3 +21,15 @@ export interface PhotoLocation {
   /** How many photos of the user were taken in it, the deleted ones too. */
   photoCount: number;
 }
+
+/** Mirrors the backend's `VideoLocationDto`: a location the videos of the user were taken in, as the reverse geocoding tells. */
+export interface VideoLocation {
+  id: number;
+  level: LocationLevel;
+  /** Such as "Minsk". */
+  name: string;
+  /** The larger locations it is in, such as "Minsk Region, Belarus"; null for a country. */
+  description: string | null;
+  /** How many videos of the user were taken in it. */
+  videoCount: number;
+}

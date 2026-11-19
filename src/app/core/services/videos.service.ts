@@ -4,6 +4,7 @@ import {Observable} from 'rxjs';
 import {environment} from 'src/environments/environment';
 
 import {PagedResponse} from '../models/paged-response.model';
+import {VideoLocation} from '../models/photo-location.model';
 import {PhotoSortOrder} from '../models/photo-sort-order.model';
 import {PhotoSourceProgress} from '../models/photo-source-progress.model';
 import {Video, VideoDuplicateGroup} from '../models/video.model';
@@ -27,6 +28,10 @@ export class VideosService {
   /**
    * @param folderPaths The folders to take the videos from, all of them when empty.
    * @param years The years, in UTC, the videos were taken in, all of them when empty.
+   * @param locationIds The locations the videos were taken in, any of them; with neither these nor `unknownLocation`,
+   * the videos taken anywhere, and those in no location.
+   * @param unknownLocation Whether the videos in no location are taken too: those with no GPS, not geocoded yet, or
+   * where the geocoding found nothing.
    */
   getUserVideos(
     userId: number,
@@ -35,6 +40,8 @@ export class VideosService {
     sort: PhotoSortOrder,
     folderPaths: readonly string[] = [],
     years: readonly number[] = [],
+    locationIds: readonly number[] = [],
+    unknownLocation = false,
   ): Observable<PagedResponse<Video>> {
     let params = new HttpParams().set('top', top).set('skip', skip).set('sort', sort);
 
@@ -44,6 +51,14 @@ export class VideosService {
 
     for (const year of years) {
       params = params.append('year', year);
+    }
+
+    for (const locationId of locationIds) {
+      params = params.append('location', locationId);
+    }
+
+    if (unknownLocation) {
+      params = params.set('unknownLocation', true);
     }
 
     return this.httpClient.get<PagedResponse<Video>>(`${this.url}/${userId}/videos`, {params});
@@ -57,6 +72,11 @@ export class VideosService {
   /** The folders the videos of the user are in, without the file names, by name. */
   getUserVideoFolders(userId: number): Observable<string[]> {
     return this.httpClient.get<string[]>(`${this.url}/${userId}/videos/folders`);
+  }
+
+  /** The locations the videos of the user were taken in, by level, from the countries down, and by name. */
+  getUserVideoLocations(userId: number): Observable<VideoLocation[]> {
+    return this.httpClient.get<VideoLocation[]>(`${this.url}/${userId}/videos/locations`);
   }
 
   /**

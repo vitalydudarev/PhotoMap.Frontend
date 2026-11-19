@@ -24,7 +24,9 @@
         </button>
       </nav>
 
-      @if (yearFilter.options().length > 0 || (folderFilter.options().length > 0 && !showDuplicates())) {
+      @if (
+        yearFilter.options().length > 0 || ((folderFilter.options().length > 0 || locationFilter.options().length > 0) && !showDuplicates())
+      ) {
         <div class="sidebar-section filters" role="group" aria-labelledby="videos-filters-heading">
           <div class="filters-heading">
             <h2 id="videos-filters-heading" class="sidebar-heading">Filters</h2>
@@ -57,6 +59,18 @@
               [options]="folderFilter.options()"
               [value]="folderFilter.selected()"
               (valueChange)="filterUpdated(folderFilter, $event)"
+            />
+          }
+
+          @if (locationFilter.options().length > 0 && !showDuplicates()) {
+            <app-checklist
+              [collapsed]="true"
+              [searchable]="true"
+              [fill]="true"
+              label="Location"
+              [options]="locationFilter.options()"
+              [value]="locationFilter.selected()"
+              (valueChange)="filterUpdated(locationFilter, $event)"
             />
           }
         </div>
@@ -155,7 +169,13 @@
       <div class="state">
         <p>No years are selected. Pick one to see its videos.</p>
       </div>
-    } @else if (videos().length === 0 && (folderFilter.values().length > 0 || yearFilter.values().length > 0)) {
+    } @else if (locationFilter.noneSelected()) {
+      <div class="state">
+        <p>No locations are selected. Pick one to see the videos taken there.</p>
+      </div>
+    } @else if (
+      videos().length === 0 && (folderFilter.values().length > 0 || yearFilter.values().length > 0 || locationFilter.values().length > 0)
+    ) {
       <div class="state">
         <p>No videos match the selected filters.</p>
       </div>

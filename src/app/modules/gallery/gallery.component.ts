@@ -21,7 +21,6 @@ import {MapArea, formatMapArea, parseMapArea} from 'src/app/core/models/map-area
 import {PhotoFilter} from 'src/app/core/models/photo-filter.model';
 import {PhotoMonth, photoMonthKey} from 'src/app/core/models/photo-month.model';
 import {PhotoSortOrder} from 'src/app/core/models/photo-sort-order.model';
-import {LOCATION_LEVELS} from 'src/app/core/models/photo-location.model';
 import {PhotoTag, PhotoTags} from 'src/app/core/models/photo-tag.model';
 import {Photo, PhotoDuplicateGroup} from 'src/app/core/models/photo.model';
 import {UsersPhotoSourcesClient} from 'src/app/shared/models/photomap-backend.swagger';
@@ -40,6 +39,7 @@ import {PhotoTagsChange, PhotosThumbViewComponent} from '../shared/photos-thumb-
 import {isNarrowScreen, sidebarOpen} from '../shared/sidebar-page/sidebar-open';
 import {DeleteCopiesDialogComponent} from './delete-copies-dialog/delete-copies-dialog.component';
 import {GalleryFilter, takenIn} from './gallery-filter';
+import {UNKNOWN_LOCATION, locationOptions} from './location-options';
 import {GalleryTimelineComponent} from './gallery-timeline/gallery-timeline.component';
 import {PhotoDuplicatesComponent} from './photo-duplicates/photo-duplicates.component';
 
@@ -83,12 +83,6 @@ const GPS_OPTIONS: readonly MultiselectOption<number>[] = [
  * IDs of the tags start at 1.
  */
 const UNTAGGED = 0;
-
-/**
- * The photos in no location are an option of the locations too, so that picking every location still leaves no photo
- * out: those with no GPS, not geocoded yet, or where the geocoding found nothing. The IDs of the locations start at 1.
- */
-const UNKNOWN_LOCATION = 0;
 
 @Component({
   selector: 'app-gallery-page',
@@ -775,26 +769,7 @@ export class GalleryComponent implements OnInit {
       .getUserPhotoLocations(this.userId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (locations) =>
-          this.setFilterOptions(
-            this.locationFilter,
-            // with no location at all, there is nothing to filter by
-            locations.length === 0
-              ? []
-              : [
-                  {value: UNKNOWN_LOCATION, label: 'Unknown location'},
-                  ...LOCATION_LEVELS.flatMap(({level, label}) =>
-                    locations
-                      .filter((location) => location.level === level)
-                      .map((location) => ({
-                        value: location.id,
-                        label: location.name,
-                        group: label,
-                        hint: location.description ?? undefined,
-                      })),
-                  ),
-                ],
-          ),
+        next: (locations) => this.setFilterOptions(this.locationFilter, locationOptions(locations)),
         error: (error) => {
           this.locationFilter.setOptions([]);
           this.toastService.error('Could not load the locations to filter the photos by.', error);
