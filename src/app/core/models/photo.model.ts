@@ -1,6 +1,12 @@
 export interface Photo {
   id: string;
+  /** The photo itself, as it is in its source. */
   photoUrl: string;
+  /**
+   * The photo to be viewed: the XXXL preview of it on Yandex.Disk, much smaller than the photo, or the photo itself
+   * when its source makes no such preview.
+   */
+  previewUrl?: string;
   thumbnailSmallUrl: string;
   thumbnailLargeUrl: string;
   dateTimeTaken: Date;

@@ -2,7 +2,7 @@ import {DOCUMENT, DecimalPipe} from '@angular/common';
 import {httpResource} from '@angular/common/http';
 import {ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, linkedSignal, signal, viewChild} from '@angular/core';
 import {Photo} from 'src/app/core/models/photo.model';
-import {PhotoViewerService, UNAVAILABLE_IMAGE} from 'src/app/core/services/photo-viewer.service';
+import {PhotoViewerService, UNAVAILABLE_IMAGE, viewingUrl} from 'src/app/core/services/photo-viewer.service';
 import {IconComponent} from 'src/app/shared/ui/icon/icon.component';
 import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
 
@@ -19,7 +19,8 @@ const INFO_OPEN_STORAGE_KEY = 'photo-viewer-info-open';
 /**
  * The full-screen viewer for the photo `PhotoViewerService` points at. The photo stays hidden until it has loaded,
  * with a spinner in its place, and a placeholder replaces a photo that fails to load. A panel beside it shows the
- * EXIF of the photo, open until the user closes it.
+ * EXIF of the photo, open until the user closes it. The photo is shown as its preview where its source makes one,
+ * the original is downloaded only when the user opens it in a new tab.
  */
 @Component({
   selector: 'app-photo-viewer',
@@ -35,6 +36,7 @@ export class PhotoViewerComponent {
   readonly photos = this.viewer.photos;
   readonly index = this.viewer.index;
   readonly photo = this.viewer.photo;
+  readonly viewingUrl = viewingUrl;
 
   /** Starts over for every photo shown. */
   readonly status = linkedSignal<Photo | undefined, LoadStatus>({source: this.photo, computation: () => 'loading'});

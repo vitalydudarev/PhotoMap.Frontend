@@ -46,7 +46,7 @@
           <img
             class="photo"
             [class.photo--loading]="status() === 'loading'"
-            [src]="photo.photoUrl"
+            [src]="viewingUrl(photo)"
             [alt]="photo.fileName"
             (load)="onLoad()"
             (error)="onError(photo)"

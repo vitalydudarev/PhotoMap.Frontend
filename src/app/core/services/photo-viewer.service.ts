@@ -8,6 +8,11 @@ import {ToastService} from './toast.service';
 /** Shown in place of a photo or thumbnail that did not load. */
 export const UNAVAILABLE_IMAGE = '/photo-unavailable.svg';
 
+/** The URL the viewer shows a photo from: its preview, the photo itself only when it has none. */
+export function viewingUrl(photo: Photo): string {
+  return photo.previewUrl ?? photo.photoUrl;
+}
+
 interface ViewerState {
   photos: readonly Photo[];
   index: number;
@@ -50,17 +55,19 @@ export class PhotoViewerService {
   }
 
   reportFailure(photo: Photo): void {
-    if (this.reported.has(photo.photoUrl)) {
+    const url = viewingUrl(photo);
+
+    if (this.reported.has(url)) {
       return;
     }
 
-    this.reported.add(photo.photoUrl);
+    this.reported.add(url);
 
     const message = `Could not load ${photo.fileName}.`;
 
     // Only the status is needed when the request succeeds this time, so the download stops at the headers.
     this.httpClient
-      .get(photo.photoUrl, {responseType: 'text', observe: 'events', reportProgress: true})
+      .get(url, {responseType: 'text', observe: 'events', reportProgress: true})
       .pipe(
         filter((event) => (event.type === HttpEventType.ResponseHeader && event.ok) || event.type === HttpEventType.Response),
         take(1),

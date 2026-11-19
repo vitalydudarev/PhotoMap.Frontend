@@ -95,6 +95,28 @@ describe('PhotoViewerComponent', () => {
     expect(link.target).toBe('_blank');
   });
 
+  it('should show the preview of the photo, and offer its original in a new tab', () => {
+    viewer.open([{...photos[0], previewUrl: '/photo-0/preview'}], 0);
+    fixture.detectChanges();
+
+    expect(photo().getAttribute('src')).toBe('/photo-0/preview');
+
+    photo().dispatchEvent(new Event('load'));
+    fixture.detectChanges();
+
+    expect(element().querySelector('a.original')?.getAttribute('href')).toBe('/photo-0.jpg');
+  });
+
+  it('should report the preview of a photo that fails to load', () => {
+    viewer.open([{...photos[0], previewUrl: '/photo-0/preview'}], 0);
+    fixture.detectChanges();
+
+    photo().dispatchEvent(new Event('error'));
+    fixture.detectChanges();
+
+    TestBed.inject(HttpTestingController).expectOne('/photo-0/preview');
+  });
+
   it('should show the spinner again for the next photo', () => {
     open();
     photo().dispatchEvent(new Event('load'));
