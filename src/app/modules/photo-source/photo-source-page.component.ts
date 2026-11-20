@@ -68,6 +68,8 @@ interface ProcessingState {
   total: number;
   lastUpdatedAt?: string;
   error: string;
+  /** The files found so far while the run is loading the list of the files it takes, absent once it has loaded it. */
+  listed?: number;
 }
 
 /** What the user picks to download, as the segmented control takes it. */
@@ -135,6 +137,8 @@ interface ProcessingView {
   progressKnown: boolean;
   progressPercent: number;
   progressLabel: string;
+  /** How many files the run has found while it loads the list of the files it takes, before it processes any. */
+  listingLabel?: string;
 }
 
 export interface RunView extends Omit<RunState, 'retry'>, ProcessingView {
@@ -1031,6 +1035,7 @@ export class PhotoSourcePageComponent implements OnInit {
             total: progress.total,
             lastUpdatedAt: new Date().toISOString(),
             retry: progress.retry,
+            listed: progress.listed ?? undefined,
           }));
 
           // once a run has ended, the photos it has failed, or saved after all, are reloaded
@@ -1086,6 +1091,7 @@ export class PhotoSourcePageComponent implements OnInit {
         total: progress.total,
         lastUpdatedAt: new Date().toISOString(),
         retry: progress.retry,
+        listed: progress.listed ?? undefined,
       }));
 
       if (reloadOnEnd && wasRunning && !isPhotoSourceRunning(parsePhotoSourceStatus(progress.status))) {
@@ -1273,17 +1279,22 @@ function initialState(source: UserPhotoSourceDto): SourceState {
   };
 }
 
-function toProcessingView({status, processed, failed, total, lastUpdatedAt}: ProcessingState): ProcessingView {
+/** @param noun What the files listed are, such as `photo`. */
+function toProcessingView({status, processed, failed, total, lastUpdatedAt, listed}: ProcessingState, noun = 'file'): ProcessingView {
   const progress = `${processed.toLocaleString()} of ${total.toLocaleString()}`;
+  const isRunning = isPhotoSourceRunning(status);
+  // while the run loads the list of its files, it does not know yet how many it takes
+  const isListing = isRunning && listed !== undefined;
 
   return {
-    isRunning: isPhotoSourceRunning(status),
+    isRunning,
     hasRun: status !== undefined && status !== PhotoSourceStatus.NotStarted,
     statusLabel: photoSourceStatusLabel(status),
     lastUpdated: lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleString() : undefined,
-    progressKnown: total > 0,
-    progressPercent: total > 0 ? (processed / total) * 100 : 0,
+    progressKnown: !isListing && total > 0,
+    progressPercent: !isListing && total > 0 ? (processed / total) * 100 : 0,
     progressLabel: failed > 0 ? `${progress} · ${failed.toLocaleString()} failed` : progress,
+    listingLabel: isListing ? `${countLabel(listed, noun)} loaded` : undefined,
   };
 }
 
@@ -1292,13 +1303,14 @@ function processingAction(view: ProcessingView, status: PhotoSourceStatus | unde
 }
 
 /** @param failedNoun What the files a retry takes are, such as `failed photo`. */
-function toRunView(state: RunState | undefined, noun: string, failedNoun: string): RunView | undefined {
+/** @param fileNoun What the files of the run are, such as `video`. */
+function toRunView(state: RunState | undefined, noun: string, failedNoun: string, fileNoun: string): RunView | undefined {
   if (!state) {
     return undefined;
   }
 
   const {retry, ...run} = state;
-  const view = toProcessingView(run);
+  const view = toProcessingView(run, fileNoun);
 
   return {
     ...run,
@@ -1325,7 +1337,7 @@ function toRetryView(
 
 function toView(state: SourceState): SourceView {
   const {source, retry, videos, otherUploads, download, folderDownload, ...photos} = state;
-  const view = toProcessingView(photos);
+  const view = toProcessingView(photos, 'photo');
 
   return {
     source,
@@ -1337,8 +1349,8 @@ function toView(state: SourceState): SourceView {
     isAuthorized: source.isUserAuthorized === true,
     action: processingAction(view, photos.status, 'processing'),
     tokenExpires: source.tokenExpiresOn ? new Date(source.tokenExpiresOn).toLocaleString() : undefined,
-    videos: toRunView(videos, 'processing videos', 'failed video'),
-    otherUploads: toRunView(otherUploads, 'processing', 'failed photo'),
+    videos: toRunView(videos, 'processing videos', 'failed video', 'video'),
+    otherUploads: toRunView(otherUploads, 'processing', 'failed photo', 'photo'),
     download: toDownloadView(download),
     folderDownload: folderDownload ? toDownloadView(folderDownload) : undefined,
   };

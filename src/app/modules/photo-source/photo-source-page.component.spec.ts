@@ -591,6 +591,24 @@ describe('PhotoSourcePageComponent', () => {
       expect(view().progressPercent).toBe(25);
     });
 
+    it('should show how many photos have been loaded while the run loads their list, then the progress through them', () => {
+      build('Dropbox');
+
+      progress.next({sourceId: DROPBOX, status: 'InProgress', processed: 0, failed: 0, total: 0, listed: 150});
+      fixture.detectChanges();
+
+      expect(view().listingLabel).toBe('150 photos loaded');
+      expect(view().progressKnown).toBe(false);
+      expect(panel().textContent).toContain('Loading the list');
+
+      progress.next({sourceId: DROPBOX, status: 'InProgress', processed: 50, failed: 0, total: 200});
+      fixture.detectChanges();
+
+      expect(view().listingLabel).toBeUndefined();
+      expect(view().progressPercent).toBe(25);
+      expect(panel().textContent).not.toContain('Loading the list');
+    });
+
     it('should not offer to retry when no photos have failed', () => {
       sourceProgress[DROPBOX] = {status: 3, totalCount: 200, processedCount: 200, failedCount: 0};
       build('Dropbox');
@@ -1226,6 +1244,12 @@ describe('PhotoSourcePageComponent', () => {
       expect(view().videos!.isRunning).toBe(true);
       expect(view().videos!.progressPercent).toBe(50);
       expect(view().isRunning).toBe(false);
+
+      videoProgress.next({sourceId: YANDEX_DISK, status: 'InProgress', processed: 0, failed: 0, total: 0, listed: 1});
+      fixture.detectChanges();
+
+      expect(view().videos!.listingLabel).toBe('1 video loaded');
+      expect(videosSection()!.textContent).toContain('1 video loaded');
 
       videoHubErrors.next({sourceId: YANDEX_DISK, error: 'Disk unavailable'});
       fixture.detectChanges();

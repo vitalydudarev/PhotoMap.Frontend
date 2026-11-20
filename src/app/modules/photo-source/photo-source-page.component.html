@@ -66,8 +66,15 @@
               <app-alert tone="danger" heading="Processing failed">{{ source.error }}</app-alert>
             }
 
-            @if (source.total > 0 || source.retryLabel || (source.lastUpdated && !source.isRunning)) {
+            @if (source.total > 0 || source.retryLabel || source.listingLabel || (source.lastUpdated && !source.isRunning)) {
               <dl class="app-detail-list">
+                @if (source.listingLabel) {
+                  <div class="app-detail-row">
+                    <dt class="app-detail-term">Loading the list</dt>
+                    <dd class="app-detail-value">{{ source.listingLabel }}</dd>
+                  </div>
+                }
+
                 @if (source.retryLabel) {
                   <div class="app-detail-row">
                     <dt class="app-detail-term">Retrying</dt>
@@ -186,8 +193,20 @@
                 <app-alert tone="danger" heading="Processing the other uploads failed">{{ otherUploads.error }}</app-alert>
               }
 
-              @if (otherUploads.total > 0 || otherUploads.retryLabel || (otherUploads.lastUpdated && !otherUploads.isRunning)) {
+              @if (
+                otherUploads.total > 0 ||
+                otherUploads.retryLabel ||
+                otherUploads.listingLabel ||
+                (otherUploads.lastUpdated && !otherUploads.isRunning)
+              ) {
                 <dl class="app-detail-list">
+                  @if (otherUploads.listingLabel) {
+                    <div class="app-detail-row">
+                      <dt class="app-detail-term">Loading the list</dt>
+                      <dd class="app-detail-value">{{ otherUploads.listingLabel }}</dd>
+                    </div>
+                  }
+
                   @if (otherUploads.retryLabel) {
                     <div class="app-detail-row">
                       <dt class="app-detail-term">Retrying</dt>
@@ -313,8 +332,15 @@
                 <app-alert tone="danger" heading="Processing videos failed">{{ videos.error }}</app-alert>
               }
 
-              @if (videos.total > 0 || videos.retryLabel || (videos.lastUpdated && !videos.isRunning)) {
+              @if (videos.total > 0 || videos.retryLabel || videos.listingLabel || (videos.lastUpdated && !videos.isRunning)) {
                 <dl class="app-detail-list">
+                  @if (videos.listingLabel) {
+                    <div class="app-detail-row">
+                      <dt class="app-detail-term">Loading the list</dt>
+                      <dd class="app-detail-value">{{ videos.listingLabel }}</dd>
+                    </div>
+                  }
+
                   @if (videos.retryLabel) {
                     <div class="app-detail-row">
                       <dt class="app-detail-term">Retrying</dt>

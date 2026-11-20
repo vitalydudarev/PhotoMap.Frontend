@@ -7,6 +7,8 @@ export interface HubProgress {
   total: number;
   /** How far a run retrying the failed files has got, apart from the counters of the source; absent for any other run. */
   retry?: HubRetry;
+  /** The files found so far while the run is loading the list of the files it takes; absent once it has loaded it. */
+  listed?: number;
 }
 
 /** Backend `HubRetryModel`. */
