@@ -101,9 +101,9 @@ interface DownloadState extends ProcessingState {
 
 /** A run of its own apart from the processing of the camera uploads: of the videos or of the other uploads. */
 interface RunState extends ProcessingState {
-  /** How far the run retrying the failed photos has got, while one is going; only the other uploads retry them. */
+  /** How far the run retrying the failed files has got, while one is going. */
   retry?: HubRetry;
-  /** The photos that failed and are not saved yet, which a retry takes; only the other uploads keep them. */
+  /** The photos, or videos, that failed and are not saved yet, which a retry takes. */
   failedFiles?: readonly FailedFile[];
 }
 
@@ -139,7 +139,7 @@ interface ProcessingView {
 
 export interface RunView extends Omit<RunState, 'retry'>, ProcessingView {
   action: string;
-  /** How far a run retrying the failed photos has got, which the progress bar shows instead of the counters. */
+  /** How far a run retrying the failed files has got, which the progress bar shows instead of the counters. */
   retryLabel?: string;
 }
 
@@ -523,7 +523,11 @@ export class PhotoSourcePageComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.patchRun(source.id, 'videos', {status: starting ? PhotoSourceStatus.InProgress : PhotoSourceStatus.Stopped, error: ''});
+          this.patchRun(source.id, 'videos', {
+            status: starting ? PhotoSourceStatus.InProgress : PhotoSourceStatus.Stopped,
+            error: '',
+            ...(starting ? {retry: undefined} : {}),
+          });
           this.toastService.success(`${starting ? (resuming ? 'Resumed' : 'Started') : 'Paused'} processing the videos of ${source.name}.`);
         },
         error: (error) =>
@@ -560,6 +564,33 @@ export class PhotoSourcePageComponent implements OnInit {
         },
         error: (error) =>
           this.toastService.error(`Failed to ${starting ? 'start' : 'pause'} processing the other uploads of ${source.name}.`, error),
+      });
+  }
+
+  /**
+   * Processes again only the videos that failed, without listing the disk. The backend keeps them over all runs until
+   * their previews are saved.
+   */
+  retryFailedVideos(source: SourceView): void {
+    const videos = source.videos;
+
+    if (!videos) {
+      return;
+    }
+
+    this.videosService
+      .runCommand(USER_ID, source.id, VideoProcessingCommand.RetryFailed)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.patchRun(source.id, 'videos', {
+            status: PhotoSourceStatus.InProgress,
+            error: '',
+            retry: {total: 0, retried: 0, recovered: 0},
+          });
+          this.toastService.success(`Retrying the ${countLabel(videos.failedFiles?.length ?? 0, 'failed video')} of ${source.name}.`);
+        },
+        error: (error) => this.toastService.error(`Failed to retry the failed videos of ${source.name}.`, error),
       });
   }
 
@@ -682,7 +713,7 @@ export class PhotoSourcePageComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.patchRun(source.id, 'videos', initialProcessingState(PhotoSourceStatus.NotStarted));
+          this.patchRun(source.id, 'videos', {...initialProcessingState(PhotoSourceStatus.NotStarted), retry: undefined, failedFiles: []});
           this.toastService.success(`Deleted the videos of ${source.name}.`);
         },
         error: (error) => this.toastService.error(`Failed to delete the videos of ${source.name}.`, error),
@@ -763,6 +794,7 @@ export class PhotoSourcePageComponent implements OnInit {
             ...sources.map((source) => this.loadProgress(source.photoSourceId!)),
             ...sources.map((source) => this.loadFailedFiles(source.photoSourceId!)),
             ...sources.filter(supportsVideos).map((source) => this.loadVideoProgress(source.photoSourceId!)),
+            ...sources.filter(supportsVideos).map((source) => this.loadVideoFailedFiles(source.photoSourceId!)),
             ...sources.filter(supportsOtherUploads).map((source) => this.loadOtherUploadsProgress(source.photoSourceId!)),
             ...sources.filter(supportsOtherUploads).map((source) => this.loadOtherUploadsFailedFiles(source.photoSourceId!)),
             ...sources.map((source) => this.loadDownloadStatus(source.photoSourceId!, 'processing-folder')),
@@ -809,6 +841,18 @@ export class PhotoSourcePageComponent implements OnInit {
       map((progress) => this.applyRunProgress(sourceId, 'videos', progress)),
       catchError((error) => {
         this.toastService.error('Could not load the processing status of the videos of a photo source.', error);
+
+        return of(undefined);
+      }),
+    );
+  }
+
+  /** The videos whose previews failed, kept in the database over all runs until they are saved. */
+  private loadVideoFailedFiles(sourceId: number): Observable<void> {
+    return this.videosService.getFailedFiles(USER_ID, sourceId).pipe(
+      map((failedFiles) => this.patchRun(sourceId, 'videos', {failedFiles})),
+      catchError((error) => {
+        this.toastService.error('Could not load the failed videos of a photo source.', error);
 
         return of(undefined);
       }),
@@ -1007,7 +1051,9 @@ export class PhotoSourcePageComponent implements OnInit {
       }
 
       if (supportsVideos(source)) {
-        this.listenForRun(sourceId, 'videos', this.hubService.videoProgressFor(sourceId), this.hubService.videoErrorFor(sourceId));
+        this.listenForRun(sourceId, 'videos', this.hubService.videoProgressFor(sourceId), this.hubService.videoErrorFor(sourceId), () =>
+          this.loadVideoFailedFiles(sourceId),
+        );
       }
 
       if (supportsOtherUploads(source)) {
@@ -1220,7 +1266,7 @@ function initialState(source: UserPhotoSourceDto): SourceState {
     source,
     failedFiles: [],
     ...initialProcessingState(parsePhotoSourceStatus(source.status)),
-    videos: supportsVideos(source) ? initialProcessingState(PhotoSourceStatus.NotStarted) : undefined,
+    videos: supportsVideos(source) ? {...initialProcessingState(PhotoSourceStatus.NotStarted), failedFiles: []} : undefined,
     otherUploads: supportsOtherUploads(source) ? {...initialProcessingState(PhotoSourceStatus.NotStarted), failedFiles: []} : undefined,
     download: initialDownloadState('processing-folder'),
     folderDownload: supportsFolderDownloads(source) ? initialDownloadState('chosen-folder') : undefined,
@@ -1245,7 +1291,8 @@ function processingAction(view: ProcessingView, status: PhotoSourceStatus | unde
   return view.isRunning ? `Pause ${noun}` : isPhotoSourceResumable(status) ? `Continue ${noun}` : `Start ${noun}`;
 }
 
-function toRunView(state: RunState | undefined, noun: string): RunView | undefined {
+/** @param failedNoun What the files a retry takes are, such as `failed photo`. */
+function toRunView(state: RunState | undefined, noun: string, failedNoun: string): RunView | undefined {
   if (!state) {
     return undefined;
   }
@@ -1256,20 +1303,23 @@ function toRunView(state: RunState | undefined, noun: string): RunView | undefin
   return {
     ...run,
     ...view,
-    ...(view.isRunning && retry ? toRetryView(retry) : {}),
+    ...(view.isRunning && retry ? toRetryView(retry, failedNoun) : {}),
     action: processingAction(view, run.status, noun),
   };
 }
 
 /** The progress of a run retrying the failed files, through those files rather than through the folder. */
-function toRetryView({total, retried, recovered}: HubRetry): Pick<RunView, 'progressKnown' | 'progressPercent' | 'retryLabel'> {
+function toRetryView(
+  {total, retried, recovered}: HubRetry,
+  failedNoun = 'failed photo',
+): Pick<RunView, 'progressKnown' | 'progressPercent' | 'retryLabel'> {
   return {
     progressKnown: total > 0,
     progressPercent: total > 0 ? (retried / total) * 100 : 0,
     retryLabel:
       total > 0
-        ? `${retried.toLocaleString()} of ${countLabel(total, 'failed photo')} · ${recovered.toLocaleString()} saved`
-        : 'Failed photos',
+        ? `${retried.toLocaleString()} of ${countLabel(total, failedNoun)} · ${recovered.toLocaleString()} saved`
+        : `${failedNoun[0].toUpperCase()}${failedNoun.slice(1)}s`,
   };
 }
 
@@ -1287,8 +1337,8 @@ function toView(state: SourceState): SourceView {
     isAuthorized: source.isUserAuthorized === true,
     action: processingAction(view, photos.status, 'processing'),
     tokenExpires: source.tokenExpiresOn ? new Date(source.tokenExpiresOn).toLocaleString() : undefined,
-    videos: toRunView(videos, 'processing videos'),
-    otherUploads: toRunView(otherUploads, 'processing'),
+    videos: toRunView(videos, 'processing videos', 'failed video'),
+    otherUploads: toRunView(otherUploads, 'processing', 'failed photo'),
     download: toDownloadView(download),
     folderDownload: folderDownload ? toDownloadView(folderDownload) : undefined,
   };

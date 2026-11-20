@@ -63,6 +63,8 @@ describe('PhotoSourcePageComponent', () => {
   let otherUploadsFailedFiles: Record<number, FailedFile[]>;
   let getFailedFiles: ReturnType<typeof vi.fn>;
   let getOtherUploadsFailedFiles: ReturnType<typeof vi.fn>;
+  let videoFailedFiles: Record<number, FailedFile[]>;
+  let getVideoFailedFiles: ReturnType<typeof vi.fn>;
   let downloadProgress: Subject<HubProgress>;
   let downloadHubErrors: Subject<HubError>;
   let folderDownloadProgress: Subject<HubProgress>;
@@ -159,6 +161,8 @@ describe('PhotoSourcePageComponent', () => {
     otherUploadsFailedFiles = {};
     getFailedFiles = vi.fn((_userId: number, sourceId: number) => of(failedFiles[sourceId] ?? []));
     getOtherUploadsFailedFiles = vi.fn((_userId: number, sourceId: number) => of(otherUploadsFailedFiles[sourceId] ?? []));
+    videoFailedFiles = {};
+    getVideoFailedFiles = vi.fn((_userId: number, sourceId: number) => of(videoFailedFiles[sourceId] ?? []));
     getCameraUploadsStatus = vi.fn((_userId: number, sourceId: number) => {
       const source = sources.find((candidate) => candidate.photoSourceId === sourceId);
 
@@ -267,7 +271,15 @@ describe('PhotoSourcePageComponent', () => {
           },
         },
         {provide: FailedPreviewsService, useValue: {getFailedPreviews, retry: retryFailedPreviews}},
-        {provide: VideosService, useValue: {runCommand: runVideoCommand, deleteData: deleteVideoData, getStatus: getVideoStatus}},
+        {
+          provide: VideosService,
+          useValue: {
+            runCommand: runVideoCommand,
+            deleteData: deleteVideoData,
+            getStatus: getVideoStatus,
+            getFailedFiles: getVideoFailedFiles,
+          },
+        },
         {
           provide: OtherUploadsService,
           useValue: {
@@ -1231,6 +1243,67 @@ describe('PhotoSourcePageComponent', () => {
       expect(deleteVideoData).toHaveBeenCalledWith(1, YANDEX_DISK);
       expect(view().videos!.statusLabel).toBe('Not started');
       expect(view().videos!.total).toBe(0);
+    });
+
+    it('should list the failed videos in a table, and retry only them once the run has ended', () => {
+      sources[1].isUserAuthorized = true;
+      videoSourceProgress[YANDEX_DISK] = {status: 3, totalCount: 40, processedCount: 38, failedCount: 2};
+      videoFailedFiles[YANDEX_DISK] = [
+        failedFile('a.mp4', {stage: 'Download', error: 'Yandex.Disk has made no preview of the video.'}),
+        failedFile('b.mp4', {stage: 'Download', error: 'The connection was reset.'}),
+      ];
+      build('Yandex.Disk', 'videos');
+
+      expect(getVideoFailedFiles).toHaveBeenCalledWith(1, YANDEX_DISK);
+      expect(failedPhotosTable(videosSection()!)!.caption!.textContent).toContain('2 videos failed');
+      expect(tableRows(videosSection()!)).toEqual([
+        ['1', 'disk:/Photos/a.mp4', 'Download', 'Yandex.Disk has made no preview of the video.', '1'],
+        ['2', 'disk:/Photos/b.mp4', 'Download', 'The connection was reset.', '1'],
+      ]);
+
+      button('Retry failed (2)', videosSection()!)!.click();
+      fixture.detectChanges();
+
+      expect(runVideoCommand).toHaveBeenLastCalledWith(1, YANDEX_DISK, VideoProcessingCommand.RetryFailed);
+      expect(view().videos!.isRunning).toBe(true);
+      expect(view().isRunning).toBe(false);
+      expect(button('Retry failed', videosSection()!)).toBeUndefined();
+
+      videoProgress.next({
+        sourceId: YANDEX_DISK,
+        status: 'InProgress',
+        processed: 39,
+        failed: 1,
+        total: 40,
+        retry: {total: 2, retried: 1, recovered: 1},
+      });
+      fixture.detectChanges();
+
+      expect(view().videos!.progressPercent).toBe(50);
+      expect(videosSection()!.textContent).toContain('1 of 2 failed videos · 1 saved');
+
+      videoFailedFiles[YANDEX_DISK] = [failedFile('b.mp4')];
+      videoProgress.next({
+        sourceId: YANDEX_DISK,
+        status: 'Done',
+        processed: 39,
+        failed: 1,
+        total: 40,
+        retry: {total: 2, retried: 2, recovered: 1},
+      });
+      fixture.detectChanges();
+
+      expect(view().videos!.retryLabel).toBeUndefined();
+      expect(tableRows(videosSection()!).length).toBe(1);
+      expect(button('Retry failed (1)', videosSection()!)).toBeTruthy();
+    });
+
+    it('should not offer retrying the failed videos until Yandex.Disk is connected', () => {
+      videoFailedFiles[YANDEX_DISK] = [failedFile('a.mp4')];
+      build('Yandex.Disk', 'videos');
+
+      expect(failedPhotosTable(videosSection()!)).toBeTruthy();
+      expect(button('Retry failed', videosSection()!)).toBeUndefined();
     });
   });
 

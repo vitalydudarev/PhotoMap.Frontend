@@ -3,16 +3,19 @@ import {Injectable, inject} from '@angular/core';
 import {Observable} from 'rxjs';
 import {environment} from 'src/environments/environment';
 
+import {FailedFile} from '../models/failed-file.model';
 import {PagedResponse} from '../models/paged-response.model';
 import {VideoLocation} from '../models/photo-location.model';
 import {PhotoSortOrder} from '../models/photo-sort-order.model';
 import {PhotoSourceProgress} from '../models/photo-source-progress.model';
 import {Video, VideoDuplicateGroup} from '../models/video.model';
 
-/** The backend's `PhotoSourceProcessingCommands.Start` and `.Stop`, the only ones the videos of a source take. */
+/** The backend's `PhotoSourceProcessingCommands` the videos of a source take. */
 export enum VideoProcessingCommand {
   Start = 1,
   Stop = 2,
+  /** Processes again only the videos that failed, without listing the disk. */
+  RetryFailed = 3,
 }
 
 /**
@@ -94,6 +97,11 @@ export class VideosService {
   /** The status of the processing of the videos of the source, as last saved by a run. */
   getStatus(userId: number, sourceId: number): Observable<PhotoSourceProgress> {
     return this.httpClient.get<PhotoSourceProgress>(`${this.url}/${userId}/photo-sources/${sourceId}/videos/status`);
+  }
+
+  /** The videos of the source whose previews failed and are not saved yet, in the order they first failed. */
+  getFailedFiles(userId: number, sourceId: number): Observable<FailedFile[]> {
+    return this.httpClient.get<FailedFile[]>(`${this.url}/${userId}/photo-sources/${sourceId}/videos/failed-files`);
   }
 
   /** Deletes the videos imported from the source, so that processing them again starts over. */
