@@ -64,6 +64,17 @@
           />
         }
 
+        @if (folderFilter.options().length > 0 && view() === 'all') {
+          <app-checklist
+            [collapsed]="true"
+            [searchable]="true"
+            label="Folders"
+            [options]="folderFilter.options()"
+            [value]="folderFilter.selected()"
+            (valueChange)="filterUpdated(folderFilter, $event)"
+          />
+        }
+
         @if (yearFilter.options().length > 0) {
           <app-checklist
             [collapsed]="true"
@@ -237,6 +248,10 @@
     } @else if (sourceFilter.noneSelected()) {
       <div class="state">
         <p>No photo sources are selected. Pick one to see its photos.</p>
+      </div>
+    } @else if (folderFilter.noneSelected() && view() === 'all') {
+      <div class="state">
+        <p>No folders are selected. Pick one to see its photos.</p>
       </div>
     } @else if (yearFilter.noneSelected()) {
       <div class="state">

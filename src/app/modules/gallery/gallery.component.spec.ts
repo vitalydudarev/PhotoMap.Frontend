@@ -768,6 +768,100 @@ describe('GalleryComponent', () => {
       });
     });
 
+    describe('by folder', () => {
+      const flushFolders = (folders = ['disk:/', 'disk:/Camera Uploads', 'disk:/Trips/Rome']) => {
+        http()
+          .expectOne((request) => request.url.endsWith('/users/1/photos/folders'))
+          .flush(folders);
+        fixture.detectChanges();
+      };
+      const showAllPhotos = () => {
+        component.selectView('all');
+        fixture.detectChanges();
+      };
+
+      it('should offer the folders, all of them selected, without the name of the disk, under All photos only', () => {
+        photosRequests();
+        flushYears();
+        flushFolders();
+
+        expect(multiselects().map((multiselect) => multiselect.textContent)).not.toContainEqual(expect.stringContaining('Folders'));
+
+        showAllPhotos();
+        const [request] = photosRequests();
+
+        expect(component.folderFilter.options()).toEqual([
+          {value: 'disk:/', label: '/'},
+          {value: 'disk:/Camera Uploads', label: '/Camera Uploads'},
+          {value: 'disk:/Trips/Rome', label: '/Trips/Rome'},
+        ]);
+        expect(component.folderFilter.selected()).toEqual(['disk:/', 'disk:/Camera Uploads', 'disk:/Trips/Rome']);
+        expect(request.request.params.getAll('folder')).toBeNull();
+        expect(multiselects().map((multiselect) => multiselect.textContent)).toContainEqual(expect.stringContaining('Folders'));
+      });
+
+      it('should ask for all the photos of the selected folders from the first page', () => {
+        photosRequests();
+        flushYears();
+        flushFolders();
+        showAllPhotos();
+        photosRequests();
+        component.pageIndex = 2;
+
+        component.filterUpdated(component.folderFilter, ['disk:/Trips/Rome']);
+        const [request] = photosRequests();
+
+        expect(request.request.params.getAll('folder')).toEqual(['disk:/Trips/Rome']);
+        expect(request.request.params.get('allFolders')).toBe('true');
+        expect(request.request.params.get('skip')).toBe('0');
+        expect(component.activeFilterCount()).toBe(1);
+      });
+
+      it('should leave the camera uploads and the deleted photos unnarrowed by the folders picked under All photos', () => {
+        photosRequests();
+        flushYears();
+        flushFolders();
+        showAllPhotos();
+        component.filterUpdated(component.folderFilter, ['disk:/Trips/Rome']);
+        photosRequests();
+
+        component.selectView('camera');
+        const [camera] = photosRequests();
+        component.selectView('deleted');
+        const [deleted] = photosRequests();
+        component.selectView('all');
+        const [all] = photosRequests();
+
+        expect(camera.request.params.getAll('folder')).toBeNull();
+        expect(deleted.request.params.getAll('folder')).toBeNull();
+        expect(all.request.params.getAll('folder')).toEqual(['disk:/Trips/Rome']);
+      });
+
+      it('should pick the folders the address asks for once they load', async () => {
+        photosRequests();
+        await TestBed.inject(Router).navigateByUrl('/?allFolders=true&folder=disk:/Trips/Rome');
+        fixture.detectChanges();
+        flushFolders();
+
+        expect(component.folderFilter.selected()).toEqual(['disk:/Trips/Rome']);
+        expect(component.folderFilter.values()).toEqual(['disk:/Trips/Rome']);
+      });
+
+      it('should not ask for photos when no folder is selected', () => {
+        photosRequests();
+        flushYears();
+        flushFolders();
+        showAllPhotos();
+        photosRequests();
+
+        component.filterUpdated(component.folderFilter, []);
+        fixture.detectChanges();
+
+        expect(photosRequests()).toHaveLength(0);
+        expect((fixture.nativeElement as HTMLElement).textContent).toContain('No folders are selected');
+      });
+    });
+
     it('should hide the year filter while there are no photos to take years from', () => {
       photosRequests();
       flushYears([]);

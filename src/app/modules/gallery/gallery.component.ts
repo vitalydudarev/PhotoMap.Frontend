@@ -32,6 +32,7 @@ import {PageEvent, PaginatorComponent} from 'src/app/shared/ui/paginator/paginat
 import {SegmentedComponent, SegmentedOption} from 'src/app/shared/ui/segmented/segmented.component';
 import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
 
+import {folderLabel} from '../../core/helpers/file-labels.helper';
 import {ToastService} from '../../core/services/toast.service';
 import {UserPhotosService} from '../../core/services/user-photos.service';
 import {PhotosMapViewComponent} from '../shared/photos-map-view/photos-map-view.component';
@@ -145,20 +146,35 @@ export class GalleryComponent implements OnInit {
   readonly tagFilter = new GalleryFilter();
   /** The countries, regions, cities, localities and postcodes the photos were taken in, as their geocoding tells. */
   readonly locationFilter = new GalleryFilter();
+  /**
+   * The folders the photos are in, without the file names, to narrow all the photos down to. Only all the photos are
+   * narrowed down by them, as the camera uploads are of the folders the sources are processed from.
+   */
+  readonly folderFilter = new GalleryFilter<string>([], (value) => value || undefined);
 
   /** Whether the page lists the deleted photos, of every folder, rather than those of the camera uploads or all of them. */
   readonly showDeleted = signal(false);
 
   /**
-   * The filters that narrow the photos of the view down: the deleted photos are not of a category, and the copies are
-   * narrowed down by the years alone.
+   * The filters that narrow the photos of the view down: the deleted photos are not of a category, the copies are
+   * narrowed down by the years alone, and only all the photos by their folders.
    */
-  readonly viewFilters = computed(() =>
+  readonly viewFilters = computed<readonly GalleryFilter<number | string>[]>(() =>
     this.showDuplicates()
       ? [this.yearFilter]
       : this.showDeleted()
         ? [this.sourceFilter, this.yearFilter, this.gpsFilter, this.tagFilter, this.locationFilter]
-        : [this.sourceFilter, this.yearFilter, this.categoryFilter, this.gpsFilter, this.tagFilter, this.locationFilter],
+        : this.allFolders()
+          ? [
+              this.sourceFilter,
+              this.folderFilter,
+              this.yearFilter,
+              this.categoryFilter,
+              this.gpsFilter,
+              this.tagFilter,
+              this.locationFilter,
+            ]
+          : [this.sourceFilter, this.yearFilter, this.categoryFilter, this.gpsFilter, this.tagFilter, this.locationFilter],
   );
 
   readonly nothingSelected = computed(() => this.viewFilters().some((filter) => filter.noneSelected()));
@@ -297,6 +313,7 @@ export class GalleryComponent implements OnInit {
   private gpsConst = 'gps';
   private tagConst = 'tag';
   private locationConst = 'location';
+  private folderConst = 'folder';
   private allFoldersConst = 'allFolders';
   private areaConst = 'area';
   private duplicatesConst = 'duplicates';
@@ -368,6 +385,7 @@ export class GalleryComponent implements OnInit {
         this.gpsFilter.request(params[this.gpsConst]);
         this.tagFilter.request(params[this.tagConst]);
         this.locationFilter.request(params[this.locationConst]);
+        this.folderFilter.request(params[this.folderConst]);
         this.allFolders.set(params[this.allFoldersConst] === 'true');
         // an address that is not an area leaves the photos taken anywhere, rather than none
         this.area.set(parseMapArea(params[this.areaConst]));
@@ -386,6 +404,7 @@ export class GalleryComponent implements OnInit {
     this.loadYears();
     this.loadTags();
     this.loadLocations();
+    this.loadFolders();
 
     // the duplicates list loads them itself
     if (!this.showDuplicates()) {
@@ -426,7 +445,7 @@ export class GalleryComponent implements OnInit {
     }
   }
 
-  filterUpdated(filter: GalleryFilter, values: readonly number[]): void {
+  filterUpdated<T extends number | string>(filter: GalleryFilter<T>, values: readonly T[]): void {
     filter.selected.set(values);
 
     // the other photos fill the pages differently, so the first page is the only one worth keeping
@@ -461,7 +480,15 @@ export class GalleryComponent implements OnInit {
       return;
     }
 
-    for (const filter of [this.sourceFilter, this.yearFilter, this.categoryFilter, this.gpsFilter, this.tagFilter, this.locationFilter]) {
+    for (const filter of [
+      this.sourceFilter,
+      this.folderFilter,
+      this.yearFilter,
+      this.categoryFilter,
+      this.gpsFilter,
+      this.tagFilter,
+      this.locationFilter,
+    ]) {
       filter.reset();
     }
 
@@ -788,14 +815,37 @@ export class GalleryComponent implements OnInit {
       });
   }
 
-  private setFilterOptions(filter: GalleryFilter, options: MultiselectOption<number>[]): void {
+  /** The folders the photos are in, by name, to narrow all the photos down to. */
+  private loadFolders(): void {
+    this.userPhotosService
+      .getUserPhotoFolders(this.userId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (folderPaths) =>
+          this.setFilterOptions(
+            this.folderFilter,
+            folderPaths.map((folderPath) => ({value: folderPath, label: folderLabel(folderPath)})),
+            this.view() === 'all',
+          ),
+        error: (error) => {
+          this.folderFilter.setOptions([]);
+          this.toastService.error('Could not load the folders to filter the photos by.', error);
+        },
+      });
+  }
+
+  /**
+   * @param applies Whether the filter narrows down the photos of the view, which are asked for again when the address
+   * asked for a value there is no photo for.
+   */
+  private setFilterOptions<T extends number | string>(filter: GalleryFilter<T>, options: MultiselectOption<T>[], applies = true): void {
     // the address asked for a value there is no photo for, so the photos shown are not the ones now selected
     if (filter.setOptions(options)) {
       this.pageIndex = 0;
       this.addQueryString();
 
       // the duplicates are not filtered
-      if (!this.showDuplicates()) {
+      if (applies && !this.showDuplicates()) {
         this.setImages();
       }
     }
@@ -833,6 +883,13 @@ export class GalleryComponent implements OnInit {
 
     if (this.allFolders()) {
       params = params.append(this.allFoldersConst, 'true');
+    }
+
+    // only all the photos are narrowed down by their folders
+    if (this.view() === 'all') {
+      for (const folderPath of this.folderFilter.values()) {
+        params = params.append(this.folderConst, folderPath);
+      }
     }
 
     const area = this.area();
@@ -935,6 +992,7 @@ export class GalleryComponent implements OnInit {
       area: this.area(),
       locationIds: this.locationFilter.values().filter((location) => location !== UNKNOWN_LOCATION),
       unknownLocation: this.locationFilter.values().includes(UNKNOWN_LOCATION),
+      folderPaths: this.view() === 'all' ? this.folderFilter.values() : [],
     };
   }
 

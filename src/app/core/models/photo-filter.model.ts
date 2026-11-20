@@ -34,4 +34,10 @@ export interface PhotoFilter {
    * yet, or where the geocoding found nothing. Only they are when no location is given.
    */
   unknownLocation?: boolean;
+  /**
+   * The folders the photos are in, any of them, without the file names, such as `disk:/Camera Uploads`; the photos of
+   * every folder when not given. The folders outside the ones the sources are processed from take photos only along
+   * with allFolders.
+   */
+  folderPaths?: readonly string[];
 }

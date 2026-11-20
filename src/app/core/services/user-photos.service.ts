@@ -65,6 +65,14 @@ export class UserPhotosService {
     return this._httpClient.get<PhotoLocation[]>(`${this.url}/${userId}/photos/locations`);
   }
 
+  /**
+   * The folders the photos of the user are in, the deleted ones too, without the file names, by name, such as
+   * `disk:/Camera Uploads`, and `disk:/` for the photos at the root of the disk.
+   */
+  public getUserPhotoFolders(userId: number): Observable<string[]> {
+    return this._httpClient.get<string[]>(`${this.url}/${userId}/photos/folders`);
+  }
+
   /** The tags of the user that a photo has at least, by name. */
   public getUserPhotoTags(userId: number): Observable<PhotoTag[]> {
     return this._httpClient.get<PhotoTag[]>(`${this.url}/${userId}/photos/tags`);
@@ -142,6 +150,10 @@ function filterParams(params: HttpParams, filter: PhotoFilter): HttpParams {
 
   if (filter.unknownLocation) {
     params = params.set('unknownLocation', true);
+  }
+
+  for (const folderPath of filter.folderPaths ?? []) {
+    params = params.append('folder', folderPath);
   }
 
   return params;
