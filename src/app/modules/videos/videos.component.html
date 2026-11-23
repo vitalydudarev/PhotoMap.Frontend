@@ -24,56 +24,20 @@
         </button>
       </nav>
 
-      @if (
-        yearFilter.options().length > 0 || ((folderFilter.options().length > 0 || locationFilter.options().length > 0) && !showDuplicates())
-      ) {
-        <div class="sidebar-section filters" role="group" aria-labelledby="videos-filters-heading">
-          <div class="filters-heading">
-            <h2 id="videos-filters-heading" class="sidebar-heading">Filters</h2>
-            @if (activeFilterCount() > 0) {
-              <button type="button" class="filters-reset" (click)="resetFilters()">Reset</button>
-            }
-          </div>
-
+      @if (filterItems().length > 0) {
+        <app-filter-panel
+          [items]="filterItems()"
+          [activeCount]="activeFilterCount()"
+          (filterChange)="filterUpdated($event.filter, $event.values)"
+          (resetFilters)="resetFilters()"
+        >
           @if (showDuplicates()) {
             <p class="sidebar-note">
               The copies are looked for among all the videos, so only the years apply to them: a group is listed when any of its copies was
               taken in one of them.
             </p>
           }
-
-          @if (yearFilter.options().length > 0) {
-            <app-checklist
-              [collapsed]="true"
-              label="Years"
-              [options]="yearFilter.options()"
-              [value]="yearFilter.selected()"
-              (valueChange)="filterUpdated(yearFilter, $event)"
-            />
-          }
-
-          @if (folderFilter.options().length > 0 && !showDuplicates()) {
-            <app-checklist
-              [collapsed]="true"
-              label="Folders"
-              [options]="folderFilter.options()"
-              [value]="folderFilter.selected()"
-              (valueChange)="filterUpdated(folderFilter, $event)"
-            />
-          }
-
-          @if (locationFilter.options().length > 0 && !showDuplicates()) {
-            <app-checklist
-              [collapsed]="true"
-              [searchable]="true"
-              [fill]="true"
-              label="Location"
-              [options]="locationFilter.options()"
-              [value]="locationFilter.selected()"
-              (valueChange)="filterUpdated(locationFilter, $event)"
-            />
-          }
-        </div>
+        </app-filter-panel>
       } @else if (showDuplicates()) {
         <p class="sidebar-note">The copies are looked for among all the videos, so the filters do not apply to them.</p>
       }

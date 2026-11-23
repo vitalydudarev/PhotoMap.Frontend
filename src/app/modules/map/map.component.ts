@@ -5,14 +5,14 @@ import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {ActivatedRoute, Params, Router} from '@angular/router';
 import {Subscription} from 'rxjs';
 import {Photo} from 'src/app/core/models/photo.model';
-import {ChecklistComponent} from 'src/app/shared/ui/checklist/checklist.component';
 import {IconComponent} from 'src/app/shared/ui/icon/icon.component';
 import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
 
 import {ToastService} from '../../core/services/toast.service';
 import {UserPhotosService} from '../../core/services/user-photos.service';
-import {GalleryFilter} from '../gallery/gallery-filter';
-import {UNKNOWN_LOCATION, locationOptions} from '../gallery/location-options';
+import {FilterPanelComponent, FilterPanelItem} from '../shared/filter-panel/filter-panel.component';
+import {GalleryFilter} from '../shared/filter-panel/gallery-filter';
+import {UNKNOWN_LOCATION, locationOptions} from '../shared/filter-panel/location-options';
 import {PhotosMapViewComponent} from '../shared/photos-map-view/photos-map-view.component';
 import {sidebarOpen} from '../shared/sidebar-page/sidebar-open';
 
@@ -28,7 +28,7 @@ const SIDEBAR_OPEN_STORAGE_KEY = 'map-sidebar-open';
   templateUrl: './map.component.html',
   styleUrl: './map.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ChecklistComponent, IconComponent, PhotosMapViewComponent, SpinnerComponent],
+  imports: [FilterPanelComponent, IconComponent, PhotosMapViewComponent, SpinnerComponent],
 })
 export class MapComponent implements OnInit {
   readonly photos = signal<Photo[]>([]);
@@ -42,7 +42,14 @@ export class MapComponent implements OnInit {
   readonly locationFilter = new GalleryFilter();
 
   /** Whether the locations narrow the photos down, so that the filter is not forgotten with the sidebar hidden. */
-  readonly activeFilterCount = computed(() => (this.locationFilter.values().length > 0 || this.locationFilter.noneSelected() ? 1 : 0));
+  readonly activeFilterCount = computed(() => (this.locationFilter.active() ? 1 : 0));
+
+  /** The locations, listed open as the only filter, once there are any to pick from. */
+  readonly filterItems = computed<readonly FilterPanelItem[]>(() =>
+    this.locationFilter.options().length > 0
+      ? [{filter: this.locationFilter, label: 'Location', collapsed: false, searchable: true, fill: true}]
+      : [],
+  );
 
   /** The locations the gallery is opened with too, so that it shows the photos the map does. */
   readonly galleryQueryParams = computed<Params>(() => {
@@ -75,8 +82,8 @@ export class MapComponent implements OnInit {
     this.loadLocations();
   }
 
-  locationsUpdated(values: readonly number[]): void {
-    this.locationFilter.selected.set(values);
+  locationsUpdated(values: readonly (number | string)[]): void {
+    this.locationFilter.selected.set(values as readonly number[]);
 
     this.addQueryString();
     this.loadPhotos();

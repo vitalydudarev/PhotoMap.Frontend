@@ -8,7 +8,7 @@ import {PhotoFilter} from '../../core/models/photo-filter.model';
 import {PhotoLocation} from '../../core/models/photo-location.model';
 import {Photo} from '../../core/models/photo.model';
 import {UserPhotosService} from '../../core/services/user-photos.service';
-import {ChecklistComponent} from '../../shared/ui/checklist/checklist.component';
+import {FilterPanelComponent} from '../shared/filter-panel/filter-panel.component';
 import {IconComponent} from '../../shared/ui/icon/icon.component';
 import {SpinnerComponent} from '../../shared/ui/spinner/spinner.component';
 import {MapComponent} from './map.component';
@@ -87,7 +87,7 @@ describe('MapComponent', () => {
         },
       ],
     }).overrideComponent(MapComponent, {
-      set: {imports: [ChecklistComponent, IconComponent, MapViewStubComponent, SpinnerComponent]},
+      set: {imports: [FilterPanelComponent, IconComponent, MapViewStubComponent, SpinnerComponent]},
     });
   });
 

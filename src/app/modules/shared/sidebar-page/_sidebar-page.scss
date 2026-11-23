@@ -40,16 +40,6 @@
     gap: 2px;
   }
 
-  .sidebar-heading {
-    margin: 0;
-    padding: 0 var(--app-space-2);
-    color: var(--app-fg-subtle);
-    font-size: var(--app-text-xs);
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-
   .sidebar-note {
     padding: 0 var(--app-space-2);
     color: var(--app-fg-muted);
@@ -86,29 +76,6 @@
   .filters {
     flex: 1 0 auto;
     gap: var(--app-space-1);
-  }
-
-  .filters-heading {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    min-height: 24px;
-  }
-
-  .filters-reset {
-    padding: 0 var(--app-space-2);
-    border: 0;
-    border-radius: var(--app-radius-sm);
-    background: transparent;
-    color: var(--app-accent);
-    font-size: var(--app-text-xs);
-    font-weight: 600;
-    line-height: 24px;
-    cursor: pointer;
-  }
-
-  .filters-reset:hover {
-    background: var(--app-accent-soft);
   }
 
   /* The toolbar and the photos, right of the sidebar. */

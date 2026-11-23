@@ -1,0 +1,20 @@
+<div class="filters-heading">
+  <h2 [id]="headingId" class="sidebar-heading">Filters</h2>
+  @if (activeCount() > 0) {
+    <button type="button" class="filters-reset" (click)="resetFilters.emit()">Reset</button>
+  }
+</div>
+
+<ng-content />
+
+@for (item of items(); track item.filter) {
+  <app-checklist
+    [collapsed]="item.collapsed ?? true"
+    [searchable]="item.searchable ?? false"
+    [fill]="item.fill ?? false"
+    [label]="item.label"
+    [options]="item.filter.options()"
+    [value]="item.filter.selected()"
+    (valueChange)="filterChange.emit({filter: item.filter, values: $event})"
+  />
+}

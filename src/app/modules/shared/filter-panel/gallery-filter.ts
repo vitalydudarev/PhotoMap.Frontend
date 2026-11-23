@@ -19,6 +19,8 @@ export class GalleryFilter<T extends number | string = number> {
   /** What is picked in effect, see `narrow`; all those picked unless the options are nested. */
   readonly picked = computed(() => narrow(this.options(), this.selected()).picked);
   readonly noneSelected = computed(() => this.options().length > 0 && this.picked().length === 0);
+  /** Whether the filter narrows the photos down, or leaves none of them, so that it counts among the active ones. */
+  readonly active = computed(() => this.values().length > 0 || this.noneSelected());
 
   private requested: readonly T[] = [];
 

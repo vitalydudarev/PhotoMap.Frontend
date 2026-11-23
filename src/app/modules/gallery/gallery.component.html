@@ -28,14 +28,13 @@
         </button>
       </nav>
 
-      <div id="gallery-filters" class="sidebar-section filters" role="group" aria-labelledby="gallery-filters-heading">
-        <div class="filters-heading">
-          <h2 id="gallery-filters-heading" class="sidebar-heading">Filters</h2>
-          @if (activeFilterCount() > 0) {
-            <button type="button" class="filters-reset" (click)="resetFilters()">Reset</button>
-          }
-        </div>
-
+      <app-filter-panel
+        id="gallery-filters"
+        [items]="filterItems()"
+        [activeCount]="activeFilterCount()"
+        (filterChange)="filterUpdated($event.filter, $event.values)"
+        (resetFilters)="resetFilters()"
+      >
         @if (showDuplicates()) {
           <p class="sidebar-note">
             The copies are looked for among all the photos, so only the years apply to them: a group is listed when any of its copies was
@@ -53,80 +52,7 @@
             </button>
           </span>
         }
-
-        @if (sourceFilter.options().length > 0 && !showDuplicates()) {
-          <app-checklist
-            [collapsed]="true"
-            label="Sources"
-            [options]="sourceFilter.options()"
-            [value]="sourceFilter.selected()"
-            (valueChange)="filterUpdated(sourceFilter, $event)"
-          />
-        }
-
-        @if (folderFilter.options().length > 0 && view() === 'all') {
-          <app-checklist
-            [collapsed]="true"
-            [searchable]="true"
-            label="Folders"
-            [options]="folderFilter.options()"
-            [value]="folderFilter.selected()"
-            (valueChange)="filterUpdated(folderFilter, $event)"
-          />
-        }
-
-        @if (yearFilter.options().length > 0) {
-          <app-checklist
-            [collapsed]="true"
-            label="Years"
-            [options]="yearFilter.options()"
-            [value]="yearFilter.selected()"
-            (valueChange)="filterUpdated(yearFilter, $event)"
-          />
-        }
-
-        @if (!showDeleted() && !showDuplicates()) {
-          <app-checklist
-            [collapsed]="true"
-            label="Category"
-            [options]="categoryFilter.options()"
-            [value]="categoryFilter.selected()"
-            (valueChange)="filterUpdated(categoryFilter, $event)"
-          />
-        }
-
-        @if (!showDuplicates()) {
-          <app-checklist
-            [collapsed]="true"
-            label="GPS"
-            [options]="gpsFilter.options()"
-            [value]="gpsFilter.selected()"
-            (valueChange)="filterUpdated(gpsFilter, $event)"
-          />
-        }
-
-        @if (tagFilter.options().length > 0 && !showDuplicates()) {
-          <app-checklist
-            [collapsed]="true"
-            label="Tags"
-            [options]="tagFilter.options()"
-            [value]="tagFilter.selected()"
-            (valueChange)="filterUpdated(tagFilter, $event)"
-          />
-        }
-
-        @if (locationFilter.options().length > 0 && !showDuplicates()) {
-          <app-checklist
-            [collapsed]="true"
-            [searchable]="true"
-            [fill]="true"
-            label="Location"
-            [options]="locationFilter.options()"
-            [value]="locationFilter.selected()"
-            (valueChange)="filterUpdated(locationFilter, $event)"
-          />
-        }
-      </div>
+      </app-filter-panel>
     </aside>
   }
 

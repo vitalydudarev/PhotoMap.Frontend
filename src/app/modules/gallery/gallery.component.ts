@@ -26,7 +26,6 @@ import {Photo, PhotoDuplicateGroup} from 'src/app/core/models/photo.model';
 import {UsersPhotoSourcesClient} from 'src/app/shared/models/photomap-backend.swagger';
 import {ButtonDirective} from 'src/app/shared/ui/button/button.directive';
 import {IconComponent} from 'src/app/shared/ui/icon/icon.component';
-import {ChecklistComponent} from 'src/app/shared/ui/checklist/checklist.component';
 import {MultiselectOption} from 'src/app/shared/ui/multiselect/multiselect.component';
 import {PageEvent, PaginatorComponent} from 'src/app/shared/ui/paginator/paginator.component';
 import {SegmentedComponent, SegmentedOption} from 'src/app/shared/ui/segmented/segmented.component';
@@ -39,8 +38,9 @@ import {PhotosMapViewComponent} from '../shared/photos-map-view/photos-map-view.
 import {PhotoTagsChange, PhotosThumbViewComponent} from '../shared/photos-thumb-view/photos-thumb-view.component';
 import {isNarrowScreen, sidebarOpen} from '../shared/sidebar-page/sidebar-open';
 import {DeleteCopiesDialogComponent} from './delete-copies-dialog/delete-copies-dialog.component';
-import {GalleryFilter, takenIn} from './gallery-filter';
-import {UNKNOWN_LOCATION, locationOptions} from './location-options';
+import {FilterPanelComponent, FilterPanelItem} from '../shared/filter-panel/filter-panel.component';
+import {GalleryFilter, takenIn} from '../shared/filter-panel/gallery-filter';
+import {UNKNOWN_LOCATION, locationOptions} from '../shared/filter-panel/location-options';
 import {GalleryTimelineComponent} from './gallery-timeline/gallery-timeline.component';
 import {PhotoDuplicatesComponent} from './photo-duplicates/photo-duplicates.component';
 
@@ -91,8 +91,8 @@ const UNTAGGED = 0;
   styleUrls: ['./gallery.component.scss'],
   imports: [
     ButtonDirective,
-    ChecklistComponent,
     DeleteCopiesDialogComponent,
+    FilterPanelComponent,
     GalleryTimelineComponent,
     IconComponent,
     PaginatorComponent,
@@ -177,6 +177,26 @@ export class GalleryComponent implements OnInit {
           : [this.sourceFilter, this.yearFilter, this.categoryFilter, this.gpsFilter, this.tagFilter, this.locationFilter],
   );
 
+  /**
+   * The filters the sidebar lists, those of the view with options to pick from; the categories and GPS are listed
+   * before their options load, as they are always there.
+   */
+  readonly filterItems = computed<readonly FilterPanelItem[]>(() => {
+    const viewFilters = this.viewFilters();
+    const items: FilterPanelItem[] = [
+      {filter: this.sourceFilter, label: 'Sources'},
+      {filter: this.folderFilter, label: 'Folders', searchable: true},
+      {filter: this.yearFilter, label: 'Years'},
+      {filter: this.categoryFilter, label: 'Category'},
+      {filter: this.gpsFilter, label: 'GPS'},
+      {filter: this.tagFilter, label: 'Tags'},
+      {filter: this.locationFilter, label: 'Location', searchable: true, fill: true},
+    ];
+    const listedEmpty: readonly GalleryFilter<number | string>[] = [this.categoryFilter, this.gpsFilter];
+
+    return items.filter(({filter}) => viewFilters.includes(filter) && (filter.options().length > 0 || listedEmpty.includes(filter)));
+  });
+
   readonly nothingSelected = computed(() => this.viewFilters().some((filter) => filter.noneSelected()));
 
   /** The tags of the user, to give the photos and to filter them by; null until they are loaded. */
@@ -200,9 +220,7 @@ export class GalleryComponent implements OnInit {
 
   /** How many filters narrow the photos down, so that a filter hidden with the sidebar is not forgotten. */
   readonly activeFilterCount = computed(
-    () =>
-      this.viewFilters().filter((filter) => filter.values().length > 0 || filter.noneSelected()).length +
-      (this.area() && !this.showDuplicates() ? 1 : 0),
+    () => this.viewFilters().filter((filter) => filter.active()).length + (this.area() && !this.showDuplicates() ? 1 : 0),
   );
 
   /** Whether the page lists the photos that are copies of one another, by their groups, rather than the filtered ones. */

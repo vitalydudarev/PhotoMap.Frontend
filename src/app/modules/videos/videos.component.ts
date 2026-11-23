@@ -8,7 +8,6 @@ import {PhotoSortOrder} from 'src/app/core/models/photo-sort-order.model';
 import {Photo} from 'src/app/core/models/photo.model';
 import {Video, VideoDuplicateGroup} from 'src/app/core/models/video.model';
 import {UNAVAILABLE_IMAGE} from 'src/app/core/services/photo-viewer.service';
-import {ChecklistComponent} from 'src/app/shared/ui/checklist/checklist.component';
 import {PageEvent, PaginatorComponent} from 'src/app/shared/ui/paginator/paginator.component';
 import {SegmentedComponent, SegmentedOption} from 'src/app/shared/ui/segmented/segmented.component';
 import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
@@ -18,8 +17,9 @@ import {ToastService} from '../../core/services/toast.service';
 import {VideosService} from '../../core/services/videos.service';
 import {IconComponent} from '../../shared/ui/icon/icon.component';
 import {LazySrcDirective} from '../../shared/ui/lazy-src/lazy-src.directive';
-import {GalleryFilter, takenIn} from '../gallery/gallery-filter';
-import {UNKNOWN_LOCATION, locationOptions} from '../gallery/location-options';
+import {FilterPanelComponent, FilterPanelItem} from '../shared/filter-panel/filter-panel.component';
+import {GalleryFilter, takenIn} from '../shared/filter-panel/gallery-filter';
+import {UNKNOWN_LOCATION, locationOptions} from '../shared/filter-panel/location-options';
 import {VideoDuplicatesComponent} from './video-duplicates/video-duplicates.component';
 import {VideoPlayerComponent} from './video-player/video-player.component';
 import {PhotoSelection} from '../shared/photos-map-view/photo-map.model';
@@ -65,8 +65,8 @@ const USER_ID = 1;
   templateUrl: './videos.component.html',
   styleUrls: ['./videos.component.scss'],
   imports: [
-    ChecklistComponent,
     DatePipe,
+    FilterPanelComponent,
     IconComponent,
     LazySrcDirective,
     NgTemplateOutlet,
@@ -181,9 +181,18 @@ export class VideosComponent implements OnInit {
   /** How many filters narrow the videos down, so that a filter hidden with the sidebar is not forgotten. */
   readonly activeFilterCount = computed(
     () =>
-      (this.showDuplicates() ? [this.yearFilter] : [this.folderFilter, this.yearFilter, this.locationFilter]).filter(
-        (filter) => filter.values().length > 0 || filter.noneSelected(),
+      (this.showDuplicates() ? [this.yearFilter] : [this.folderFilter, this.yearFilter, this.locationFilter]).filter((filter) =>
+        filter.active(),
       ).length,
+  );
+
+  /** The filters the sidebar lists, those with options to pick from; the copies are narrowed down by the years alone. */
+  readonly filterItems = computed<readonly FilterPanelItem[]>(() =>
+    [
+      {filter: this.yearFilter, label: 'Years'},
+      {filter: this.folderFilter, label: 'Folders'},
+      {filter: this.locationFilter, label: 'Location', searchable: true, fill: true},
+    ].filter(({filter}) => filter.options().length > 0 && (filter === this.yearFilter || !this.showDuplicates())),
   );
 
   /**

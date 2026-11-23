@@ -4,27 +4,16 @@
     <button type="button" class="sidebar-backdrop" tabindex="-1" aria-hidden="true" (click)="sidebarOpen.set(false)"></button>
 
     <aside id="map-sidebar" class="sidebar" aria-label="Filters">
-      <div class="sidebar-section filters" role="group" aria-labelledby="map-filters-heading">
-        <div class="filters-heading">
-          <h2 id="map-filters-heading" class="sidebar-heading">Filters</h2>
-          @if (activeFilterCount() > 0) {
-            <button type="button" class="filters-reset" (click)="resetFilters()">Reset</button>
-          }
-        </div>
-
-        @if (locationFilter.options().length > 0) {
-          <app-checklist
-            [searchable]="true"
-            [fill]="true"
-            label="Location"
-            [options]="locationFilter.options()"
-            [value]="locationFilter.selected()"
-            (valueChange)="locationsUpdated($event)"
-          />
-        } @else {
+      <app-filter-panel
+        [items]="filterItems()"
+        [activeCount]="activeFilterCount()"
+        (filterChange)="locationsUpdated($event.values)"
+        (resetFilters)="resetFilters()"
+      >
+        @if (filterItems().length === 0) {
           <p class="sidebar-note">The photos can be narrowed down by their locations once they are geocoded.</p>
         }
-      </div>
+      </app-filter-panel>
     </aside>
   }
 
