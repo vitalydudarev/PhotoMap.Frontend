@@ -961,7 +961,7 @@ export class GalleryComponent implements OnInit {
     const filter = this.photoFilter();
 
     if (this.selectedViewMode() === 'map') {
-      this.loadMapPhotos(filter);
+      this.loadMapPhotos(this.mapFilter());
 
       return;
     }
@@ -1015,9 +1015,9 @@ export class GalleryComponent implements OnInit {
    * @param force Whether the options are narrowed down again for the same filter, as the photos have changed.
    */
   private loadFacets(force = false): void {
-    // the map shows only the photos with a GPS location, so it counts only those
+    // the map shows only the photos with a GPS location, so it counts only those, see mapFilter
     const onMap = this.selectedViewMode() === 'map';
-    const filter: PhotoFilter = onMap ? {...this.photoFilter(), hasGps: true} : this.photoFilter();
+    const filter = onMap ? this.mapFilter() : this.photoFilter();
     const key = this.showDuplicates() ? 'duplicates' : JSON.stringify(filter);
 
     if (key === this.facetsFilter && !force) {
@@ -1068,6 +1068,17 @@ export class GalleryComponent implements OnInit {
       this.tagFilter,
       this.locationFilter,
     ];
+  }
+
+  /**
+   * The filter of the photos on the map, which shows only those with a GPS location, and counts only those: they are
+   * asked for as such, so that a photo is shown as the first of its copies with one, as it is counted. The photos
+   * without one alone, when picked so, are asked for all the same, and the map has none to show.
+   */
+  private mapFilter(): PhotoFilter {
+    const filter = this.photoFilter();
+
+    return {...filter, hasGps: filter.hasGps ?? true};
   }
 
   private photoFilter(): PhotoFilter {

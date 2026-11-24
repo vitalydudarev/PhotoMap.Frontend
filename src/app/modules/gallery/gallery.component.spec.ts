@@ -134,11 +134,24 @@ describe('GalleryComponent', () => {
       fixture.detectChanges();
 
       expect(request.request.params.getAll('year')).toEqual(['2019']);
+      // asked for with a GPS location, as the filters count them on the map
+      expect(request.request.params.get('gps')).toBe('true');
       expect(request.request.params.has('top')).toBe(false);
       expect(component.photos()).toHaveLength(1200);
       expect(text()).toContain('1200 photos with a location');
       expect((fixture.nativeElement as HTMLElement).querySelector('app-paginator')).toBeNull();
       expect(sortButtons()).toHaveLength(0);
+    });
+
+    it('should ask for the photos without a GPS location alone when picked so, which the map has none of', () => {
+      flushPhotos();
+      component.filterUpdated(component.gpsFilter, [0]);
+      http().expectOne((request) => request.url.endsWith('/photos'));
+
+      showMap();
+      const request = http().expectOne((candidate) => candidate.url.endsWith('/photos/geotagged'));
+
+      expect(request.request.params.get('gps')).toBe('false');
     });
 
     it('should ask for the photos of the map again as the filters change', () => {
