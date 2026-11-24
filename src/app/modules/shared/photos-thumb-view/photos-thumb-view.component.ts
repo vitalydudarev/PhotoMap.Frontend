@@ -13,6 +13,7 @@ import {
   output,
   signal,
 } from '@angular/core';
+import {folderLabel} from 'src/app/core/helpers/file-labels.helper';
 import {PhotoTag, PhotoTags} from 'src/app/core/models/photo-tag.model';
 import {photoMonthKeyOf} from 'src/app/core/models/photo-month.model';
 import {Photo} from 'src/app/core/models/photo.model';
@@ -240,6 +241,11 @@ export class PhotosThumbViewComponent implements OnChanges {
     const id = this.editingId();
 
     return id === null ? undefined : this.photos.find((photo) => photo.id === id);
+  }
+
+  /** The photo with its folder, such as `/Camera Uploads/a.jpg`, or only its file name when its path is unknown. */
+  fileTitle(photo: Photo): string {
+    return photo.path ? folderLabel(photo.path) : photo.fileName;
   }
 
   tagsLabel(photo: Photo): string {

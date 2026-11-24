@@ -15,7 +15,7 @@ import {PageEvent, PaginatorComponent} from 'src/app/shared/ui/paginator/paginat
 import {SegmentedComponent, SegmentedOption} from 'src/app/shared/ui/segmented/segmented.component';
 import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
 
-import {folderLabel} from '../../core/helpers/file-labels.helper';
+import {fileLabel, folderLabel} from '../../core/helpers/file-labels.helper';
 import {ToastService} from '../../core/services/toast.service';
 import {UserPhotosService} from '../../core/services/user-photos.service';
 import {VideosService} from '../../core/services/videos.service';
@@ -570,6 +570,11 @@ export class VideosComponent implements OnInit {
     } else if (this.selecting() && !event.defaultPrevented) {
       this.stopSelecting();
     }
+  }
+
+  /** The video with its folder, such as `/Camera Uploads/a.mp4`, or only its file name when its folder is unknown. */
+  fileTitle(video: Video): string {
+    return fileLabel(video.fileName, video.folderPath);
   }
 
   tagsLabel(video: Video): string {

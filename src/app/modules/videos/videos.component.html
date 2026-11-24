@@ -276,7 +276,7 @@
     <button
       class="thumb"
       type="button"
-      [title]="video.fileName + ' · ' + (video.dateTimeTaken | date: 'medium')"
+      [title]="fileTitle(video) + ' · ' + (video.dateTimeTaken | date: 'medium')"
       [attr.aria-label]="(selecting() ? 'Select ' : 'Play ') + video.fileName"
       [attr.aria-pressed]="selecting() ? selected : null"
       (click)="onCardClick(video, $event)"

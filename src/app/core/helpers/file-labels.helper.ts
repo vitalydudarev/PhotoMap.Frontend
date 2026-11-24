@@ -3,6 +3,15 @@ export function folderLabel(folderPath: string): string {
   return folderPath.replace(/^[^/]*:(?=\/)/, '');
 }
 
+/** A file with its folder, without the name of the disk it is on: `disk:/Camera Uploads` and `a.jpg` as `/Camera Uploads/a.jpg`. */
+export function fileLabel(fileName: string, folderPath?: string | null): string {
+  if (!folderPath) {
+    return fileName;
+  }
+
+  return `${folderLabel(folderPath).replace(/\/+$/, '')}/${fileName}`;
+}
+
 /** A size in bytes the way a file manager shows it, such as `1.2 GB`. */
 export function sizeLabel(bytes: number): string {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];

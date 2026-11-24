@@ -14,7 +14,7 @@
       <button
         class="open"
         type="button"
-        [title]="photo.fileName"
+        [title]="fileTitle(photo)"
         [attr.aria-pressed]="selecting() ? selected : null"
         (click)="onThumbClick(index, $event)"
       >
