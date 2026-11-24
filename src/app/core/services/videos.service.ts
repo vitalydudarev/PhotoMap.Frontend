@@ -59,6 +59,22 @@ export class VideosService {
   }
 
   /**
+   * The videos with a GPS location that the filter takes, every one of them, oldest first, for a map, which clusters
+   * them, so it has no pages. The filter is that of `getUserVideos`.
+   */
+  getUserGeotaggedVideos(
+    userId: number,
+    folderPaths: readonly string[],
+    years: readonly number[],
+    locationIds: readonly number[],
+    unknownLocation: boolean,
+  ): Observable<Video[]> {
+    const params = videoFilterParams(new HttpParams(), folderPaths, years, locationIds, unknownLocation);
+
+    return this.httpClient.get<Video[]>(`${this.url}/${userId}/videos/geotagged`, {params});
+  }
+
+  /**
    * What the videos the filter takes can still be narrowed down to, for each of its filters, see {@link VideoFacets}.
    * The filter is that of `getUserVideos`.
    * @param withGps Whether only the videos with a GPS location are counted, as a map shows them.

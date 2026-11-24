@@ -29,6 +29,7 @@ describe('VideosComponent', () => {
   let queryParams: Record<string, string | string[]>;
   let folders: string[];
   let getUserVideoFacets: ReturnType<typeof vi.fn>;
+  let getUserGeotaggedVideos: ReturnType<typeof vi.fn>;
   let locations: VideoLocation[];
 
   const video: Video = {
@@ -66,6 +67,7 @@ describe('VideosComponent', () => {
     queryParams = {};
     folders = ['disk:/Camera Uploads', 'disk:/Videos'];
     // every option takes some video, unless a test says otherwise
+    getUserGeotaggedVideos = vi.fn(() => of([]));
     getUserVideoFacets = vi.fn(() =>
       of({
         folders: folders.map((value) => ({value, count: 1})),
@@ -97,6 +99,7 @@ describe('VideosComponent', () => {
             getUserVideoFolders: vi.fn(() => of(folders)),
             getUserVideoYears: () => of([2016, 2019]),
             getUserVideoFacets,
+            getUserGeotaggedVideos,
             getUserVideoLocations: () => of(locations),
           },
         },
@@ -438,22 +441,64 @@ describe('VideosComponent', () => {
   });
 
   describe('on the map', () => {
+    const brest: Video = {...video, id: '5', fileName: 'brest.mp4', latitude: 52.1, longitude: 23.7};
     const minsk: Video = {...video, id: '3', fileName: 'minsk.mp4', latitude: 53.9, longitude: 27.56};
     const mapView = () =>
       fixture.debugElement.query((debug) => debug.componentInstance instanceof MapViewStubComponent)?.componentInstance as
         MapViewStubComponent | undefined;
     const showMap = () => {
-      component.selectedViewMode.set('map');
+      component.viewModeUpdated('map');
       fixture.detectChanges();
     };
 
     beforeEach(() => {
       TestBed.overrideComponent(VideosComponent, {remove: {imports: [PhotosMapViewComponent]}, add: {imports: [MapViewStubComponent]}});
-      getUserVideos.mockReturnValue(of({values: [video, minsk], total: 2, limit: 100, offset: 0}));
+      getUserVideos.mockReturnValue(of({values: [video, minsk], total: 250, limit: 100, offset: 0}));
+      // every video with a location, of every page, as the filters count them on the map
+      getUserGeotaggedVideos.mockReturnValue(of([brest, minsk]));
       queryParams = {allFolders: 'true'};
     });
 
-    it('should show the videos of the page on the map by their previews, named as videos, and play them itself', () => {
+    it('should show every video with a location the filters take, not the page of the grid only, with no pages', () => {
+      build();
+      getUserVideos.mockClear();
+
+      showMap();
+
+      expect(getUserVideos).not.toHaveBeenCalled();
+      expect(getUserGeotaggedVideos.mock.lastCall!.slice(1)).toEqual([[], [], [], false]);
+      expect(
+        mapView()
+          ?.photos()
+          .map((photo) => photo.id),
+      ).toEqual(['5', '3']);
+      expect(element().querySelector('app-paginator')).toBeNull();
+      expect(element().querySelector('[aria-label="Sort order"]')).toBeNull();
+      expect(text()).toContain('2 videos with a location');
+    });
+
+    it('should show the page of the grid again once back from the map', () => {
+      build();
+      showMap();
+      getUserVideos.mockClear();
+
+      component.viewModeUpdated('grid');
+      fixture.detectChanges();
+
+      expect(getUserVideos).toHaveBeenCalledTimes(1);
+      expect(element().querySelector('app-paginator')).not.toBeNull();
+    });
+
+    it('should say so when no video the filters take has a location', () => {
+      getUserGeotaggedVideos.mockReturnValue(of([]));
+      build();
+      showMap();
+
+      expect(mapView()).toBeUndefined();
+      expect(text()).toContain('No videos with a GPS location to show on the map');
+    });
+
+    it('should show the videos on the map by their previews, named as videos, and play them itself', () => {
       build();
       showMap();
 
@@ -479,13 +524,13 @@ describe('VideosComponent', () => {
       mapView()!.opened.emit({photos: mapView()!.photos().slice().reverse(), index: 0});
       fixture.detectChanges();
 
-      expect(component.playerVideos()).toEqual([minsk, video]);
+      expect(component.playerVideos()).toEqual([minsk, brest]);
       expect(component.playingIndex()).toBe(0);
 
-      // played from the grid, the player steps through the videos of the page again
-      component.play(video);
+      // played otherwise, the player steps through the videos shown again
+      component.play(brest);
 
-      expect(component.playerVideos()).toEqual([video, minsk]);
+      expect(component.playerVideos()).toEqual([brest, minsk]);
     });
 
     it('should narrow the videos of the map down by the filters of the sidebar, as the grid', () => {
@@ -496,7 +541,7 @@ describe('VideosComponent', () => {
       component.filterUpdated(component.locationFilter, [8]);
       fixture.detectChanges();
 
-      expect(getUserVideos.mock.lastCall!.slice(6, 8)).toEqual([[8], false]);
+      expect(getUserGeotaggedVideos.mock.lastCall!.slice(3, 5)).toEqual([[8], false]);
       expect(mapView()).toBeDefined();
     });
   });

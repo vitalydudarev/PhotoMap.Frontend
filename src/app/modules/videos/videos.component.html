@@ -84,19 +84,27 @@
               />
             }
 
-            <app-segmented
-              aria-label="Sort order"
-              [options]="sortOrders"
-              [value]="selectedSortOrder()"
-              (valueChange)="sortOrderUpdated($event)"
-              [iconsOnly]="true"
-            />
+            <!-- the map shows its videos where they were taken, in no order -->
+            @if (selectedViewMode() === 'grid') {
+              <app-segmented
+                aria-label="Sort order"
+                [options]="sortOrders"
+                [value]="selectedSortOrder()"
+                (valueChange)="sortOrderUpdated($event)"
+                [iconsOnly]="true"
+              />
+            }
           }
         </div>
 
         @if (showDuplicates()) {
           @if (shownDuplicateGroups().length > 0) {
             <p class="summary">{{ duplicateCount() }} videos in {{ shownDuplicateGroups().length }} groups of copies</p>
+          }
+        } @else if (selectedViewMode() === 'map') {
+          <!-- the map shows every video with a location the filters take, so it has no pages -->
+          @if (!showSpinner() && !failed()) {
+            <p class="summary">{{ videos().length }} {{ videos().length === 1 ? 'video' : 'videos' }} with a location</p>
           }
         } @else {
           <app-paginator
@@ -146,6 +154,10 @@
     } @else if (locationFilter.noneSelected()) {
       <div class="state">
         <p>No locations are selected. Pick one to see the videos taken there.</p>
+      </div>
+    } @else if (videos().length === 0 && selectedViewMode() === 'map') {
+      <div class="state">
+        <p>No videos with a GPS location to show on the map. Switch to the grid to see the videos without one.</p>
       </div>
     } @else if (
       videos().length === 0 && (folderFilter.values().length > 0 || yearFilter.values().length > 0 || locationFilter.values().length > 0)

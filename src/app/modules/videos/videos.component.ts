@@ -325,13 +325,20 @@ export class VideosComponent implements OnInit {
     this.playingIndex.set(this.playerVideos().indexOf(video));
   }
 
-  /** Shows the videos in a grid or on a map, which counts only the videos with a GPS location in the filters. */
+  /**
+   * Shows the videos of the page in a grid, or every video with a GPS location the filters take on a map, which
+   * counts only those in the filters.
+   */
   viewModeUpdated(viewMode: VideosViewMode): void {
+    if (viewMode === this.selectedViewMode()) {
+      return;
+    }
+
     this.selectedViewMode.set(viewMode);
 
-    // the copies list every option, with no count, whatever the view
+    // the copies are listed the same whatever the view
     if (!this.showDuplicates()) {
-      this.loadFacets(this.requestedFolders());
+      this.loadVideos();
     }
   }
 
@@ -625,6 +632,37 @@ export class VideosComponent implements OnInit {
       });
   }
 
+  /**
+   * Every video with a GPS location the filters take, at once, as the filters count them on the map: the map clusters
+   * them, so it has no pages.
+   */
+  private loadMapVideos(folderPaths: readonly string[]): void {
+    const locations = this.locationFilter.values();
+
+    this.videosRequest = this.videosService
+      .getUserGeotaggedVideos(
+        USER_ID,
+        folderPaths,
+        this.yearFilter.values(),
+        locations.filter((location) => location !== UNKNOWN_LOCATION),
+        locations.includes(UNKNOWN_LOCATION),
+      )
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (videos) => {
+          this.totalCount.set(videos.length);
+          this.videos.set(videos);
+          this.showSpinner.set(false);
+        },
+        error: (error) => {
+          this.videos.set([]);
+          this.failed.set(true);
+          this.showSpinner.set(false);
+          this.toastService.error('Could not load the videos.', error);
+        },
+      });
+  }
+
   private loadVideos(): void {
     this.videosRequest?.unsubscribe();
     this.playingIndex.set(null);
@@ -646,6 +684,12 @@ export class VideosComponent implements OnInit {
 
     this.showSpinner.set(true);
     this.failed.set(false);
+
+    if (this.selectedViewMode() === 'map') {
+      this.loadMapVideos(folderPaths);
+
+      return;
+    }
 
     // a request still on its way is dropped, so an answer for the previous page cannot land after this one
     this.videosRequest = this.videosService
