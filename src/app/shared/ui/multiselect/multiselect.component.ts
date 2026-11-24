@@ -9,6 +9,8 @@ export interface MultiselectOption<T> {
   group?: string;
   /** What tells the option apart from others of the same label, such as the country of a city; muted, after the label. */
   hint?: string;
+  /** How many photos or videos the option takes, shown at the end of its row by the checklist; none when not given. */
+  count?: number;
   /**
    * The options of the groups above that it is within, such as the region and the country of a city; none for one of
    * the top group. Given, the checklist lists it only while it is within those picked of a group above that narrows,

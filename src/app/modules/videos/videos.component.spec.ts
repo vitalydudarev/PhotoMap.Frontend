@@ -67,7 +67,12 @@ describe('VideosComponent', () => {
     folders = ['disk:/Camera Uploads', 'disk:/Videos'];
     // every option takes some video, unless a test says otherwise
     getUserVideoFacets = vi.fn(() =>
-      of({folderPaths: folders, years: [2016, 2019], locationIds: locations.map((location) => location.id), unknownLocation: true}),
+      of({
+        folders: folders.map((value) => ({value, count: 1})),
+        years: [2016, 2019].map((value) => ({value, count: 1})),
+        locations: locations.map((location) => ({value: location.id, count: 1})),
+        unknownLocationCount: 1,
+      }),
     );
     // no video is geocoded, unless a test says otherwise
     locations = [];
@@ -212,12 +217,14 @@ describe('VideosComponent', () => {
     it('should list only the options of each filter that take some video along with the others', () => {
       queryParams = {allFolders: 'true'};
       build();
-      getUserVideoFacets.mockReturnValue(of({folderPaths: ['disk:/Videos'], years: [2019], locationIds: [], unknownLocation: true}));
+      getUserVideoFacets.mockReturnValue(
+        of({folders: [{value: 'disk:/Videos', count: 2}], years: [{value: 2019, count: 2}], locations: [], unknownLocationCount: 2}),
+      );
 
       component.filterUpdated(component.yearFilter, [2019]);
 
       expect(getUserVideoFacets.mock.lastCall!.slice(1)).toEqual([[], [2019], [], false]);
-      expect(component.folderFilter.options().map((option) => option.value)).toEqual(['disk:/Videos']);
+      expect(component.folderFilter.options()).toEqual([{value: 'disk:/Videos', label: '/Videos', count: 2}]);
       expect(component.yearFilter.options().map((option) => option.value)).toEqual([2019]);
     });
 
@@ -227,7 +234,15 @@ describe('VideosComponent', () => {
       build();
       component.filterUpdated(component.folderFilter, ['disk:/Trips', 'disk:/Videos']);
       getUserVideoFacets.mockReturnValue(
-        of({folderPaths: ['disk:/Camera Uploads', 'disk:/Videos'], years: [2019], locationIds: [], unknownLocation: true}),
+        of({
+          folders: [
+            {value: 'disk:/Camera Uploads', count: 1},
+            {value: 'disk:/Videos', count: 1},
+          ],
+          years: [{value: 2019, count: 2}],
+          locations: [],
+          unknownLocationCount: 2,
+        }),
       );
 
       component.filterUpdated(component.yearFilter, [2019]);
@@ -240,7 +255,9 @@ describe('VideosComponent', () => {
     it('should ask for the camera uploads by every camera folder, those not listed too', () => {
       folders = ['disk:/Camera Uploads', '/Camera Uploads', 'disk:/Videos'];
       build();
-      getUserVideoFacets.mockReturnValue(of({folderPaths: ['/Camera Uploads'], years: [2019], locationIds: [], unknownLocation: true}));
+      getUserVideoFacets.mockReturnValue(
+        of({folders: [{value: '/Camera Uploads', count: 1}], years: [{value: 2019, count: 1}], locations: [], unknownLocationCount: 1}),
+      );
 
       component.filterUpdated(component.yearFilter, [2019]);
       component.filterUpdated(component.yearFilter, [2016, 2019]);
@@ -334,9 +351,9 @@ describe('VideosComponent', () => {
       build();
 
       expect(component.locationFilter.options()).toEqual([
-        {value: 0, label: 'Unknown location'},
-        {value: 3, label: 'Belarus', group: 'Countries', hint: undefined, within: []},
-        {value: 8, label: 'Minsk', group: 'Cities', hint: 'Belarus', within: [3]},
+        {value: 0, label: 'Unknown location', count: 1},
+        {value: 3, label: 'Belarus', group: 'Countries', hint: undefined, within: [], count: 1},
+        {value: 8, label: 'Minsk', group: 'Cities', hint: 'Belarus', within: [3], count: 1},
       ]);
       expect(component.locationFilter.selected()).toEqual([0, 3, 8]);
       expect(checklists()).toEqual([

@@ -107,5 +107,8 @@
         <span class="option-hint">{{ option.hint }}</span>
       }
     </span>
+    @if (option.count !== undefined) {
+      <span class="option-count">{{ option.count }}</span>
+    }
   </label>
 </ng-template>

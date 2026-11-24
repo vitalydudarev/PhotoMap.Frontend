@@ -772,15 +772,18 @@ describe('GalleryComponent', () => {
     describe('narrowed down by one another', () => {
       const facetsRequests = () => http().match((request) => request.url.endsWith('/users/1/photos/facets'));
       const facets = {
-        photoSourceIds: [1, 2],
-        folderPaths: ['disk:/Trips/Rome'],
-        years: [2019],
-        categories: [PhotoCategory.Other],
-        gps: [true],
-        tagIds: [],
-        untagged: true,
-        locationIds: [],
-        unknownLocation: true,
+        photoSources: [
+          {value: 1, count: 3},
+          {value: 2, count: 2},
+        ],
+        folders: [{value: 'disk:/Trips/Rome', count: 5}],
+        years: [{value: 2019, count: 5}],
+        categories: [{value: PhotoCategory.Other, count: 5}],
+        gps: [{value: true, count: 5}],
+        tags: [],
+        untaggedCount: 5,
+        locations: [],
+        unknownLocationCount: 5,
       };
 
       it('should list only the options of each filter that take some photo along with the others', () => {
@@ -796,9 +799,10 @@ describe('GalleryComponent', () => {
         request.flush(facets);
         fixture.detectChanges();
 
-        expect(component.yearFilter.options().map((option) => option.value)).toEqual([2019]);
+        expect(component.yearFilter.options()).toEqual([{value: 2019, label: '2019', count: 5}]);
         expect(component.categoryFilter.options().map((option) => option.value)).toEqual([PhotoCategory.Other]);
         expect(component.gpsFilter.options().map((option) => option.label)).toEqual(['With GPS']);
+        expect(component.sourceFilter.options().map((option) => option.count)).toEqual([3, 2]);
         // the years not listed stay as the user left them, and the photos are asked for by them
         expect(component.yearFilter.values()).toEqual([2019]);
       });

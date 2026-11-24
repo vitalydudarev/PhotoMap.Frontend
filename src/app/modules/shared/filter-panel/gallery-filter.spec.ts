@@ -217,9 +217,16 @@ describe('GalleryFilter', () => {
       const filter = new GalleryFilter();
       filter.setOptions(years);
 
-      filter.narrowTo([2019, 2021]);
+      filter.narrowTo([
+        [2016, 0],
+        [2019, 12],
+        [2021, 3],
+      ]);
 
-      expect(filter.options().map((option) => option.value)).toEqual([2019, 2021]);
+      expect(filter.options()).toEqual([
+        {value: 2019, label: '2019', count: 12},
+        {value: 2021, label: '2021', count: 3},
+      ]);
       expect(filter.values()).toEqual([]);
       expect(filter.active()).toBe(false);
     });
@@ -229,7 +236,10 @@ describe('GalleryFilter', () => {
       filter.setOptions(years);
       filter.selected.set([2016, 2019]);
 
-      filter.narrowTo([2019, 2021]);
+      filter.narrowTo([
+        [2019, 12],
+        [2021, 3],
+      ]);
       filter.pick([2021]);
 
       expect(filter.selected()).toEqual([2016, 2021]);
@@ -244,14 +254,17 @@ describe('GalleryFilter', () => {
       filter.setOptions(years);
       filter.selected.set([2016]);
 
-      filter.narrowTo([2019, 2021]);
+      filter.narrowTo([
+        [2019, 12],
+        [2021, 3],
+      ]);
 
       expect(filter.noneSelected()).toBe(true);
     });
 
     it('should pick the values the address asked for among every option, not only those listed', () => {
       const filter = new GalleryFilter();
-      filter.narrowTo([2019]);
+      filter.narrowTo([[2019, 12]]);
       filter.request(['2016']);
 
       expect(filter.setOptions(years)).toBe(false);

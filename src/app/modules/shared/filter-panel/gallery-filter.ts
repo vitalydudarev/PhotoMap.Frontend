@@ -13,22 +13,26 @@ import {MultiselectOption} from 'src/app/shared/ui/multiselect/multiselect.compo
  * Options in nested groups, such as the locations from the countries down, are picked in effect as `narrow` tells:
  * picking Italy among the countries takes the photos in Italy, and picking Rome then among its cities, those in Rome.
  *
- * The other filters narrow the options listed down to those that take some photo along with them, see `narrowTo`,
- * such as the years of the photos in the folders picked. The options no longer listed stay picked, or not, as they
+ * The other filters narrow the options listed down to those that take some photo along with them, with how many
+ * photos each takes, see `narrowTo`, such as the years of the photos in the folders picked. The options no longer listed stay picked, or not, as they
  * were, and the photos are asked for by them all the same: they take no photo the other filters leave, so the photos
  * are the same, and once listed again, they are as the user left them.
  */
 export class GalleryFilter<T extends number | string = number> {
   /** Every option, those the other filters leave no photo for too. */
   readonly allOptions = signal<readonly MultiselectOption<T>[]>([]);
-  /** The values of the options that take some photo along with the other filters; null when all of them may. */
-  readonly available = signal<ReadonlySet<T> | null>(null);
-  /** The options listed: those that take some photo along with the other filters. */
+  /** How many photos each option takes along with the other filters, those of none left out; null when not known. */
+  readonly counts = signal<ReadonlyMap<T, number> | null>(null);
+  /** The options listed: those that take some photo along with the other filters, with how many they take. */
   readonly options = computed(() => {
-    const available = this.available();
+    const counts = this.counts();
     const options = this.allOptions();
 
-    return available === null ? options : options.filter((option) => available.has(option.value));
+    if (counts === null) {
+      return options;
+    }
+
+    return options.filter((option) => (counts.get(option.value) ?? 0) > 0).map((option) => ({...option, count: counts.get(option.value)}));
   });
   readonly selected = signal<readonly T[]>([]);
   /** What is picked in effect of the options listed, see `narrow`; all those picked unless the options are nested. */
@@ -82,11 +86,12 @@ export class GalleryFilter<T extends number | string = number> {
   }
 
   /**
-   * Lists only the options of the values given, those that take some photo along with the other filters; every
-   * option for null.
+   * Lists only the options that take some photo along with the other filters, with how many photos each takes; every
+   * option, with no count, for null.
+   * @param counts How many photos each option takes; an option not among them takes none.
    */
-  narrowTo(values: Iterable<T> | null): void {
-    this.available.set(values === null ? null : new Set(values));
+  narrowTo(counts: Iterable<readonly [T, number]> | null): void {
+    this.counts.set(counts === null ? null : new Map(counts));
   }
 
   /** Takes the values the address asks for, as one value or a list of them. */

@@ -4,6 +4,7 @@ import {Component, DestroyRef, OnInit, computed, effect, inject, signal} from '@
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {ActivatedRoute, Router} from '@angular/router';
 import {Subscription} from 'rxjs';
+import {facetCounts} from 'src/app/core/models/facets.model';
 import {PhotoSortOrder} from 'src/app/core/models/photo-sort-order.model';
 import {Photo} from 'src/app/core/models/photo.model';
 import {Video, VideoDuplicateGroup} from 'src/app/core/models/video.model';
@@ -600,9 +601,9 @@ export class VideosComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (facets) => {
-          this.folderFilter.narrowTo(facets.folderPaths);
-          this.yearFilter.narrowTo(facets.years);
-          this.locationFilter.narrowTo([...facets.locationIds, ...(facets.unknownLocation ? [UNKNOWN_LOCATION] : [])]);
+          this.folderFilter.narrowTo(facetCounts(facets.folders));
+          this.yearFilter.narrowTo(facetCounts(facets.years));
+          this.locationFilter.narrowTo([...facetCounts(facets.locations), [UNKNOWN_LOCATION, facets.unknownLocationCount]]);
         },
         error: () => {
           // every option stays listed, as it was, and the videos are narrowed down by those picked all the same

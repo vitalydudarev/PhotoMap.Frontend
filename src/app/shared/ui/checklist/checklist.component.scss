@@ -202,6 +202,14 @@
   max-height: none;
 }
 
+.option-count {
+  flex-shrink: 0;
+  margin-inline-start: auto;
+  color: var(--app-fg-subtle);
+  font-size: var(--app-text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
 .option-hint {
   margin-inline-start: var(--app-space-1);
   color: var(--app-fg-subtle);

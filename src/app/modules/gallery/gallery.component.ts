@@ -18,6 +18,7 @@ import {ActivatedRoute, Router} from '@angular/router';
 import {Observable, Subscription, catchError, forkJoin, from, map, mergeMap, of} from 'rxjs';
 import {PhotoCategory} from 'src/app/core/models/photo-category.model';
 import {MapArea, formatMapArea, parseMapArea} from 'src/app/core/models/map-area.model';
+import {facetCounts} from 'src/app/core/models/facets.model';
 import {PhotoFilter} from 'src/app/core/models/photo-filter.model';
 import {PhotoMonth, photoMonthKey} from 'src/app/core/models/photo-month.model';
 import {PhotoSortOrder} from 'src/app/core/models/photo-sort-order.model';
@@ -1037,13 +1038,13 @@ export class GalleryComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (facets) => {
-          this.sourceFilter.narrowTo(facets.photoSourceIds);
-          this.folderFilter.narrowTo(facets.folderPaths);
-          this.yearFilter.narrowTo(facets.years);
-          this.categoryFilter.narrowTo(facets.categories);
-          this.gpsFilter.narrowTo(facets.gps.map((gps) => (gps ? WITH_GPS : WITHOUT_GPS)));
-          this.tagFilter.narrowTo([...facets.tagIds, ...(facets.untagged ? [UNTAGGED] : [])]);
-          this.locationFilter.narrowTo([...facets.locationIds, ...(facets.unknownLocation ? [UNKNOWN_LOCATION] : [])]);
+          this.sourceFilter.narrowTo(facetCounts(facets.photoSources));
+          this.folderFilter.narrowTo(facetCounts(facets.folders));
+          this.yearFilter.narrowTo(facetCounts(facets.years));
+          this.categoryFilter.narrowTo(facetCounts(facets.categories));
+          this.gpsFilter.narrowTo(facets.gps.map(({value, count}) => [value ? WITH_GPS : WITHOUT_GPS, count]));
+          this.tagFilter.narrowTo([...facetCounts(facets.tags), [UNTAGGED, facets.untaggedCount]]);
+          this.locationFilter.narrowTo([...facetCounts(facets.locations), [UNKNOWN_LOCATION, facets.unknownLocationCount]]);
         },
         error: () => {
           // every option stays listed, as it was, and the photos are narrowed down by those picked all the same

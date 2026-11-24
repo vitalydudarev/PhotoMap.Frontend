@@ -35,6 +35,18 @@ describe('ChecklistComponent', () => {
     expect(checkboxes().map((checkbox) => checkbox.checked)).toEqual([true, true, true]);
   });
 
+  it('should show how many photos each option takes, when it is given, at the end of its row', () => {
+    fixture.componentRef.setInput('options', [
+      {value: 1, label: 'Dropbox', count: 12},
+      {value: 2, label: 'Yandex.Disk'},
+    ]);
+    fixture.detectChanges();
+
+    const rows = [...element().querySelectorAll<HTMLElement>('.options .option:not(.option--all)')];
+
+    expect(rows.map((row) => row.querySelector('.option-count')?.textContent?.trim() ?? null)).toEqual(['12', null]);
+  });
+
   it('should fold the options away under the heading, and back', () => {
     click(heading());
 
