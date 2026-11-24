@@ -4,6 +4,8 @@ import {ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {ActivatedRoute, Params, Router} from '@angular/router';
 import {Subscription} from 'rxjs';
+import {facetCounts} from 'src/app/core/models/facets.model';
+import {PhotoFilter} from 'src/app/core/models/photo-filter.model';
 import {Photo} from 'src/app/core/models/photo.model';
 import {IconComponent} from 'src/app/shared/ui/icon/icon.component';
 import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
@@ -17,6 +19,9 @@ import {PhotosMapViewComponent} from '../shared/photos-map-view/photos-map-view.
 import {sidebarOpen} from '../shared/sidebar-page/sidebar-open';
 
 const LOCATION_PARAM = 'location';
+
+/** The photos of the map, before the locations narrow them down: every photo with a GPS location, of every folder. */
+const MAP_PHOTOS: PhotoFilter = {sourceIds: [], years: [], categories: [], hasGps: true, allFolders: true};
 const SIDEBAR_OPEN_STORAGE_KEY = 'map-sidebar-open';
 
 /**
@@ -80,10 +85,11 @@ export class MapComponent implements OnInit {
 
     this.loadPhotos();
     this.loadLocations();
+    this.loadLocationCounts();
   }
 
   locationsUpdated(values: readonly (number | string)[]): void {
-    this.locationFilter.selected.set(values as readonly number[]);
+    this.locationFilter.pick(values as readonly number[]);
 
     this.addQueryString();
     this.loadPhotos();
@@ -117,11 +123,7 @@ export class MapComponent implements OnInit {
     // the map clusters what it shows, so it takes every photo with a location at once
     this.photosRequest = this.userPhotosService
       .getUserGeotaggedPhotos(this.userId, {
-        sourceIds: [],
-        years: [],
-        categories: [],
-        // every photo with a location, those of the other uploads of Yandex.Disk too
-        allFolders: true,
+        ...MAP_PHOTOS,
         locationIds: locations.filter((location) => location !== UNKNOWN_LOCATION),
         unknownLocation: locations.includes(UNKNOWN_LOCATION),
       })
@@ -160,6 +162,22 @@ export class MapComponent implements OnInit {
           this.locationFilter.setOptions([]);
           this.toastService.error('Could not load the locations to filter the photos by.', error);
         },
+      });
+  }
+
+  /**
+   * How many photos of the map each location takes, listing only those with some: the locations of the photos with no
+   * GPS location, or deleted, are left out. The locations are the only filter, so the counts are those of every photo
+   * of the map, whatever is picked, and are loaded once.
+   */
+  private loadLocationCounts(): void {
+    this.userPhotosService
+      .getUserPhotoFacets(this.userId, MAP_PHOTOS)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (facets) => this.locationFilter.narrowTo([...facetCounts(facets.locations), [UNKNOWN_LOCATION, facets.unknownLocationCount]]),
+        // every location stays listed, with no count, and the photos are narrowed down by those picked all the same
+        error: () => undefined,
       });
   }
 

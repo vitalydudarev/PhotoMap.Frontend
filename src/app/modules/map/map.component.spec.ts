@@ -25,6 +25,18 @@ describe('MapComponent', () => {
   let fixture: ComponentFixture<MapComponent>;
   let component: MapComponent;
   let getUserGeotaggedPhotos: ReturnType<typeof vi.fn>;
+  let getUserPhotoFacets: ReturnType<typeof vi.fn>;
+  const facets = (counts: [number, number][], unknownLocationCount: number) => ({
+    photoSources: [],
+    folders: [],
+    years: [],
+    categories: [],
+    gps: [],
+    tags: [],
+    untaggedCount: 0,
+    locations: counts.map(([value, count]) => ({value, count})),
+    unknownLocationCount,
+  });
   let queryParams: Record<string, string | string[]>;
   let locations: PhotoLocation[];
 
@@ -63,6 +75,15 @@ describe('MapComponent', () => {
   beforeEach(() => {
     localStorage.clear();
     getUserGeotaggedPhotos = vi.fn(() => of([photo]));
+    // every location takes some photo, unless a test says otherwise
+    getUserPhotoFacets = vi.fn(() =>
+      of(
+        facets(
+          locations.map((location) => [location.id, 1]),
+          1,
+        ),
+      ),
+    );
     queryParams = {};
     locations = [
       {id: 8, level: 'City', name: 'Minsk', description: 'Belarus', photoCount: 2, parentIds: [3]},
@@ -83,7 +104,7 @@ describe('MapComponent', () => {
         },
         {
           provide: UserPhotosService,
-          useValue: {getUserGeotaggedPhotos, getUserPhotoLocations: () => of(locations)},
+          useValue: {getUserGeotaggedPhotos, getUserPhotoLocations: () => of(locations), getUserPhotoFacets},
         },
       ],
     }).overrideComponent(MapComponent, {
@@ -110,6 +131,24 @@ describe('MapComponent', () => {
     expect(lastLocations()).toEqual([[8], true]);
     expect(element().querySelector('.filters-count')?.textContent).toContain('1');
     expect(mapView()?.galleryQueryParams()).toEqual({location: ['0', '8']});
+  });
+
+  it('should count the photos of the map in each location, listing only those with some', () => {
+    getUserPhotoFacets.mockReturnValue(of(facets([[3, 20]], 0)));
+    build();
+
+    const filter = getUserPhotoFacets.mock.lastCall![1] as PhotoFilter;
+    expect(filter.hasGps).toBe(true);
+    expect(filter.allFolders).toBe(true);
+    expect(component.locationFilter.options().map((option) => [option.label, option.count])).toEqual([['Belarus', 20]]);
+  });
+
+  it('should keep the counts as the locations are picked, as nothing else narrows them down', () => {
+    build();
+
+    component.locationsUpdated([8]);
+
+    expect(getUserPhotoFacets).toHaveBeenCalledTimes(1);
   });
 
   it('should take the locations the address asks for', () => {
