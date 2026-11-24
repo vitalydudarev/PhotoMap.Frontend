@@ -1,10 +1,20 @@
-/** Mirrors the backend's `PhotoTagDto`: a tag of the photos of the user, which the gallery filters them by. */
+/**
+ * Mirrors the backend's `PhotoTagDto`: a tag of the photos and the videos of the user, which the gallery and the videos
+ * are filtered by; a tag is the same for both.
+ */
 export interface PhotoTag {
   id: number;
   /** As the user first wrote it; a tag of the same name in another case is the same tag. */
   name: string;
   /** How many photos have the tag, the deleted ones too. */
   photoCount: number;
+  /** How many videos have the tag; none from a backend that does not tell. */
+  videoCount?: number;
+}
+
+/** How many photos and videos have the tag. */
+export function tagUseCount(tag: PhotoTag): number {
+  return tag.photoCount + (tag.videoCount ?? 0);
 }
 
 /** Mirrors the backend's `TagSuggestionDto`: a tag suggested for a photo, and why. */

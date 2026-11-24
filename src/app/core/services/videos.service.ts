@@ -36,6 +36,9 @@ export class VideosService {
    * the videos taken anywhere, and those in no location.
    * @param unknownLocation Whether the videos in no location are taken too: those with no GPS, not geocoded yet, or
    * where the geocoding found nothing.
+   * @param tagIds The tags the videos have, any of them, which are those of the photos too; with neither these nor
+   * `untagged`, the videos with and without tags.
+   * @param untagged Whether the videos with no tag are taken too; only they are when no tag is given.
    */
   getUserVideos(
     userId: number,
@@ -46,6 +49,8 @@ export class VideosService {
     years: readonly number[] = [],
     locationIds: readonly number[] = [],
     unknownLocation = false,
+    tagIds: readonly number[] = [],
+    untagged = false,
   ): Observable<PagedResponse<Video>> {
     const params = videoFilterParams(
       new HttpParams().set('top', top).set('skip', skip).set('sort', sort),
@@ -53,6 +58,8 @@ export class VideosService {
       years,
       locationIds,
       unknownLocation,
+      tagIds,
+      untagged,
     );
 
     return this.httpClient.get<PagedResponse<Video>>(`${this.url}/${userId}/videos`, {params});
@@ -68,8 +75,10 @@ export class VideosService {
     years: readonly number[],
     locationIds: readonly number[],
     unknownLocation: boolean,
+    tagIds: readonly number[] = [],
+    untagged = false,
   ): Observable<Video[]> {
-    const params = videoFilterParams(new HttpParams(), folderPaths, years, locationIds, unknownLocation);
+    const params = videoFilterParams(new HttpParams(), folderPaths, years, locationIds, unknownLocation, tagIds, untagged);
 
     return this.httpClient.get<Video[]>(`${this.url}/${userId}/videos/geotagged`, {params});
   }
@@ -86,14 +95,25 @@ export class VideosService {
     locationIds: readonly number[],
     unknownLocation: boolean,
     withGps = false,
+    tagIds: readonly number[] = [],
+    untagged = false,
   ): Observable<VideoFacets> {
-    let params = videoFilterParams(new HttpParams(), folderPaths, years, locationIds, unknownLocation);
+    let params = videoFilterParams(new HttpParams(), folderPaths, years, locationIds, unknownLocation, tagIds, untagged);
 
     if (withGps) {
       params = params.set('gps', true);
     }
 
     return this.httpClient.get<VideoFacets>(`${this.url}/${userId}/videos/facets`, {params});
+  }
+
+  /**
+   * Replaces the tags of the video, which are those of the photos too. A name the user has a tag of, whatever its case,
+   * takes that tag, as it is written; the other names make new tags.
+   * @returns The names of the tags of the video, by name.
+   */
+  setVideoTags(userId: number, videoId: string, names: readonly string[]): Observable<string[]> {
+    return this.httpClient.put<string[]>(`${this.url}/${userId}/videos/${videoId}/tags`, names);
   }
 
   /** The years, in UTC, the videos of the user were taken in, oldest first. */
@@ -146,6 +166,8 @@ function videoFilterParams(
   years: readonly number[],
   locationIds: readonly number[],
   unknownLocation: boolean,
+  tagIds: readonly number[] = [],
+  untagged = false,
 ): HttpParams {
   for (const folderPath of folderPaths) {
     params = params.append('folder', folderPath);
@@ -161,6 +183,14 @@ function videoFilterParams(
 
   if (unknownLocation) {
     params = params.set('unknownLocation', true);
+  }
+
+  for (const tagId of tagIds) {
+    params = params.append('tag', tagId);
+  }
+
+  if (untagged) {
+    params = params.set('untagged', true);
   }
 
   return params;

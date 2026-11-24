@@ -151,6 +151,10 @@
       <div class="state">
         <p>No years are selected. Pick one to see its videos.</p>
       </div>
+    } @else if (tagFilter.noneSelected()) {
+      <div class="state">
+        <p>No tags are selected. Pick one to see its videos.</p>
+      </div>
     } @else if (locationFilter.noneSelected()) {
       <div class="state">
         <p>No locations are selected. Pick one to see the videos taken there.</p>
@@ -160,7 +164,11 @@
         <p>No videos with a GPS location to show on the map. Switch to the grid to see the videos without one.</p>
       </div>
     } @else if (
-      videos().length === 0 && (folderFilter.values().length > 0 || yearFilter.values().length > 0 || locationFilter.values().length > 0)
+      videos().length === 0 &&
+      (folderFilter.values().length > 0 ||
+        yearFilter.values().length > 0 ||
+        tagFilter.values().length > 0 ||
+        locationFilter.values().length > 0)
     ) {
       <div class="state">
         <p>No videos match the selected filters.</p>
@@ -180,6 +188,20 @@
         @for (video of videos(); track video.id) {
           <ng-container *ngTemplateOutlet="thumb; context: {$implicit: video}" />
         }
+
+        @if (editingVideo(); as video) {
+          <app-photo-tag-editor
+            class="tag-editor"
+            kind="video"
+            [style.top.px]="editorPosition().top"
+            [style.left.px]="editorPosition().left"
+            [photo]="video"
+            [userId]="userId"
+            [existingTags]="tags() ?? []"
+            (saved)="onTagsSaved(video, $event)"
+            (closed)="closeTags()"
+          />
+        }
       </section>
 
       <app-scroll-control />
@@ -190,16 +212,49 @@
 </div>
 
 <ng-template #thumb let-video>
-  <button
-    class="thumb"
-    type="button"
-    [title]="video.fileName + ' · ' + (video.dateTimeTaken | date: 'medium')"
-    [attr.aria-label]="'Play ' + video.fileName"
-    (click)="play(video)"
-  >
-    <img [appLazySrc]="video.previewUrl" [alt]="video.fileName" width="190" height="190" (error)="onPreviewError($event)" />
-    <span class="badge" aria-hidden="true">
-      <app-icon name="play" [size]="12" />
-    </span>
-  </button>
+  @let videoTags = video.tags ?? [];
+  @let editing = editingId() === video.id;
+  <div class="video-card" [class.video-card--editing]="editing">
+    <button
+      class="thumb"
+      type="button"
+      [title]="video.fileName + ' · ' + (video.dateTimeTaken | date: 'medium')"
+      [attr.aria-label]="'Play ' + video.fileName"
+      (click)="play(video)"
+    >
+      <img [appLazySrc]="video.previewUrl" [alt]="video.fileName" width="190" height="190" (error)="onPreviewError($event)" />
+      <span class="badge" aria-hidden="true">
+        <app-icon name="play" [size]="12" />
+      </span>
+
+      @if (videoTags.length > 0) {
+        <!-- the tag button tells them to a screen reader, so this list is for the eyes only -->
+        <span class="tags" aria-hidden="true">
+          <span class="tags-list">
+            @for (tag of videoTags; track tag) {
+              <span class="tag">{{ tag }}</span>
+            }
+          </span>
+        </span>
+      }
+    </button>
+
+    @if (tags() !== null) {
+      <button
+        #tagButton
+        class="tag-button"
+        type="button"
+        aria-haspopup="dialog"
+        [attr.aria-expanded]="editing"
+        [attr.aria-label]="tagsLabel(video)"
+        [title]="videoTags.length > 0 ? 'Edit tags' : 'Add tags'"
+        (click)="toggleTags(video, tagButton)"
+      >
+        <app-icon name="tag" [size]="14" />
+        @if (videoTags.length > 0) {
+          <span class="tag-count">{{ videoTags.length }}</span>
+        }
+      </button>
+    }
+  </div>
 </ng-template>

@@ -16,6 +16,8 @@ export interface Video {
   exifDateTime?: Date;
   latitude?: number;
   longitude?: number;
+  /** The names of the tags of the video, by name, which are those of the photos too. */
+  tags?: string[];
 }
 
 /** Mirrors the backend's `VideoDuplicateGroupDto`: videos that are copies of one another, of the same size and file name. */

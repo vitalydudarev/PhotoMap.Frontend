@@ -8,7 +8,7 @@
   </button>
 </div>
 
-<ul class="chips" aria-label="Tags of the photo">
+<ul class="chips" [attr.aria-label]="'Tags of the ' + kind()">
   @for (tag of tags(); track tag) {
     <li class="chip">
       <span class="chip-name">{{ tag }}</span>
@@ -33,7 +33,7 @@
   [attr.aria-activedescendant]="query().trim() && options().length > 0 ? optionId(activeIndex()) : null"
   [maxLength]="maxLength"
   [disabled]="full()"
-  [placeholder]="full() ? 'A photo has ' + maxTags + ' tags at most' : 'Add a tag…'"
+  [placeholder]="full() ? 'A ' + kind() + ' has ' + maxTags + ' tags at most' : 'Add a tag…'"
   [value]="query()"
   (input)="onInput($any($event.target).value)"
   (keydown)="onKeydown($event)"
@@ -59,36 +59,38 @@
         } @else {
           <app-icon name="tag" [size]="14" />
           <span class="option-name">{{ option.name }}</span>
-          <span class="option-count">{{ option.photoCount }}</span>
+          <span class="option-count">{{ option.useCount }}</span>
         }
       </li>
     }
   </ul>
 }
 
-<div class="suggestions">
-  <span class="section-title">Suggested</span>
-  @if (suggestions() === null) {
-    <p class="hint">Looking at the photos taken around the same time and place…</p>
-  } @else if (shownSuggestions().length === 0) {
-    <p class="hint">{{ suggestionsFailed() ? 'Could not load the suggestions.' : 'Nothing more to suggest.' }}</p>
-  } @else {
-    <ul class="chips">
-      @for (suggestion of shownSuggestions(); track suggestion.name) {
-        <li>
-          <button
-            class="suggestion"
-            type="button"
-            [title]="suggestionReason(suggestion)"
-            [attr.aria-label]="'Add ' + suggestion.name + ': ' + suggestionReason(suggestion)"
-            [disabled]="full()"
-            (click)="add(suggestion.name)"
-          >
-            <app-icon [name]="suggestion.byLocation ? 'map-pin' : 'calendar'" [size]="12" />
-            <span>{{ suggestion.name }}</span>
-          </button>
-        </li>
-      }
-    </ul>
-  }
-</div>
+@if (kind() === 'photo') {
+  <div class="suggestions">
+    <span class="section-title">Suggested</span>
+    @if (suggestions() === null) {
+      <p class="hint">Looking at the photos taken around the same time and place…</p>
+    } @else if (shownSuggestions().length === 0) {
+      <p class="hint">{{ suggestionsFailed() ? 'Could not load the suggestions.' : 'Nothing more to suggest.' }}</p>
+    } @else {
+      <ul class="chips">
+        @for (suggestion of shownSuggestions(); track suggestion.name) {
+          <li>
+            <button
+              class="suggestion"
+              type="button"
+              [title]="suggestionReason(suggestion)"
+              [attr.aria-label]="'Add ' + suggestion.name + ': ' + suggestionReason(suggestion)"
+              [disabled]="full()"
+              (click)="add(suggestion.name)"
+            >
+              <app-icon [name]="suggestion.byLocation ? 'map-pin' : 'calendar'" [size]="12" />
+              <span>{{ suggestion.name }}</span>
+            </button>
+          </li>
+        }
+      </ul>
+    }
+  </div>
+}

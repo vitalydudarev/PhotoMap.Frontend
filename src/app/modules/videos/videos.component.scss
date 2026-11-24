@@ -4,6 +4,8 @@
 
 /* The thumbnail grid of the gallery. */
 .grid {
+  /* the tag editor is placed in it, under the preview of its video */
+  position: relative;
   display: grid;
   grid-template-columns: repeat(auto-fill, 190px);
   gap: var(--app-space-2);
@@ -34,14 +36,6 @@
   border-radius: var(--app-radius);
   overflow: hidden;
   background: var(--app-surface-sunken);
-  transition:
-    transform var(--app-transition),
-    box-shadow var(--app-transition);
-}
-
-.thumb:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--app-shadow);
 }
 
 .thumb img {
@@ -67,6 +61,121 @@
   border-radius: 50%;
   background: rgb(0 0 0 / 55%);
   color: #fff;
+}
+
+/* The preview, which plays the video, and the button that edits its tags, side by side in one card: a button cannot
+   hold another. */
+.video-card {
+  position: relative;
+  border-radius: var(--app-radius);
+  transition:
+    transform var(--app-transition),
+    box-shadow var(--app-transition);
+}
+
+/* The card lifts as a whole, so that the tag button stays on its preview. */
+.video-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--app-shadow);
+}
+
+/* In the corner across from the play badge, as on the photos; shown while the video is pointed at. */
+.tag-button {
+  position: absolute;
+  top: var(--app-space-2);
+  left: var(--app-space-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: var(--app-radius-pill);
+  background: rgb(0 0 0 / 55%);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--app-transition);
+}
+
+.tag-button:hover {
+  background: rgb(0 0 0 / 80%);
+}
+
+.video-card:hover .tag-button,
+.video-card:focus-within .tag-button,
+.video-card--editing .tag-button {
+  opacity: 1;
+}
+
+.video-card--editing .tag-button {
+  background: rgb(40 40 40 / 85%);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 30%);
+}
+
+.tag-count {
+  font-size: var(--app-text-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* The tags of the video, listed over its bottom edge while it is pointed at, beside the play badge. They keep a dark
+   backing whatever the theme, for the same reason as the badge. */
+.tags {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  padding: var(--app-space-5) calc(var(--app-space-2) + 24px + var(--app-space-1)) var(--app-space-2) var(--app-space-2);
+  background: linear-gradient(to top, rgb(0 0 0 / 70%), rgb(0 0 0 / 0%));
+  opacity: 0;
+  transition: opacity var(--app-transition);
+  pointer-events: none;
+}
+
+/* Two rows at most, so the preview itself stays in view; the tag button counts them all. */
+.tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-1);
+  max-height: calc(2 * 20px + var(--app-space-1));
+  overflow: hidden;
+}
+
+.video-card:hover .tags,
+.video-card:focus-within .tags,
+.video-card--editing .tags {
+  opacity: 1;
+}
+
+.tag {
+  max-width: 100%;
+  padding: 0 var(--app-space-2);
+  overflow: hidden;
+  border-radius: var(--app-radius-pill);
+  background: rgb(255 255 255 / 22%);
+  color: #fff;
+  font-size: var(--app-text-xs);
+  font-weight: 500;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Over the previews, but under the toolbar and the header, which stay in view as the page scrolls. */
+.tag-editor {
+  position: absolute;
+  z-index: 20;
+}
+
+/* Nothing to point at on a touch screen, so the button and the tags stay in view there. */
+@media (hover: none) {
+  .tag-button,
+  .tags {
+    opacity: 1;
+  }
 }
 
 @media (width <= 720px) {

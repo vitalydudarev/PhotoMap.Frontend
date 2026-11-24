@@ -12,7 +12,7 @@ import {
   viewChild,
 } from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
-import {PhotoTag, PhotoTags, TAG_MAX_LENGTH, TAGS_PER_PHOTO, cleanTagName, sameTag} from 'src/app/core/models/photo-tag.model';
+import {PhotoTag, PhotoTags, TAGS_PER_PHOTO, TAG_MAX_LENGTH, cleanTagName, sameTag, tagUseCount} from 'src/app/core/models/photo-tag.model';
 import {ToastService} from 'src/app/core/services/toast.service';
 import {UserPhotosService} from 'src/app/core/services/user-photos.service';
 import {ButtonDirective} from 'src/app/shared/ui/button/button.directive';
@@ -22,7 +22,8 @@ import {IconComponent} from 'src/app/shared/ui/icon/icon.component';
 interface TagOption {
   name: string;
   isNew: boolean;
-  photoCount?: number;
+  /** How many photos and videos have the tag. */
+  useCount?: number;
 }
 
 let nextId = 0;
@@ -87,10 +88,10 @@ export class PhotosBulkTagEditorComponent {
       .sort(
         (a, b) =>
           Number(b.name.toLocaleLowerCase().startsWith(query)) - Number(a.name.toLocaleLowerCase().startsWith(query)) ||
-          b.photoCount - a.photoCount ||
+          tagUseCount(b) - tagUseCount(a) ||
           a.name.localeCompare(b.name),
       )
-      .map<TagOption>((tag) => ({name: tag.name, isNew: false, photoCount: tag.photoCount}));
+      .map<TagOption>((tag) => ({name: tag.name, isNew: false, useCount: tagUseCount(tag)}));
 
     const typed = cleanTagName(this.query());
     const known = typed.length === 0 || [...names, ...this.existingTags().map((tag) => tag.name)].some((name) => sameTag(name, typed));

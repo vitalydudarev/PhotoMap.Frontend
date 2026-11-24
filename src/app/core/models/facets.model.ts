@@ -38,6 +38,10 @@ export interface VideoFacets {
   locations: FacetCount<number>[];
   /** How many of the videos are in no location. */
   unknownLocationCount: number;
+  /** The tags, which are those of the photos too. */
+  tags: FacetCount<number>[];
+  /** How many of the videos have no tag. */
+  untaggedCount: number;
 }
 
 /** The counts of the facet, by their values, to narrow a filter down with. */

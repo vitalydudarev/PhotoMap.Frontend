@@ -1,12 +1,13 @@
 import {Component, input, output} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {ActivatedRoute, convertToParamMap, provideRouter} from '@angular/router';
-import {of} from 'rxjs';
+import {Subject, of} from 'rxjs';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 import {VideoLocation} from '../../core/models/photo-location.model';
 import {Video, VideoDuplicateGroup} from '../../core/models/video.model';
 import {Photo} from '../../core/models/photo.model';
+import {UserPhotosService} from '../../core/services/user-photos.service';
 import {VideosService} from '../../core/services/videos.service';
 import {PhotoSelection} from '../shared/photos-map-view/photo-map.model';
 import {PhotosMapViewComponent} from '../shared/photos-map-view/photos-map-view.component';
@@ -30,6 +31,8 @@ describe('VideosComponent', () => {
   let folders: string[];
   let getUserVideoFacets: ReturnType<typeof vi.fn>;
   let getUserGeotaggedVideos: ReturnType<typeof vi.fn>;
+  let getUserPhotoTags: ReturnType<typeof vi.fn>;
+  let setVideoTags: ReturnType<typeof vi.fn>;
   let locations: VideoLocation[];
 
   const video: Video = {
@@ -68,12 +71,17 @@ describe('VideosComponent', () => {
     folders = ['disk:/Camera Uploads', 'disk:/Videos'];
     // every option takes some video, unless a test says otherwise
     getUserGeotaggedVideos = vi.fn(() => of([]));
+    // the user has no tag yet, unless a test says otherwise
+    getUserPhotoTags = vi.fn(() => of([]));
+    setVideoTags = vi.fn((_userId: number, _videoId: string, names: string[]) => of(names));
     getUserVideoFacets = vi.fn(() =>
       of({
         folders: folders.map((value) => ({value, count: 1})),
         years: [2016, 2019].map((value) => ({value, count: 1})),
         locations: locations.map((location) => ({value: location.id, count: 1})),
         unknownLocationCount: 1,
+        tags: [],
+        untaggedCount: 1,
       }),
     );
     // no video is geocoded, unless a test says otherwise
@@ -91,6 +99,7 @@ describe('VideosComponent', () => {
             },
           },
         },
+        {provide: UserPhotosService, useValue: {getUserPhotoTags}},
         {
           provide: VideosService,
           useValue: {
@@ -101,6 +110,7 @@ describe('VideosComponent', () => {
             getUserVideoFacets,
             getUserGeotaggedVideos,
             getUserVideoLocations: () => of(locations),
+            setVideoTags,
           },
         },
       ],
@@ -221,12 +231,19 @@ describe('VideosComponent', () => {
       queryParams = {allFolders: 'true'};
       build();
       getUserVideoFacets.mockReturnValue(
-        of({folders: [{value: 'disk:/Videos', count: 2}], years: [{value: 2019, count: 2}], locations: [], unknownLocationCount: 2}),
+        of({
+          folders: [{value: 'disk:/Videos', count: 2}],
+          years: [{value: 2019, count: 2}],
+          locations: [],
+          unknownLocationCount: 2,
+          tags: [],
+          untaggedCount: 2,
+        }),
       );
 
       component.filterUpdated(component.yearFilter, [2019]);
 
-      expect(getUserVideoFacets.mock.lastCall!.slice(1)).toEqual([[], [2019], [], false, false]);
+      expect(getUserVideoFacets.mock.lastCall!.slice(1)).toEqual([[], [2019], [], false, false, [], false]);
       expect(component.folderFilter.options()).toEqual([{value: 'disk:/Videos', label: '/Videos', count: 2}]);
       expect(component.yearFilter.options().map((option) => option.value)).toEqual([2019]);
     });
@@ -245,6 +262,8 @@ describe('VideosComponent', () => {
           years: [{value: 2019, count: 2}],
           locations: [],
           unknownLocationCount: 2,
+          tags: [],
+          untaggedCount: 2,
         }),
       );
 
@@ -259,7 +278,14 @@ describe('VideosComponent', () => {
       folders = ['disk:/Camera Uploads', '/Camera Uploads', 'disk:/Videos'];
       build();
       getUserVideoFacets.mockReturnValue(
-        of({folders: [{value: '/Camera Uploads', count: 1}], years: [{value: 2019, count: 1}], locations: [], unknownLocationCount: 1}),
+        of({
+          folders: [{value: '/Camera Uploads', count: 1}],
+          years: [{value: 2019, count: 1}],
+          locations: [],
+          unknownLocationCount: 1,
+          tags: [],
+          untaggedCount: 1,
+        }),
       );
 
       component.filterUpdated(component.yearFilter, [2019]);
@@ -274,7 +300,14 @@ describe('VideosComponent', () => {
       build();
       getUserVideoFacets.mockClear();
       getUserVideoFacets.mockReturnValue(
-        of({folders: [{value: 'disk:/Videos', count: 7}], years: [{value: 2019, count: 7}], locations: [], unknownLocationCount: 7}),
+        of({
+          folders: [{value: 'disk:/Videos', count: 7}],
+          years: [{value: 2019, count: 7}],
+          locations: [],
+          unknownLocationCount: 7,
+          tags: [],
+          untaggedCount: 7,
+        }),
       );
 
       component.viewModeUpdated('map');
@@ -361,6 +394,143 @@ describe('VideosComponent', () => {
 
       expect(lastYears()).toEqual([]);
       expect(component.yearFilter.selected()).toEqual([2016, 2019]);
+    });
+  });
+
+  describe('by tag', () => {
+    const tags = [
+      {id: 4, name: 'Family', photoCount: 3, videoCount: 1},
+      {id: 9, name: 'Paris', photoCount: 1, videoCount: 0},
+    ];
+    const lastTags = () => getUserVideos.mock.lastCall!.slice(8, 10);
+    const facets = (tagCounts: [number, number][], untaggedCount: number) =>
+      of({
+        folders: folders.map((value) => ({value, count: 1})),
+        years: [2016, 2019].map((value) => ({value, count: 1})),
+        locations: [],
+        unknownLocationCount: 1,
+        tags: tagCounts.map(([value, count]) => ({value, count})),
+        untaggedCount,
+      });
+
+    beforeEach(() => {
+      queryParams = {allFolders: 'true'};
+      getUserPhotoTags.mockReturnValue(of(tags));
+      getUserVideoFacets.mockReturnValue(
+        facets(
+          [
+            [4, 1],
+            [9, 1],
+          ],
+          1,
+        ),
+      );
+    });
+
+    it('should offer the tags shared with the photos, then the untagged videos, all picked, with their counts', () => {
+      build();
+
+      expect(component.tagFilter.options()).toEqual([
+        {value: 4, label: 'Family', count: 1},
+        {value: 9, label: 'Paris', count: 1},
+        {value: 0, label: 'Untagged', count: 1},
+      ]);
+      expect(component.tagFilter.selected()).toEqual([4, 9, 0]);
+      expect(lastTags()).toEqual([[], false]);
+    });
+
+    it('should list only the tags some video has, along with the other filters', () => {
+      getUserVideoFacets.mockReturnValue(facets([[4, 2]], 0));
+      build();
+
+      expect(component.tagFilter.options().map((option) => option.label)).toEqual(['Family']);
+    });
+
+    it('should narrow the videos down to the tags picked, the untagged ones apart, from the first page, and count it', () => {
+      build();
+      component.pageIndex = 2;
+
+      component.filterUpdated(component.tagFilter, [9, 0]);
+      fixture.detectChanges();
+
+      expect(lastTags()).toEqual([[9], true]);
+      expect(getUserVideoFacets.mock.lastCall!.slice(6)).toEqual([[9], true]);
+      expect(component.pageIndex).toBe(0);
+      expect(toggle().querySelector('.filters-count')?.textContent).toContain('1');
+    });
+
+    it('should take the tags the address asks for', () => {
+      queryParams = {allFolders: 'true', tag: '4'};
+      build();
+
+      expect(lastTags()).toEqual([[4], false]);
+      expect(component.tagFilter.selected()).toEqual([4]);
+    });
+
+    it('should show no videos while no tag is picked', () => {
+      build();
+      getUserVideos.mockClear();
+
+      component.filterUpdated(component.tagFilter, []);
+      fixture.detectChanges();
+
+      expect(getUserVideos).not.toHaveBeenCalled();
+      expect(text()).toContain('No tags are selected');
+    });
+  });
+
+  describe('tagging', () => {
+    const tagButton = () => element().querySelector<HTMLButtonElement>('.video-card .tag-button')!;
+    const editor = () => element().querySelector('app-photo-tag-editor');
+
+    beforeEach(() => {
+      queryParams = {allFolders: 'true'};
+      getUserVideos.mockReturnValue(of({values: [{...video, tags: ['Family']}], total: 1, limit: 100, offset: 0}));
+      getUserPhotoTags.mockReturnValue(of([{id: 4, name: 'Family', photoCount: 3, videoCount: 1}]));
+    });
+
+    it('should show the tags of a video over its preview, and count them on its tag button', () => {
+      build();
+
+      expect([...element().querySelectorAll('.video-card .tag')].map((tag) => tag.textContent?.trim())).toEqual(['Family']);
+      expect(tagButton().getAttribute('aria-label')).toBe('Tags of trip.mp4: Family');
+      expect(tagButton().textContent?.trim()).toBe('1');
+    });
+
+    it('should open the editor of the video under it, which the button closes again', () => {
+      build();
+
+      tagButton().click();
+      fixture.detectChanges();
+
+      expect(editor()).not.toBeNull();
+      expect(tagButton().getAttribute('aria-expanded')).toBe('true');
+      expect(element().querySelector('app-photo-tag-editor .chips')?.getAttribute('aria-label')).toBe('Tags of the video');
+
+      tagButton().click();
+      fixture.detectChanges();
+
+      expect(editor()).toBeNull();
+    });
+
+    it('should keep the tags saved for the video, and load the tags and their counts again', () => {
+      build();
+      getUserPhotoTags.mockClear();
+      getUserVideoFacets.mockClear();
+
+      component.onTagsSaved(component.videos()[0], ['Family', 'Paris']);
+      fixture.detectChanges();
+
+      expect(component.videos()[0].tags).toEqual(['Family', 'Paris']);
+      expect(getUserPhotoTags).toHaveBeenCalledTimes(1);
+      expect(getUserVideoFacets).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not offer to tag the videos until the tags are loaded', () => {
+      getUserPhotoTags.mockReturnValue(new Subject());
+      build();
+
+      expect(element().querySelector('.video-card .tag-button')).toBeNull();
     });
   });
 
@@ -466,7 +636,7 @@ describe('VideosComponent', () => {
       showMap();
 
       expect(getUserVideos).not.toHaveBeenCalled();
-      expect(getUserGeotaggedVideos.mock.lastCall!.slice(1)).toEqual([[], [], [], false]);
+      expect(getUserGeotaggedVideos.mock.lastCall!.slice(1)).toEqual([[], [], [], false, [], false]);
       expect(
         mapView()
           ?.photos()

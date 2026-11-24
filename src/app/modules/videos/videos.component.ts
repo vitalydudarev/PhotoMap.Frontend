@@ -1,11 +1,12 @@
 import {DOCUMENT, DatePipe, Location, NgTemplateOutlet} from '@angular/common';
 import {HttpParams} from '@angular/common/http';
-import {Component, DestroyRef, OnInit, computed, effect, inject, signal} from '@angular/core';
+import {Component, DestroyRef, ElementRef, OnInit, computed, effect, inject, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {ActivatedRoute, Router} from '@angular/router';
 import {Subscription} from 'rxjs';
 import {facetCounts} from 'src/app/core/models/facets.model';
 import {PhotoSortOrder} from 'src/app/core/models/photo-sort-order.model';
+import {PhotoTag} from 'src/app/core/models/photo-tag.model';
 import {Photo} from 'src/app/core/models/photo.model';
 import {Video, VideoDuplicateGroup} from 'src/app/core/models/video.model';
 import {UNAVAILABLE_IMAGE} from 'src/app/core/services/photo-viewer.service';
@@ -15,12 +16,15 @@ import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
 
 import {folderLabel} from '../../core/helpers/file-labels.helper';
 import {ToastService} from '../../core/services/toast.service';
+import {UserPhotosService} from '../../core/services/user-photos.service';
 import {VideosService} from '../../core/services/videos.service';
 import {IconComponent} from '../../shared/ui/icon/icon.component';
 import {LazySrcDirective} from '../../shared/ui/lazy-src/lazy-src.directive';
 import {FilterPanelComponent, FilterPanelItem} from '../shared/filter-panel/filter-panel.component';
 import {GalleryFilter, takenIn} from '../shared/filter-panel/gallery-filter';
 import {UNKNOWN_LOCATION, locationOptions} from '../shared/filter-panel/location-options';
+import {UNTAGGED, tagOptions} from '../shared/filter-panel/tag-options';
+import {PhotoTagEditorComponent} from '../shared/photo-tag-editor/photo-tag-editor.component';
 import {VideoDuplicatesComponent} from './video-duplicates/video-duplicates.component';
 import {VideoPlayerComponent} from './video-player/video-player.component';
 import {PhotoSelection} from '../shared/photos-map-view/photo-map.model';
@@ -34,6 +38,7 @@ const SORT_PARAM = 'sort';
 const FOLDER_PARAM = 'folder';
 const YEAR_PARAM = 'year';
 const LOCATION_PARAM = 'location';
+const TAG_PARAM = 'tag';
 const DUPLICATES_PARAM = 'duplicates';
 const ALL_FOLDERS_PARAM = 'allFolders';
 
@@ -42,6 +47,10 @@ const ALL_FOLDERS_PARAM = 'allFolders';
  * Uploads folder of Dropbox.
  */
 const CAMERA_FOLDERS = ['disk:/Фотокамера', 'disk:/Camera Uploads', '/Camera Uploads'];
+
+/** The width of the tag editor, and the gap between it and the preview of its video, in pixels. */
+const EDITOR_WIDTH = 320;
+const EDITOR_GAP = 6;
 
 const WIDTH_STORAGE_KEY = 'videos-width';
 const SIDEBAR_OPEN_STORAGE_KEY = 'videos-sidebar-open';
@@ -72,6 +81,7 @@ const USER_ID = 1;
     LazySrcDirective,
     NgTemplateOutlet,
     PaginatorComponent,
+    PhotoTagEditorComponent,
     PhotosMapViewComponent,
     ScrollControlComponent,
     SegmentedComponent,
@@ -79,6 +89,12 @@ const USER_ID = 1;
     VideoDuplicatesComponent,
     VideoPlayerComponent,
   ],
+  host: {
+    '(document:click)': 'onDocumentClick($event)',
+    // the keyboard of a phone, brought up by the input of the editor, resizes the window too
+    '(window:resize)': 'placeEditor()',
+    '(document:keydown.escape)': 'closeTags()',
+  },
 })
 export class VideosComponent implements OnInit {
   readonly videos = signal<Video[]>([]);
@@ -174,17 +190,18 @@ export class VideosComponent implements OnInit {
    */
   readonly locationFilter = new GalleryFilter();
 
+  /** The tags the videos have, which are those of the photos too, and the videos with none. */
+  readonly tagFilter = new GalleryFilter();
+
+  /** The tags of the user, of the photos and the videos, to give the videos and to filter them by; null until loaded. */
+  readonly tags = signal<readonly PhotoTag[] | null>(null);
+
   /** Whether a filter has nothing picked, so that no video can be shown. */
-  readonly nothingSelected = computed(
-    () => this.folderFilter.noneSelected() || this.yearFilter.noneSelected() || this.locationFilter.noneSelected(),
-  );
+  readonly nothingSelected = computed(() => this.videoFilters().some((filter) => filter.noneSelected()));
 
   /** How many filters narrow the videos down, so that a filter hidden with the sidebar is not forgotten. */
   readonly activeFilterCount = computed(
-    () =>
-      (this.showDuplicates() ? [this.yearFilter] : [this.folderFilter, this.yearFilter, this.locationFilter]).filter((filter) =>
-        filter.active(),
-      ).length,
+    () => (this.showDuplicates() ? [this.yearFilter] : this.videoFilters()).filter((filter) => filter.active()).length,
   );
 
   /** The filters the sidebar lists, those with options to pick from; the copies are narrowed down by the years alone. */
@@ -192,9 +209,25 @@ export class VideosComponent implements OnInit {
     [
       {filter: this.yearFilter, label: 'Years'},
       {filter: this.folderFilter, label: 'Folders'},
+      {filter: this.tagFilter, label: 'Tags'},
       {filter: this.locationFilter, label: 'Location', searchable: true, fill: true},
     ].filter(({filter}) => filter.options().length > 0 && (filter === this.yearFilter || !this.showDuplicates())),
   );
+
+  /** The video whose tags are being edited, by its ID; none while the editor is closed. */
+  readonly editingId = signal<string | null>(null);
+
+  /** The video whose tags are being edited, of those shown. */
+  readonly editingVideo = computed(() => {
+    const id = this.editingId();
+
+    return id === null ? undefined : this.videos().find((video) => video.id === id);
+  });
+
+  /** Where the tag editor sits in the grid, under the preview of its video. */
+  readonly editorPosition = signal({top: 0, left: 0});
+
+  readonly userId = USER_ID;
 
   /**
    * The views and the filters sit in a sidebar on the left, which the user can hide to give the videos the whole
@@ -212,7 +245,12 @@ export class VideosComponent implements OnInit {
   private readonly document = inject(DOCUMENT);
   private readonly activatedRoute = inject(ActivatedRoute);
   private readonly videosService = inject(VideosService);
+  private readonly userPhotosService = inject(UserPhotosService);
   private readonly toastService = inject(ToastService);
+  private readonly element = inject(ElementRef<HTMLElement>);
+
+  /** The tag button the editor was opened with, which it sits under. */
+  private editorAnchor: HTMLElement | null = null;
 
   private videosRequest?: Subscription;
   private facetsRequest?: Subscription;
@@ -247,6 +285,7 @@ export class VideosComponent implements OnInit {
     this.folderFilter.request(params.getAll(FOLDER_PARAM));
     this.yearFilter.request(params.getAll(YEAR_PARAM));
     this.locationFilter.request(params.getAll(LOCATION_PARAM));
+    this.tagFilter.request(params.getAll(TAG_PARAM));
     this.showDuplicates.set(params.get(DUPLICATES_PARAM) === 'true');
     this.allFolders.set(params.get(ALL_FOLDERS_PARAM) === 'true');
 
@@ -262,6 +301,7 @@ export class VideosComponent implements OnInit {
     this.loadFolders();
     this.loadYears();
     this.loadLocations();
+    this.loadTags();
   }
 
   /** Shows the camera uploads, all the videos, or the videos that are copies of one another. */
@@ -300,9 +340,9 @@ export class VideosComponent implements OnInit {
       return;
     }
 
-    this.folderFilter.reset();
-    this.yearFilter.reset();
-    this.locationFilter.reset();
+    for (const filter of this.videoFilters()) {
+      filter.reset();
+    }
 
     // the other videos fill the pages differently, so the first page is the only one worth keeping
     this.pageIndex = 0;
@@ -386,6 +426,76 @@ export class VideosComponent implements OnInit {
     if (!this.showDuplicates()) {
       this.loadVideos();
     }
+  }
+
+  tagsLabel(video: Video): string {
+    const tags = video.tags ?? [];
+
+    return tags.length === 0 ? `Add tags to ${video.fileName}` : `Tags of ${video.fileName}: ${tags.join(', ')}`;
+  }
+
+  /** Opens the tag editor under the preview of the video, or closes it when it is open for this video already. */
+  toggleTags(video: Video, button: HTMLElement): void {
+    if (this.editingId() === video.id) {
+      this.closeTags();
+
+      return;
+    }
+
+    this.editorAnchor = button;
+    this.placeEditor();
+    this.editingId.set(video.id);
+  }
+
+  closeTags(): void {
+    this.editingId.set(null);
+    this.editorAnchor = null;
+  }
+
+  /** Puts the editor under the preview of its video, within the grid. */
+  placeEditor(): void {
+    if (!this.editorAnchor?.isConnected) {
+      return;
+    }
+
+    const card = this.editorAnchor.closest('.video-card') ?? this.editorAnchor;
+    const grid = card.closest('.grid') ?? (this.element.nativeElement as HTMLElement);
+    const cardRect = card.getBoundingClientRect();
+    const gridRect = grid.getBoundingClientRect();
+    const maxLeft = Math.max(0, gridRect.width - EDITOR_WIDTH);
+
+    this.editorPosition.set({
+      top: cardRect.bottom - gridRect.top + EDITOR_GAP,
+      left: Math.min(Math.max(0, cardRect.left - gridRect.left), maxLeft),
+    });
+  }
+
+  /** A click anywhere but in the editor, or on the button that toggles it, closes it. */
+  onDocumentClick(event: MouseEvent): void {
+    if (this.editingId() === null) {
+      return;
+    }
+
+    const target = event.target as Element | null;
+
+    if (!target?.isConnected || target.closest('app-photo-tag-editor, .tag-button')) {
+      return;
+    }
+
+    this.closeTags();
+  }
+
+  /**
+   * Takes the tags the server saved for the video. The video stays in place, even when the tags it is now given are
+   * not the ones the videos are filtered by, so that it does not vanish while its tags are being edited.
+   */
+  onTagsSaved(video: Video, tags: string[]): void {
+    this.videos.update((videos) => videos.map((shown) => (shown.id === video.id ? {...shown, tags} : shown)));
+
+    // a tag may have been made, or taken off its last video, and the counts have changed
+    this.loadTags(true);
+    this.facetsFilter = null;
+    this.loadFacets(this.requestedFolders());
   }
 
   onPreviewError(event: Event): void {
@@ -483,6 +593,56 @@ export class VideosComponent implements OnInit {
   }
 
   /**
+   * The tags of the user, those of the photos too, by name, then the videos with no tag.
+   * @param keepSelection Whether the tags picked are kept, rather than the ones the address asked for.
+   */
+  private loadTags(keepSelection = false): void {
+    this.userPhotosService
+      .getUserPhotoTags(USER_ID)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (tags) => {
+          this.tags.set(tags);
+
+          if (keepSelection) {
+            this.tagFilter.request(this.tagFilter.values().map(String));
+          }
+
+          // the address asked for a tag no video has, so the videos shown are not the ones now selected
+          if (this.tagFilter.setOptions(tagOptions(tags)) && !keepSelection) {
+            this.pageIndex = 0;
+            this.addQueryString();
+
+            // the duplicates are of every tag; the camera uploads wait for their folders
+            if (this.view() === 'all' || (this.view() === 'camera' && this.folderPaths !== null)) {
+              this.loadVideos();
+            }
+          }
+        },
+        error: (error) => {
+          // the videos can still be tagged, with new tags
+          this.tags.update((tags) => tags ?? []);
+
+          if (!keepSelection) {
+            this.tagFilter.setOptions([]);
+            this.toastService.error('Could not load the tags to filter the videos by.', error);
+          }
+        },
+      });
+  }
+
+  private videoFilters(): readonly GalleryFilter<number | string>[] {
+    return [this.folderFilter, this.yearFilter, this.tagFilter, this.locationFilter];
+  }
+
+  /** The tags to ask for the videos of, and whether those with none are asked for too. */
+  private tagQuery(): {tagIds: readonly number[]; untagged: boolean} {
+    const tags = this.tagFilter.values();
+
+    return {tagIds: tags.filter((tag) => tag !== UNTAGGED), untagged: tags.includes(UNTAGGED)};
+  }
+
+  /**
    * Offers the folders of the view to filter the videos by: those of the camera uploads, or every one.
    * @returns Whether the address asked for a folder that is not among them.
    */
@@ -535,6 +695,10 @@ export class VideosComponent implements OnInit {
       params = params.append(LOCATION_PARAM, location.toString());
     }
 
+    for (const tag of this.tagFilter.values()) {
+      params = params.append(TAG_PARAM, tag.toString());
+    }
+
     if (this.allFolders()) {
       params = params.append(ALL_FOLDERS_PARAM, 'true');
     }
@@ -554,7 +718,7 @@ export class VideosComponent implements OnInit {
       this.facetsRequest?.unsubscribe();
       this.facetsFilter = null;
 
-      for (const filter of [this.folderFilter, this.yearFilter, this.locationFilter] as GalleryFilter<number | string>[]) {
+      for (const filter of this.videoFilters()) {
         filter.narrowTo(null);
       }
     } else {
@@ -595,7 +759,8 @@ export class VideosComponent implements OnInit {
     const locations = this.locationFilter.values();
     // the map shows only the videos with a GPS location, so it counts only those
     const withGps = this.selectedViewMode() === 'map';
-    const key = JSON.stringify([folderPaths, years, locations, withGps]);
+    const {tagIds, untagged} = this.tagQuery();
+    const key = JSON.stringify([folderPaths, years, locations, withGps, tagIds, untagged]);
 
     if (key === this.facetsFilter) {
       return;
@@ -617,6 +782,8 @@ export class VideosComponent implements OnInit {
         locations.filter((location) => location !== UNKNOWN_LOCATION),
         locations.includes(UNKNOWN_LOCATION),
         withGps,
+        tagIds,
+        untagged,
       )
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -624,6 +791,7 @@ export class VideosComponent implements OnInit {
           this.folderFilter.narrowTo(facetCounts(facets.folders));
           this.yearFilter.narrowTo(facetCounts(facets.years));
           this.locationFilter.narrowTo([...facetCounts(facets.locations), [UNKNOWN_LOCATION, facets.unknownLocationCount]]);
+          this.tagFilter.narrowTo([...facetCounts(facets.tags), [UNTAGGED, facets.untaggedCount]]);
         },
         error: () => {
           // every option stays listed, as it was, and the videos are narrowed down by those picked all the same
@@ -638,6 +806,7 @@ export class VideosComponent implements OnInit {
    */
   private loadMapVideos(folderPaths: readonly string[]): void {
     const locations = this.locationFilter.values();
+    const {tagIds, untagged} = this.tagQuery();
 
     this.videosRequest = this.videosService
       .getUserGeotaggedVideos(
@@ -646,6 +815,8 @@ export class VideosComponent implements OnInit {
         this.yearFilter.values(),
         locations.filter((location) => location !== UNKNOWN_LOCATION),
         locations.includes(UNKNOWN_LOCATION),
+        tagIds,
+        untagged,
       )
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -684,12 +855,16 @@ export class VideosComponent implements OnInit {
 
     this.showSpinner.set(true);
     this.failed.set(false);
+    // the editor is of a video of the page, which a new page may not have
+    this.closeTags();
 
     if (this.selectedViewMode() === 'map') {
       this.loadMapVideos(folderPaths);
 
       return;
     }
+
+    const {tagIds, untagged} = this.tagQuery();
 
     // a request still on its way is dropped, so an answer for the previous page cannot land after this one
     this.videosRequest = this.videosService
@@ -702,6 +877,8 @@ export class VideosComponent implements OnInit {
         this.yearFilter.values(),
         this.locationFilter.values().filter((location) => location !== UNKNOWN_LOCATION),
         this.locationFilter.values().includes(UNKNOWN_LOCATION),
+        tagIds,
+        untagged,
       )
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({

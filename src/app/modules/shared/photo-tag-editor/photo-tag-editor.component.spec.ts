@@ -223,4 +223,45 @@ describe('PhotoTagEditorComponent', () => {
 
     expect(closed).toBe(1);
   });
+
+  describe('of a video', () => {
+    beforeEach(() => {
+      // the photo's suggestions, asked for as the editor opened, are of no use here
+      flushSuggestions();
+      fixture = TestBed.createComponent(PhotoTagEditorComponent);
+      fixture.componentRef.setInput('photo', {id: '5', fileName: 'trip.mp4', tags: ['Family']});
+      fixture.componentRef.setInput('kind', 'video');
+      fixture.componentRef.setInput('userId', 1);
+      fixture.componentRef.setInput('existingTags', [...existingTags, {id: 5, name: 'Hike', photoCount: 0, videoCount: 60}]);
+      saved = [];
+      fixture.componentInstance.saved.subscribe((tags) => saved.push(tags));
+      fixture.detectChanges();
+    });
+
+    it('should suggest nothing, as the suggestions are by the photos taken around the same time and place', () => {
+      http().expectNone((request) => request.url.includes('/suggestions'));
+
+      expect(element().querySelector('.suggestions')).toBeNull();
+      expect(element().querySelector('.chips')?.getAttribute('aria-label')).toBe('Tags of the video');
+    });
+
+    it('should save the tags of the video as such, keeping the tags shared with the photos', () => {
+      type('paris');
+      press('Enter');
+
+      const request = http().expectOne((candidate) => candidate.method === 'PUT' && candidate.url.endsWith('/users/1/videos/5/tags'));
+      expect(request.request.body).toEqual(['Family', 'Paris']);
+      request.flush(['Family', 'Paris']);
+
+      expect(saved).toEqual([['Family', 'Paris']]);
+    });
+
+    it('should offer the tags used the most, by photos and videos alike, first', () => {
+      type('i');
+
+      // Hike is on no photo, but on more videos than Spain and Paris are on photos
+      expect(options()).toEqual(['Hike', 'Spain', 'Paris', 'Create “i”']);
+      expect([...element().querySelectorAll('.option-count')].map((count) => count.textContent?.trim())).toEqual(['60', '8', '3']);
+    });
+  });
 });

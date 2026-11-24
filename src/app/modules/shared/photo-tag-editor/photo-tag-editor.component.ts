@@ -14,25 +14,43 @@ import {
   viewChild,
 } from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
-import {PhotoTag, TAG_MAX_LENGTH, TAGS_PER_PHOTO, TagSuggestion, cleanTagName, sameTag} from 'src/app/core/models/photo-tag.model';
+import {Observable} from 'rxjs';
+import {
+  PhotoTag,
+  TAG_MAX_LENGTH,
+  TAGS_PER_PHOTO,
+  TagSuggestion,
+  cleanTagName,
+  sameTag,
+  tagUseCount,
+} from 'src/app/core/models/photo-tag.model';
 import {Photo} from 'src/app/core/models/photo.model';
 import {ToastService} from 'src/app/core/services/toast.service';
 import {UserPhotosService} from 'src/app/core/services/user-photos.service';
+import {VideosService} from 'src/app/core/services/videos.service';
 import {IconComponent} from 'src/app/shared/ui/icon/icon.component';
 
 /** An option of the list under the input: an existing tag to add, or a new one to make of what was typed. */
 interface TagOption {
   name: string;
   isNew: boolean;
-  photoCount?: number;
+  /** How many photos and videos have the tag. */
+  useCount?: number;
 }
+
+/** What the editor tags: a photo, or a video, which takes the same tags. */
+export type TaggedKind = 'photo' | 'video';
+
+/** What is tagged, a photo or a video, as far as the editor needs to know it. */
+export type Taggable = Pick<Photo, 'id' | 'fileName' | 'tags'>;
 
 let nextId = 0;
 
 /**
- * Edits the tags of a photo: takes them off, adds existing ones or new ones, and suggests some by when and where it
- * was taken. Every change is saved at once; changes made while one is being saved are saved after it, the last one
- * winning, so the photo never ends up with the tags of a change made before another.
+ * Edits the tags of a photo, or of a video, which takes the same tags: takes them off, adds existing ones or new ones,
+ * and, for a photo, suggests some by when and where it was taken. Every change is saved at once; changes made while one
+ * is being saved are saved after it, the last one winning, so it never ends up with the tags of a change made before
+ * another.
  */
 @Component({
   selector: 'app-photo-tag-editor',
@@ -47,8 +65,12 @@ let nextId = 0;
   },
 })
 export class PhotoTagEditorComponent implements OnInit {
-  readonly photo = input.required<Photo>();
+  /** The photo, or the video, to tag, see `kind`. */
+  readonly photo = input.required<Taggable>();
   readonly userId = input.required<number>();
+
+  /** Whether a photo or a video is tagged: the tags of a video are saved as such, and nothing is suggested for it. */
+  readonly kind = input<TaggedKind>('photo');
 
   /** The tags of the user, to pick from. */
   readonly existingTags = input<readonly PhotoTag[]>([]);
@@ -85,10 +107,10 @@ export class PhotoTagEditorComponent implements OnInit {
       .sort(
         (a, b) =>
           Number(b.name.toLocaleLowerCase().startsWith(query)) - Number(a.name.toLocaleLowerCase().startsWith(query)) ||
-          b.photoCount - a.photoCount ||
+          tagUseCount(b) - tagUseCount(a) ||
           a.name.localeCompare(b.name),
       )
-      .map<TagOption>((tag) => ({name: tag.name, isNew: false, photoCount: tag.photoCount}));
+      .map<TagOption>((tag) => ({name: tag.name, isNew: false, useCount: tagUseCount(tag)}));
 
     const typed = cleanTagName(this.query());
     const known = typed.length === 0 || [...tags, ...this.existingTags().map((tag) => tag.name)].some((name) => sameTag(name, typed));
@@ -104,6 +126,7 @@ export class PhotoTagEditorComponent implements OnInit {
   private readonly input = viewChild<ElementRef<HTMLInputElement>>('input');
   private readonly destroyRef = inject(DestroyRef);
   private readonly userPhotosService = inject(UserPhotosService);
+  private readonly videosService = inject(VideosService);
   private readonly toastService = inject(ToastService);
 
   /** The tags to save once the change being saved is, the latest change made meanwhile. */
@@ -117,6 +140,11 @@ export class PhotoTagEditorComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    // the suggestions are by the tags of the photos taken around the same time and place, so a photo's alone
+    if (this.kind() === 'video') {
+      return;
+    }
+
     this.userPhotosService
       .getPhotoTagSuggestions(this.userId(), this.photo().id)
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -209,41 +237,43 @@ export class PhotoTagEditorComponent implements OnInit {
   private save(tags: string[]): void {
     this.saving.set(true);
 
-    this.userPhotosService
-      .setPhotoTags(this.userId(), this.photo().id, tags)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (saved) => {
-          const pending = this.pending;
-          this.pending = null;
+    const request: Observable<string[]> =
+      this.kind() === 'video'
+        ? this.videosService.setVideoTags(this.userId(), this.photo().id, tags)
+        : this.userPhotosService.setPhotoTags(this.userId(), this.photo().id, tags);
 
-          if (pending) {
-            this.confirmed = saved;
-            this.save(pending);
+    request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (saved) => {
+        const pending = this.pending;
+        this.pending = null;
 
-            return;
-          }
+        if (pending) {
+          this.confirmed = saved;
+          this.save(pending);
 
-          this.confirmed = null;
-          this.saving.set(false);
-          this.tags.set(saved);
-          this.saved.emit(saved);
-        },
-        error: (error) => {
-          const confirmed = this.confirmed;
-          this.pending = null;
-          this.confirmed = null;
-          this.saving.set(false);
-          this.toastService.error('Could not save the tags.', error);
+          return;
+        }
 
-          // back to the tags the server has: those of a change saved meanwhile, or those the photo had before
-          if (confirmed) {
-            this.tags.set(confirmed);
-            this.saved.emit(confirmed);
-          } else {
-            this.tags.set(this.photo().tags ?? []);
-          }
-        },
-      });
+        this.confirmed = null;
+        this.saving.set(false);
+        this.tags.set(saved);
+        this.saved.emit(saved);
+      },
+      error: (error) => {
+        const confirmed = this.confirmed;
+        this.pending = null;
+        this.confirmed = null;
+        this.saving.set(false);
+        this.toastService.error('Could not save the tags.', error);
+
+        // back to the tags the server has: those of a change saved meanwhile, or those the photo had before
+        if (confirmed) {
+          this.tags.set(confirmed);
+          this.saved.emit(confirmed);
+        } else {
+          this.tags.set(this.photo().tags ?? []);
+        }
+      },
+    });
   }
 }
