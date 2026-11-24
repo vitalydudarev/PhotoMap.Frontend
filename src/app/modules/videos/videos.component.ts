@@ -325,6 +325,16 @@ export class VideosComponent implements OnInit {
     this.playingIndex.set(this.playerVideos().indexOf(video));
   }
 
+  /** Shows the videos in a grid or on a map, which counts only the videos with a GPS location in the filters. */
+  viewModeUpdated(viewMode: VideosViewMode): void {
+    this.selectedViewMode.set(viewMode);
+
+    // the copies list every option, with no count, whatever the view
+    if (!this.showDuplicates()) {
+      this.loadFacets(this.requestedFolders());
+    }
+  }
+
   /** Plays the video clicked on the map, the player stepping through the others of its spot, in the order taken. */
   playFromMap(selection: PhotoSelection): void {
     const videos = new Map(this.videos().map((video) => [video.id, video]));
@@ -576,7 +586,9 @@ export class VideosComponent implements OnInit {
   private loadFacets(folderPaths: readonly string[] | null): void {
     const years = this.yearFilter.values();
     const locations = this.locationFilter.values();
-    const key = JSON.stringify([folderPaths, years, locations]);
+    // the map shows only the videos with a GPS location, so it counts only those
+    const withGps = this.selectedViewMode() === 'map';
+    const key = JSON.stringify([folderPaths, years, locations, withGps]);
 
     if (key === this.facetsFilter) {
       return;
@@ -597,6 +609,7 @@ export class VideosComponent implements OnInit {
         years,
         locations.filter((location) => location !== UNKNOWN_LOCATION),
         locations.includes(UNKNOWN_LOCATION),
+        withGps,
       )
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({

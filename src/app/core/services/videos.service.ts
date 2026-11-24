@@ -61,6 +61,7 @@ export class VideosService {
   /**
    * What the videos the filter takes can still be narrowed down to, for each of its filters, see {@link VideoFacets}.
    * The filter is that of `getUserVideos`.
+   * @param withGps Whether only the videos with a GPS location are counted, as a map shows them.
    */
   getUserVideoFacets(
     userId: number,
@@ -68,8 +69,13 @@ export class VideosService {
     years: readonly number[],
     locationIds: readonly number[],
     unknownLocation: boolean,
+    withGps = false,
   ): Observable<VideoFacets> {
-    const params = videoFilterParams(new HttpParams(), folderPaths, years, locationIds, unknownLocation);
+    let params = videoFilterParams(new HttpParams(), folderPaths, years, locationIds, unknownLocation);
+
+    if (withGps) {
+      params = params.set('gps', true);
+    }
 
     return this.httpClient.get<VideoFacets>(`${this.url}/${userId}/videos/facets`, {params});
   }

@@ -66,7 +66,13 @@
           @if (showDuplicates()) {
             <span class="toolbar-title">Duplicates</span>
           } @else {
-            <app-segmented aria-label="View mode" [options]="viewModes" [(value)]="selectedViewMode" [iconsOnly]="true" />
+            <app-segmented
+              aria-label="View mode"
+              [options]="viewModes"
+              [value]="selectedViewMode()"
+              (valueChange)="viewModeUpdated($event)"
+              [iconsOnly]="true"
+            />
 
             @if (selectedViewMode() === 'grid') {
               <app-segmented

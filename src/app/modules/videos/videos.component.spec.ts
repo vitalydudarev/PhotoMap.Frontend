@@ -223,7 +223,7 @@ describe('VideosComponent', () => {
 
       component.filterUpdated(component.yearFilter, [2019]);
 
-      expect(getUserVideoFacets.mock.lastCall!.slice(1)).toEqual([[], [2019], [], false]);
+      expect(getUserVideoFacets.mock.lastCall!.slice(1)).toEqual([[], [2019], [], false, false]);
       expect(component.folderFilter.options()).toEqual([{value: 'disk:/Videos', label: '/Videos', count: 2}]);
       expect(component.yearFilter.options().map((option) => option.value)).toEqual([2019]);
     });
@@ -264,6 +264,31 @@ describe('VideosComponent', () => {
 
       expect(component.folderFilter.options().map((option) => option.value)).toEqual(['/Camera Uploads']);
       expect(lastFolders()).toEqual(['disk:/Camera Uploads', '/Camera Uploads']);
+    });
+
+    it('should count only the videos with a GPS location on the map, which shows only those, and all of them again in the grid', () => {
+      queryParams = {allFolders: 'true'};
+      build();
+      getUserVideoFacets.mockClear();
+      getUserVideoFacets.mockReturnValue(
+        of({folders: [{value: 'disk:/Videos', count: 7}], years: [{value: 2019, count: 7}], locations: [], unknownLocationCount: 7}),
+      );
+
+      component.viewModeUpdated('map');
+      fixture.detectChanges();
+      element().querySelector<HTMLButtonElement>('.sidebar app-checklist .heading')!.click();
+      fixture.detectChanges();
+
+      expect(getUserVideoFacets.mock.lastCall![5]).toBe(true);
+      expect(component.folderFilter.options().map((option) => option.value)).toEqual(['disk:/Videos']);
+      expect([...element().querySelectorAll('.sidebar app-checklist .option-count')].map((count) => count.textContent?.trim())).toContain(
+        '7',
+      );
+
+      component.viewModeUpdated('grid');
+
+      expect(getUserVideoFacets).toHaveBeenCalledTimes(2);
+      expect(getUserVideoFacets.mock.lastCall![5]).toBe(false);
     });
 
     it('should not ask for the options again for another page of the same videos', () => {
