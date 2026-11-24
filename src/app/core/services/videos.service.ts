@@ -3,6 +3,7 @@ import {Injectable, inject} from '@angular/core';
 import {Observable} from 'rxjs';
 import {environment} from 'src/environments/environment';
 
+import {VideoFacets} from '../models/facets.model';
 import {FailedFile} from '../models/failed-file.model';
 import {PagedResponse} from '../models/paged-response.model';
 import {VideoLocation} from '../models/photo-location.model';
@@ -46,47 +47,41 @@ export class VideosService {
     locationIds: readonly number[] = [],
     unknownLocation = false,
   ): Observable<PagedResponse<Video>> {
-    let params = new HttpParams().set('top', top).set('skip', skip).set('sort', sort);
-
-    for (const folderPath of folderPaths) {
-      params = params.append('folder', folderPath);
-    }
-
-    for (const year of years) {
-      params = params.append('year', year);
-    }
-
-    for (const locationId of locationIds) {
-      params = params.append('location', locationId);
-    }
-
-    if (unknownLocation) {
-      params = params.set('unknownLocation', true);
-    }
+    const params = videoFilterParams(
+      new HttpParams().set('top', top).set('skip', skip).set('sort', sort),
+      folderPaths,
+      years,
+      locationIds,
+      unknownLocation,
+    );
 
     return this.httpClient.get<PagedResponse<Video>>(`${this.url}/${userId}/videos`, {params});
   }
 
   /**
-   * The years, in UTC, the videos of the user were taken in, oldest first.
-   * @param folderPaths The folders the videos are in, so that only the years of the videos in those folders are given;
-   * those of every folder when empty.
+   * What the videos the filter takes can still be narrowed down to, for each of its filters, see {@link VideoFacets}.
+   * The filter is that of `getUserVideos`.
    */
-  getUserVideoYears(userId: number, folderPaths: readonly string[] = []): Observable<number[]> {
-    const params = folderPaths.reduce((params, folderPath) => params.append('folder', folderPath), new HttpParams());
+  getUserVideoFacets(
+    userId: number,
+    folderPaths: readonly string[],
+    years: readonly number[],
+    locationIds: readonly number[],
+    unknownLocation: boolean,
+  ): Observable<VideoFacets> {
+    const params = videoFilterParams(new HttpParams(), folderPaths, years, locationIds, unknownLocation);
 
-    return this.httpClient.get<number[]>(`${this.url}/${userId}/videos/years`, {params});
+    return this.httpClient.get<VideoFacets>(`${this.url}/${userId}/videos/facets`, {params});
   }
 
-  /**
-   * The folders the videos of the user are in, without the file names, by name.
-   * @param years The years, in UTC, the videos were taken in, so that only the folders with a video of those years are
-   * given; those of every year when empty.
-   */
-  getUserVideoFolders(userId: number, years: readonly number[] = []): Observable<string[]> {
-    const params = years.reduce((params, year) => params.append('year', year), new HttpParams());
+  /** The years, in UTC, the videos of the user were taken in, oldest first. */
+  getUserVideoYears(userId: number): Observable<number[]> {
+    return this.httpClient.get<number[]>(`${this.url}/${userId}/videos/years`);
+  }
 
-    return this.httpClient.get<string[]>(`${this.url}/${userId}/videos/folders`, {params});
+  /** The folders the videos of the user are in, without the file names, by name. */
+  getUserVideoFolders(userId: number): Observable<string[]> {
+    return this.httpClient.get<string[]>(`${this.url}/${userId}/videos/folders`);
   }
 
   /** The locations the videos of the user were taken in, by level, from the countries down, and by name. */
@@ -120,4 +115,31 @@ export class VideosService {
   deleteData(userId: number, sourceId: number): Observable<void> {
     return this.httpClient.delete<void>(`${this.url}/${userId}/photo-sources/${sourceId}/videos`);
   }
+}
+
+/** The query that asks for the videos the filter takes, added to the one given. */
+function videoFilterParams(
+  params: HttpParams,
+  folderPaths: readonly string[],
+  years: readonly number[],
+  locationIds: readonly number[],
+  unknownLocation: boolean,
+): HttpParams {
+  for (const folderPath of folderPaths) {
+    params = params.append('folder', folderPath);
+  }
+
+  for (const year of years) {
+    params = params.append('year', year);
+  }
+
+  for (const locationId of locationIds) {
+    params = params.append('location', locationId);
+  }
+
+  if (unknownLocation) {
+    params = params.set('unknownLocation', true);
+  }
+
+  return params;
 }

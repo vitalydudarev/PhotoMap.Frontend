@@ -8,7 +8,6 @@ import {PhotoSortOrder} from 'src/app/core/models/photo-sort-order.model';
 import {Photo} from 'src/app/core/models/photo.model';
 import {Video, VideoDuplicateGroup} from 'src/app/core/models/video.model';
 import {UNAVAILABLE_IMAGE} from 'src/app/core/services/photo-viewer.service';
-import {MultiselectOption} from 'src/app/shared/ui/multiselect/multiselect.component';
 import {PageEvent, PaginatorComponent} from 'src/app/shared/ui/paginator/paginator.component';
 import {SegmentedComponent, SegmentedOption} from 'src/app/shared/ui/segmented/segmented.component';
 import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
@@ -215,8 +214,9 @@ export class VideosComponent implements OnInit {
   private readonly toastService = inject(ToastService);
 
   private videosRequest?: Subscription;
-  private foldersRequest?: Subscription;
-  private yearsRequest?: Subscription;
+  private facetsRequest?: Subscription;
+  /** The filter the options of the filters were last narrowed down for, so that they are asked for once for each. */
+  private facetsFilter: string | null = null;
 
   /** The folders of the videos of the user, every one of them; null until they are loaded, or when they could not be. */
   private folderPaths: readonly string[] | null = null;
@@ -266,8 +266,6 @@ export class VideosComponent implements OnInit {
   /** Shows the camera uploads, all the videos, or the videos that are copies of one another. */
   selectView(view: VideosView): void {
     if (view !== this.view()) {
-      const yearFolders = this.yearFolders();
-
       // the duplicates are looked for among all the videos, so the folders shown when coming back are kept
       if (view !== 'duplicates' && this.allFolders() !== (view === 'all')) {
         this.allFolders.set(view === 'all');
@@ -281,7 +279,6 @@ export class VideosComponent implements OnInit {
 
       this.addQueryString();
       this.load();
-      this.reloadYearsIfFoldersChanged(yearFolders);
 
       this.document.defaultView?.scrollTo({top: 0});
     }
@@ -298,7 +295,6 @@ export class VideosComponent implements OnInit {
     if (this.showDuplicates()) {
       this.yearFilter.reset();
       this.addQueryString();
-      this.yearsUpdated();
 
       return;
     }
@@ -311,18 +307,14 @@ export class VideosComponent implements OnInit {
     this.pageIndex = 0;
 
     this.addQueryString();
-    this.yearsUpdated();
-    this.loadYears();
+    this.loadVideos();
   }
 
   toggleDuplicates(): void {
-    const yearFolders = this.yearFolders();
-
     this.showDuplicates.update((showDuplicates) => !showDuplicates);
 
     this.addQueryString();
     this.load();
-    this.reloadYearsIfFoldersChanged(yearFolders);
 
     this.document.defaultView?.scrollTo({top: 0});
   }
@@ -365,23 +357,16 @@ export class VideosComponent implements OnInit {
   }
 
   filterUpdated<T extends number | string>(filter: GalleryFilter<T>, values: readonly T[]): void {
-    filter.selected.set(values);
+    filter.pick(values);
 
     // the other videos fill the pages differently, so the first page is the only one worth keeping
     this.pageIndex = 0;
 
     this.addQueryString();
 
-    if (filter === this.yearFilter) {
-      this.yearsUpdated();
-    } else if (!this.showDuplicates()) {
-      // the copies are all loaded, and narrowed down by the years as they are listed
+    // the copies are all loaded, and narrowed down by the years as they are listed
+    if (!this.showDuplicates()) {
       this.loadVideos();
-    }
-
-    // the years listed are those of the videos in the folders picked
-    if (filter === this.folderFilter) {
-      this.loadYears();
     }
   }
 
@@ -395,8 +380,8 @@ export class VideosComponent implements OnInit {
   }
 
   private loadFolders(): void {
-    this.foldersRequest = this.videosService
-      .getUserVideoFolders(USER_ID, this.yearFilter.values())
+    this.videosService
+      .getUserVideoFolders(USER_ID)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (folderPaths) => {
@@ -408,8 +393,6 @@ export class VideosComponent implements OnInit {
           if (changed) {
             this.pageIndex = 0;
             this.addQueryString();
-            // nor are the years listed those of the folders picked
-            this.loadYears();
           }
 
           // the camera uploads waited for their folders; the duplicates are of every folder
@@ -429,50 +412,28 @@ export class VideosComponent implements OnInit {
       });
   }
 
-  /**
-   * The years the videos were taken in: those of the videos in the folders picked, so they are loaded again as the
-   * folders are picked. The years picked are kept, see `GalleryFilter.updateOptions`.
-   */
   private loadYears(): void {
-    this.yearsRequest?.unsubscribe();
-    this.yearsRequest = this.videosService
-      .getUserVideoYears(USER_ID, this.yearFolders())
+    this.videosService
+      .getUserVideoYears(USER_ID)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (years) => {
-          const options = years.map((year) => ({value: year, label: year.toString()}));
-
-          // the first time, the years the address asked for are picked; then the ones picked are kept
-          if (this.yearFilter.options().length > 0) {
-            this.yearFilter.updateOptions(options);
-          } else if (this.yearFilter.setOptions(options)) {
-            // the address asked for a year there is no video of, so the videos shown are not the ones now selected
+          // the address asked for a year there is no video of, so the videos shown are not the ones now selected
+          if (this.yearFilter.setOptions(years.map((year) => ({value: year, label: year.toString()})))) {
             this.pageIndex = 0;
             this.addQueryString();
-            this.yearsUpdated();
+
+            // the duplicates are of every year; the camera uploads wait for their folders
+            if (this.view() === 'all' || (this.view() === 'camera' && this.folderPaths !== null)) {
+              this.loadVideos();
+            }
           }
         },
         error: (error) => {
-          // the years listed already stay, along with the ones picked
-          if (this.yearFilter.options().length === 0) {
-            this.yearFilter.setOptions([]);
-          }
-
+          this.yearFilter.setOptions([]);
           this.toastService.error('Could not load the years to filter the videos by.', error);
         },
       });
-  }
-
-  /** The folders to list the years of: those picked, which the copies are not narrowed down by. */
-  private yearFolders(): readonly string[] {
-    return this.showDuplicates() ? [] : this.folderFilter.values();
-  }
-
-  /** Lists the years again when the folders they are listed for are no longer those given. */
-  private reloadYearsIfFoldersChanged(yearFolders: readonly string[]): void {
-    if (this.yearFolders().join('\n') !== yearFolders.join('\n')) {
-      this.loadYears();
-    }
   }
 
   /**
@@ -504,56 +465,6 @@ export class VideosComponent implements OnInit {
   }
 
   /**
-   * Lists the folders with a video of the years picked, and shows the videos of those years. The camera uploads are
-   * asked for by the folders listed, so they wait for those of the years; the copies are all loaded, and narrowed down
-   * by the years as they are listed.
-   */
-  private yearsUpdated(): void {
-    this.reloadFolders(this.view() === 'camera');
-
-    if (this.view() === 'all') {
-      this.loadVideos();
-    }
-  }
-
-  /**
-   * Loads the folders again for the years picked, keeping the ones picked, see `GalleryFilter.updateOptions`; before
-   * they were first loaded, they are loaded as they are at first, the camera uploads with them.
-   * @param thenLoadVideos Whether the videos are loaded once the folders are, or could not be.
-   */
-  private reloadFolders(thenLoadVideos: boolean): void {
-    this.foldersRequest?.unsubscribe();
-
-    if (this.folderPaths === null) {
-      this.loadFolders();
-
-      return;
-    }
-
-    this.foldersRequest = this.videosService
-      .getUserVideoFolders(USER_ID, this.yearFilter.values())
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (folderPaths) => {
-          this.folderPaths = folderPaths;
-          this.folderFilter.updateOptions(this.folderOptions());
-
-          if (thenLoadVideos) {
-            this.loadVideos();
-          }
-        },
-        error: (error) => {
-          // the folders listed already stay, along with the ones picked
-          this.toastService.error('Could not load the folders to filter the videos by.', error);
-
-          if (thenLoadVideos) {
-            this.loadVideos();
-          }
-        },
-      });
-  }
-
-  /**
    * Offers the folders of the view to filter the videos by: those of the camera uploads, or every one.
    * @returns Whether the address asked for a folder that is not among them.
    */
@@ -562,17 +473,9 @@ export class VideosComponent implements OnInit {
       return false;
     }
 
-    return this.folderFilter.setOptions(this.folderOptions());
-  }
+    const folderPaths = this.allFolders() ? this.folderPaths : this.folderPaths.filter(isCameraFolder);
 
-  /** The folders of the view: those of the camera uploads, or every one. */
-  private folderOptions(): MultiselectOption<string>[] {
-    const folderPaths = this.folderPaths ?? [];
-
-    return (this.allFolders() ? folderPaths : folderPaths.filter(isCameraFolder)).map((folderPath) => ({
-      value: folderPath,
-      label: folderLabel(folderPath),
-    }));
+    return this.folderFilter.setOptions(folderPaths.map((folderPath) => ({value: folderPath, label: folderLabel(folderPath)})));
   }
 
   /**
@@ -590,7 +493,8 @@ export class VideosComponent implements OnInit {
       return CAMERA_FOLDERS;
     }
 
-    const cameraFolders = this.folderFilter.options().map((option) => option.value);
+    // every camera folder, those the other filters leave no video in too, which take none of them anyway
+    const cameraFolders = this.folderFilter.allOptions().map((option) => option.value);
 
     return cameraFolders.length > 0 ? cameraFolders : null;
   }
@@ -627,6 +531,14 @@ export class VideosComponent implements OnInit {
   private load(): void {
     if (this.showDuplicates()) {
       this.loadDuplicates();
+
+      // the copies are narrowed down by the years alone, as they are listed, so every year is listed for them
+      this.facetsRequest?.unsubscribe();
+      this.facetsFilter = null;
+
+      for (const filter of [this.folderFilter, this.yearFilter, this.locationFilter] as GalleryFilter<number | string>[]) {
+        filter.narrowTo(null);
+      }
     } else {
       this.loadVideos();
     }
@@ -655,12 +567,59 @@ export class VideosComponent implements OnInit {
       });
   }
 
+  /**
+   * Lists only the options of each filter that take some video along with the other filters, such as the years of the
+   * videos in the folders picked; see `GalleryFilter.narrowTo`.
+   * @param folderPaths The folders the videos are asked for by, null when no video can be in them.
+   */
+  private loadFacets(folderPaths: readonly string[] | null): void {
+    const years = this.yearFilter.values();
+    const locations = this.locationFilter.values();
+    const key = JSON.stringify([folderPaths, years, locations]);
+
+    if (key === this.facetsFilter) {
+      return;
+    }
+
+    this.facetsFilter = key;
+    this.facetsRequest?.unsubscribe();
+
+    // no camera folder to take the videos from, so there is nothing to narrow down to
+    if (folderPaths === null) {
+      return;
+    }
+
+    this.facetsRequest = this.videosService
+      .getUserVideoFacets(
+        USER_ID,
+        folderPaths,
+        years,
+        locations.filter((location) => location !== UNKNOWN_LOCATION),
+        locations.includes(UNKNOWN_LOCATION),
+      )
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (facets) => {
+          this.folderFilter.narrowTo(facets.folderPaths);
+          this.yearFilter.narrowTo(facets.years);
+          this.locationFilter.narrowTo([...facets.locationIds, ...(facets.unknownLocation ? [UNKNOWN_LOCATION] : [])]);
+        },
+        error: () => {
+          // every option stays listed, as it was, and the videos are narrowed down by those picked all the same
+          this.facetsFilter = null;
+        },
+      });
+  }
+
   private loadVideos(): void {
     this.videosRequest?.unsubscribe();
     this.playingIndex.set(null);
     this.mapPlaylist.set(null);
 
     const folderPaths = this.requestedFolders();
+
+    // the videos may be left out by a filter that picks nothing, but the options of the others are still narrowed down
+    this.loadFacets(folderPaths);
 
     if (this.nothingSelected() || folderPaths === null) {
       this.videos.set([]);

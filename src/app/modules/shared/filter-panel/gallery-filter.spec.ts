@@ -206,47 +206,56 @@ describe('GalleryFilter', () => {
     });
   });
 
-  describe('when the options are replaced, such as the folders of the years picked', () => {
-    const folders = (...values: string[]) => values.map((value) => ({value, label: value}));
+  describe('narrowed down by the other filters', () => {
+    const years = [
+      {value: 2016, label: '2016'},
+      {value: 2019, label: '2019'},
+      {value: 2021, label: '2021'},
+    ];
 
-    it('should keep every option picked when every one was', () => {
-      const filter = new GalleryFilter<string>([], (value) => value);
-      filter.setOptions(folders('A', 'B'));
+    it('should list only the options that take some photo, and not narrow the photos down while every one is picked', () => {
+      const filter = new GalleryFilter();
+      filter.setOptions(years);
 
-      expect(filter.updateOptions(folders('A', 'B', 'C'))).toBe(false);
+      filter.narrowTo([2019, 2021]);
 
-      expect(filter.selected()).toEqual(['A', 'B', 'C']);
+      expect(filter.options().map((option) => option.value)).toEqual([2019, 2021]);
       expect(filter.values()).toEqual([]);
+      expect(filter.active()).toBe(false);
     });
 
-    it('should keep the options picked, those no longer listed too, and pick them again once they are listed again', () => {
-      const filter = new GalleryFilter<string>([], (value) => value);
-      filter.setOptions(folders('A', 'B', 'C'));
-      filter.selected.set(['A', 'B']);
+    it('should keep the options no longer listed picked, or not, as they were, and narrow the photos down by them', () => {
+      const filter = new GalleryFilter();
+      filter.setOptions(years);
+      filter.selected.set([2016, 2019]);
 
-      filter.updateOptions(folders('B', 'C'));
-      expect(filter.values()).toEqual(['B']);
+      filter.narrowTo([2019, 2021]);
+      filter.pick([2021]);
 
-      filter.updateOptions(folders('A', 'B', 'C'));
-      expect(filter.values()).toEqual(['A', 'B']);
+      expect(filter.selected()).toEqual([2016, 2021]);
+      expect(filter.values()).toEqual([2016, 2021]);
+
+      filter.narrowTo(null);
+      expect(filter.options()).toEqual(years);
     });
 
-    it('should keep none picked when none was', () => {
-      const filter = new GalleryFilter<string>([], (value) => value);
-      filter.setOptions(folders('A', 'B'));
-      filter.selected.set([]);
+    it('should count none picked of the options listed as none picked, those not listed aside', () => {
+      const filter = new GalleryFilter();
+      filter.setOptions(years);
+      filter.selected.set([2016]);
 
-      filter.updateOptions(folders('A', 'B', 'C'));
+      filter.narrowTo([2019, 2021]);
 
       expect(filter.noneSelected()).toBe(true);
     });
 
-    it('should pick the values the address asked for when the options were not set yet', () => {
-      const filter = new GalleryFilter<string>([], (value) => value);
-      filter.request(['B', 'Z']);
+    it('should pick the values the address asked for among every option, not only those listed', () => {
+      const filter = new GalleryFilter();
+      filter.narrowTo([2019]);
+      filter.request(['2016']);
 
-      expect(filter.updateOptions(folders('A', 'B'))).toBe(true);
-      expect(filter.selected()).toEqual(['B']);
+      expect(filter.setOptions(years)).toBe(false);
+      expect(filter.values()).toEqual([2016]);
     });
   });
 });

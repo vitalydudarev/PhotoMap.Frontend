@@ -5,6 +5,7 @@ import {Router, provideRouter} from '@angular/router';
 import {of} from 'rxjs';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
+import {PhotoCategory} from '../../core/models/photo-category.model';
 import {UserPhotosService} from '../../core/services/user-photos.service';
 import {UsersPhotoSourcesClient} from '../../shared/models/photomap-backend.swagger';
 import {GalleryComponent} from './gallery.component';
@@ -768,6 +769,73 @@ describe('GalleryComponent', () => {
       });
     });
 
+    describe('narrowed down by one another', () => {
+      const facetsRequests = () => http().match((request) => request.url.endsWith('/users/1/photos/facets'));
+      const facets = {
+        photoSourceIds: [1, 2],
+        folderPaths: ['disk:/Trips/Rome'],
+        years: [2019],
+        categories: [PhotoCategory.Other],
+        gps: [true],
+        tagIds: [],
+        untagged: true,
+        locationIds: [],
+        unknownLocation: true,
+      };
+
+      it('should list only the options of each filter that take some photo along with the others', () => {
+        photosRequests();
+        flushYears();
+        const [initial] = facetsRequests();
+        expect(initial).toBeDefined();
+
+        component.filterUpdated(component.yearFilter, [2019]);
+        photosRequests();
+        const [request] = facetsRequests();
+        expect(request.request.params.getAll('year')).toEqual(['2019']);
+        request.flush(facets);
+        fixture.detectChanges();
+
+        expect(component.yearFilter.options().map((option) => option.value)).toEqual([2019]);
+        expect(component.categoryFilter.options().map((option) => option.value)).toEqual([PhotoCategory.Other]);
+        expect(component.gpsFilter.options().map((option) => option.label)).toEqual(['With GPS']);
+        // the years not listed stay as the user left them, and the photos are asked for by them
+        expect(component.yearFilter.values()).toEqual([2019]);
+      });
+
+      it('should not ask for the options again for another page of the same photos', () => {
+        photosRequests();
+        flushYears();
+        facetsRequests();
+
+        component.pageUpdated({pageIndex: 1, pageSize: component.pageSize});
+        photosRequests();
+
+        expect(facetsRequests()).toHaveLength(0);
+      });
+
+      it('should ask for the options again once a photo is tagged, which may change them', () => {
+        photosRequests();
+        flushYears();
+        facetsRequests();
+
+        component.photosTagsUpdated([]);
+
+        expect(facetsRequests()).toHaveLength(1);
+      });
+
+      it('should list every year for the duplicates, which the years alone narrow down', () => {
+        photosRequests();
+        flushYears();
+        facetsRequests()[0].flush(facets);
+
+        component.selectView('duplicates');
+
+        expect(facetsRequests()).toHaveLength(0);
+        expect(component.yearFilter.options().map((option) => option.value)).toEqual([2016, 2019]);
+      });
+    });
+
     describe('by folder', () => {
       const flushFolders = (folders = ['disk:/', 'disk:/Camera Uploads', 'disk:/Trips/Rome']) => {
         http()
@@ -845,67 +913,6 @@ describe('GalleryComponent', () => {
 
         expect(component.folderFilter.selected()).toEqual(['disk:/Trips/Rome']);
         expect(component.folderFilter.values()).toEqual(['disk:/Trips/Rome']);
-      });
-
-      it('should list the folders with a photo of the years picked, keeping the folders picked', () => {
-        photosRequests();
-        flushYears();
-        flushFolders();
-        showAllPhotos();
-        component.filterUpdated(component.folderFilter, ['disk:/', 'disk:/Trips/Rome']);
-        photosRequests();
-
-        component.filterUpdated(component.yearFilter, [2019]);
-        const folders = http().expectOne((request) => request.url.endsWith('/users/1/photos/folders'));
-        expect(folders.request.params.getAll('year')).toEqual(['2019']);
-        folders.flush(['disk:/Camera Uploads', 'disk:/Trips/Rome']);
-        fixture.detectChanges();
-
-        expect(component.folderFilter.options().map((option) => option.value)).toEqual(['disk:/Camera Uploads', 'disk:/Trips/Rome']);
-        expect(component.folderFilter.values()).toEqual(['disk:/Trips/Rome']);
-
-        // the photos of the years picked are already asked for, which the folders no longer listed have none of
-        const [request] = photosRequests();
-        expect(request.request.params.getAll('year')).toEqual(['2019']);
-        expect(photosRequests()).toHaveLength(0);
-
-        component.filterUpdated(component.yearFilter, [2016, 2019]);
-        photosRequests();
-        const everyYear = http().expectOne((request) => request.url.endsWith('/users/1/photos/folders'));
-        expect(everyYear.request.params.getAll('year')).toBeNull();
-        everyYear.flush(['disk:/', 'disk:/Camera Uploads', 'disk:/Trips/Rome']);
-
-        expect(component.folderFilter.values()).toEqual(['disk:/', 'disk:/Trips/Rome']);
-      });
-
-      it('should list the years of the photos in the folders picked under All photos, keeping the years picked', () => {
-        photosRequests();
-        flushYears([2016, 2019, 2021]);
-        flushFolders();
-        showAllPhotos();
-        component.filterUpdated(component.yearFilter, [2016, 2021]);
-        photosRequests();
-        http()
-          .expectOne((request) => request.url.endsWith('/users/1/photos/folders'))
-          .flush(['disk:/', 'disk:/Camera Uploads', 'disk:/Trips/Rome']);
-
-        component.filterUpdated(component.folderFilter, ['disk:/Trips/Rome']);
-        photosRequests();
-        const years = http().expectOne((request) => request.url.endsWith('/photos/years'));
-        expect(years.request.params.getAll('folder')).toEqual(['disk:/Trips/Rome']);
-        years.flush([2019, 2021]);
-
-        expect(component.yearFilter.options().map((option) => option.value)).toEqual([2019, 2021]);
-        expect(component.yearFilter.values()).toEqual([2021]);
-
-        // the camera uploads are not narrowed down by the folders, so their years are those of every folder
-        component.selectView('camera');
-        photosRequests();
-        const everyFolder = http().expectOne((request) => request.url.endsWith('/photos/years'));
-        expect(everyFolder.request.params.getAll('folder')).toBeNull();
-        everyFolder.flush([2016, 2019, 2021]);
-
-        expect(component.yearFilter.values()).toEqual([2016, 2021]);
       });
 
       it('should not ask for photos when no folder is selected', () => {

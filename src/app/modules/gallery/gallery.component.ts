@@ -274,7 +274,7 @@ export class GalleryComponent implements OnInit {
   readonly deletingCopies = signal<{photo: Photo; copies: readonly Photo[]} | null>(null);
 
   /** The names of the photo sources of the user, by their ID, to tell where each copy is kept. */
-  readonly sourceNames = computed(() => new Map(this.sourceFilter.options().map((option) => [option.value, option.label])));
+  readonly sourceNames = computed(() => new Map(this.sourceFilter.allOptions().map((option) => [option.value, option.label])));
 
   /** Whether the photos of the grid are being selected, to add tags to them all at once. */
   readonly selecting = signal(false);
@@ -338,8 +338,9 @@ export class GalleryComponent implements OnInit {
   private deletedConst = 'deleted';
 
   private photosRequest?: Subscription;
-  private foldersRequest?: Subscription;
-  private yearsRequest?: Subscription;
+  private facetsRequest?: Subscription;
+  /** The filter the options of the filters were last narrowed down for, so that they are asked for once for each. */
+  private facetsFilter: string | null = null;
 
   private activeMonthFrame: number | null = null;
 
@@ -466,7 +467,7 @@ export class GalleryComponent implements OnInit {
   }
 
   filterUpdated<T extends number | string>(filter: GalleryFilter<T>, values: readonly T[]): void {
-    filter.selected.set(values);
+    filter.pick(values);
 
     // the other photos fill the pages differently, so the first page is the only one worth keeping
     this.pageIndex = 0;
@@ -476,13 +477,6 @@ export class GalleryComponent implements OnInit {
     // the copies are all loaded, and narrowed down by the years as they are listed
     if (!this.showDuplicates()) {
       this.setImages();
-    }
-
-    // the folders listed are those with a photo of the years picked, and the years those of the photos of the folders
-    if (filter === this.yearFilter) {
-      this.loadFolders();
-    } else if (filter === this.folderFilter) {
-      this.loadYears();
     }
   }
 
@@ -503,7 +497,6 @@ export class GalleryComponent implements OnInit {
     if (this.showDuplicates()) {
       this.yearFilter.reset();
       this.addQueryString();
-      this.loadFolders();
 
       return;
     }
@@ -521,8 +514,6 @@ export class GalleryComponent implements OnInit {
     }
 
     this.area.set(undefined);
-    this.loadFolders();
-    this.loadYears();
 
     // the other photos fill the pages differently, so the first page is the only one worth keeping
     this.pageIndex = 0;
@@ -534,8 +525,6 @@ export class GalleryComponent implements OnInit {
   /** Shows the camera uploads, all the photos, the photos that are copies of one another, or the deleted ones. */
   selectView(view: GalleryView): void {
     if (view !== this.view()) {
-      const yearFolders = this.yearFolders();
-
       // the duplicates and the deleted photos are of all the folders, so the folders shown when coming back are kept
       if ((view === 'camera' || view === 'all') && this.allFolders() !== (view === 'all')) {
         this.allFolders.set(view === 'all');
@@ -551,9 +540,6 @@ export class GalleryComponent implements OnInit {
 
       this.addQueryString();
       this.setImages();
-
-      // the folders picked narrow the years down under All photos alone
-      this.reloadYearsIfFoldersChanged(yearFolders);
 
       this.document.defaultView?.scrollTo({top: 0});
     }
@@ -722,6 +708,7 @@ export class GalleryComponent implements OnInit {
 
     // a tag may have been made, or taken off its last photo, and the counts have changed
     this.loadTags(true);
+    this.loadFacets(true);
   }
 
   /** Tags were added to several photos at once. */
@@ -741,6 +728,7 @@ export class GalleryComponent implements OnInit {
 
     // tags may have been made, and the counts have changed
     this.loadTags(true);
+    this.loadFacets(true);
   }
 
   /** Scrolls to the first photo of the month on the page. */
@@ -782,48 +770,21 @@ export class GalleryComponent implements OnInit {
       });
   }
 
-  /**
-   * The years the photos were taken in: those of the photos in the folders picked under All photos, so they are loaded
-   * again as the folders are picked. The years picked are kept, see `GalleryFilter.updateOptions`.
-   */
   private loadYears(): void {
-    this.yearsRequest?.unsubscribe();
-    this.yearsRequest = this.userPhotosService
-      .getUserPhotoYears(this.userId, this.yearFolders())
+    this.userPhotosService
+      .getUserPhotoYears(this.userId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (years) => {
-          const options = years.map((year) => ({value: year, label: year.toString()}));
-
-          // the first time, the years the address asked for are picked; then the ones picked are kept
-          if (this.yearFilter.options().length > 0) {
-            this.yearFilter.updateOptions(options);
-          } else if (this.setFilterOptions(this.yearFilter, options)) {
-            // the address asked for a year there is no photo of, so the folders listed are not those of the years picked
-            this.loadFolders();
-          }
-        },
+        next: (years) =>
+          this.setFilterOptions(
+            this.yearFilter,
+            years.map((year) => ({value: year, label: year.toString()})),
+          ),
         error: (error) => {
-          // the years listed already stay, along with the ones picked
-          if (this.yearFilter.options().length === 0) {
-            this.yearFilter.setOptions([]);
-          }
-
+          this.yearFilter.setOptions([]);
           this.toastService.error('Could not load the years to filter the photos by.', error);
         },
       });
-  }
-
-  /** The folders to list the years of: those picked, which narrow the photos down under All photos alone. */
-  private yearFolders(): readonly string[] {
-    return this.view() === 'all' ? this.folderFilter.values() : [];
-  }
-
-  /** Lists the years again when the folders they are listed for are no longer those given. */
-  private reloadYearsIfFoldersChanged(yearFolders: readonly string[]): void {
-    if (this.yearFolders().join('\n') !== yearFolders.join('\n')) {
-      this.loadYears();
-    }
   }
 
   /**
@@ -877,33 +838,20 @@ export class GalleryComponent implements OnInit {
       });
   }
 
-  /**
-   * The folders the photos are in, by name, to narrow all the photos down to: those with a photo of the years picked,
-   * so they are loaded again as the years are picked. The folders picked are kept, see `GalleryFilter.updateOptions`.
-   */
+  /** The folders the photos are in, by name, to narrow all the photos down to. */
   private loadFolders(): void {
-    this.foldersRequest?.unsubscribe();
-    this.foldersRequest = this.userPhotosService
-      .getUserPhotoFolders(this.userId, this.yearFilter.values())
+    this.userPhotosService
+      .getUserPhotoFolders(this.userId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (folderPaths) => {
-          const options = folderPaths.map((folderPath) => ({value: folderPath, label: folderLabel(folderPath)}));
-
-          // the first time, the folders the address asked for are picked; then the ones picked are kept
-          if (this.folderFilter.options().length > 0) {
-            this.folderFilter.updateOptions(options);
-          } else if (this.setFilterOptions(this.folderFilter, options, this.view() === 'all') && this.view() === 'all') {
-            // the address asked for a folder there is no photo in, so the years listed are not those of the folders picked
-            this.loadYears();
-          }
-        },
+        next: (folderPaths) =>
+          this.setFilterOptions(
+            this.folderFilter,
+            folderPaths.map((folderPath) => ({value: folderPath, label: folderLabel(folderPath)})),
+            this.view() === 'all',
+          ),
         error: (error) => {
-          // the folders listed already stay, along with the ones picked
-          if (this.folderFilter.options().length === 0) {
-            this.folderFilter.setOptions([]);
-          }
-
+          this.folderFilter.setOptions([]);
           this.toastService.error('Could not load the folders to filter the photos by.', error);
         },
       });
@@ -912,9 +860,8 @@ export class GalleryComponent implements OnInit {
   /**
    * @param applies Whether the filter narrows down the photos of the view, which are asked for again when the address
    * asked for a value there is no photo for.
-   * @returns Whether the address asked for a value there is no photo for, so the values picked are not those asked for.
    */
-  private setFilterOptions<T extends number | string>(filter: GalleryFilter<T>, options: MultiselectOption<T>[], applies = true): boolean {
+  private setFilterOptions<T extends number | string>(filter: GalleryFilter<T>, options: MultiselectOption<T>[], applies = true): void {
     // the address asked for a value there is no photo for, so the photos shown are not the ones now selected
     if (filter.setOptions(options)) {
       this.pageIndex = 0;
@@ -924,11 +871,7 @@ export class GalleryComponent implements OnInit {
       if (applies && !this.showDuplicates()) {
         this.setImages();
       }
-
-      return true;
     }
-
-    return false;
   }
 
   private addQueryString() {
@@ -994,9 +937,13 @@ export class GalleryComponent implements OnInit {
 
     if (this.showDuplicates()) {
       this.loadDuplicates();
+      this.loadFacets();
 
       return;
     }
+
+    // the photos may be left out by a filter that picks nothing, but the options of the others are still narrowed down
+    this.loadFacets();
 
     if (this.nothingSelected()) {
       this.photos.set([]);
@@ -1058,6 +1005,63 @@ export class GalleryComponent implements OnInit {
           this.toastService.error('Could not load the photos.', error);
         },
       });
+  }
+
+  /**
+   * Lists only the options of each filter that take some photo along with the other filters, such as the years of the
+   * photos in the folders picked; see `GalleryFilter.narrowTo`. The copies are narrowed down by the years alone, as
+   * they are listed, so every option is listed for them.
+   * @param force Whether the options are narrowed down again for the same filter, as the photos have changed.
+   */
+  private loadFacets(force = false): void {
+    const filter = this.photoFilter();
+    const key = this.showDuplicates() ? 'duplicates' : JSON.stringify(filter);
+
+    if (key === this.facetsFilter && !force) {
+      return;
+    }
+
+    this.facetsFilter = key;
+    this.facetsRequest?.unsubscribe();
+
+    if (this.showDuplicates()) {
+      for (const narrowed of this.narrowedFilters()) {
+        narrowed.narrowTo(null);
+      }
+
+      return;
+    }
+
+    this.facetsRequest = this.userPhotosService
+      .getUserPhotoFacets(this.userId, filter)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (facets) => {
+          this.sourceFilter.narrowTo(facets.photoSourceIds);
+          this.folderFilter.narrowTo(facets.folderPaths);
+          this.yearFilter.narrowTo(facets.years);
+          this.categoryFilter.narrowTo(facets.categories);
+          this.gpsFilter.narrowTo(facets.gps.map((gps) => (gps ? WITH_GPS : WITHOUT_GPS)));
+          this.tagFilter.narrowTo([...facets.tagIds, ...(facets.untagged ? [UNTAGGED] : [])]);
+          this.locationFilter.narrowTo([...facets.locationIds, ...(facets.unknownLocation ? [UNKNOWN_LOCATION] : [])]);
+        },
+        error: () => {
+          // every option stays listed, as it was, and the photos are narrowed down by those picked all the same
+          this.facetsFilter = null;
+        },
+      });
+  }
+
+  private narrowedFilters(): readonly GalleryFilter<number | string>[] {
+    return [
+      this.sourceFilter,
+      this.folderFilter,
+      this.yearFilter,
+      this.categoryFilter,
+      this.gpsFilter,
+      this.tagFilter,
+      this.locationFilter,
+    ];
   }
 
   private photoFilter(): PhotoFilter {
@@ -1165,6 +1169,8 @@ export class GalleryComponent implements OnInit {
       next: () => {
         this.setBusy(photo.id, false);
         this.applyDeleted(photo.id, deletedOn);
+        // the photo may have been the last of a year, a folder, and so on
+        this.loadFacets(true);
       },
       error: (error) => {
         this.setBusy(photo.id, false);
