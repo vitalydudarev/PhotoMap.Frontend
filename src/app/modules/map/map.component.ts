@@ -10,6 +10,7 @@ import {Photo} from 'src/app/core/models/photo.model';
 import {IconComponent} from 'src/app/shared/ui/icon/icon.component';
 import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
 
+import {folderLabel} from '../../core/helpers/file-labels.helper';
 import {ToastService} from '../../core/services/toast.service';
 import {UserPhotosService} from '../../core/services/user-photos.service';
 import {FilterPanelComponent, FilterPanelItem} from '../shared/filter-panel/filter-panel.component';
@@ -18,6 +19,7 @@ import {UNKNOWN_LOCATION, locationOptions} from '../shared/filter-panel/location
 import {PhotosMapViewComponent} from '../shared/photos-map-view/photos-map-view.component';
 import {sidebarOpen} from '../shared/sidebar-page/sidebar-open';
 
+const FOLDER_PARAM = 'folder';
 const YEAR_PARAM = 'year';
 const LOCATION_PARAM = 'location';
 
@@ -26,9 +28,9 @@ const MAP_PHOTOS: PhotoFilter = {sourceIds: [], years: [], categories: [], hasGp
 const SIDEBAR_OPEN_STORAGE_KEY = 'map-sidebar-open';
 
 /**
- * Every photo with a GPS location on a map, narrowed down to the years and the locations picked in the sidebar on the
- * left, as the gallery and the videos are. Each filter lists only the options that take some photo along with the
- * other, with how many photos each takes.
+ * Every photo with a GPS location on a map, narrowed down to the folders, the years and the locations picked in the
+ * sidebar on the left, as the gallery and the videos are. Each filter lists only the options that take some photo
+ * along with the others, with how many photos each takes.
  */
 @Component({
   selector: 'app-map',
@@ -42,6 +44,9 @@ export class MapComponent implements OnInit {
   readonly loading = signal(true);
   readonly failed = signal(false);
 
+  /** The folders the photos are in, without the file names, of every folder, as the map shows them all. */
+  readonly folderFilter = new GalleryFilter<string>([], (value) => value || undefined);
+
   /** The years, in UTC, the photos were taken in. */
   readonly yearFilter = new GalleryFilter();
 
@@ -52,29 +57,35 @@ export class MapComponent implements OnInit {
   readonly locationFilter = new GalleryFilter();
 
   /** How many filters narrow the photos down, so that a filter is not forgotten with the sidebar hidden. */
-  readonly activeFilterCount = computed(() => [this.yearFilter, this.locationFilter].filter((filter) => filter.active()).length);
+  readonly activeFilterCount = computed(() => this.filters().filter((filter) => filter.active()).length);
 
-  /** The filters with options to pick from: the years, folded away, and the locations, listed open. */
+  /** The filters with options to pick from: the folders and the years, folded away, and the locations, listed open. */
   readonly filterItems = computed<readonly FilterPanelItem[]>(() => [
+    ...(this.folderFilter.options().length > 0 ? [{filter: this.folderFilter, label: 'Folders', searchable: true}] : []),
     ...(this.yearFilter.options().length > 0 ? [{filter: this.yearFilter, label: 'Years'}] : []),
     ...(this.locationFilter.options().length > 0
       ? [{filter: this.locationFilter, label: 'Location', collapsed: false, searchable: true, fill: true}]
       : []),
   ]);
 
-  /** The years and the locations the gallery is opened with too, so that it shows the photos the map does. */
+  /**
+   * The folders, the years and the locations the gallery is opened with too, so that it shows the photos the map does;
+   * it is opened on all the photos, which the folders narrow down.
+   */
   readonly galleryQueryParams = computed<Params>(() => {
+    const folderPaths = this.folderFilter.values();
     const years = this.yearFilter.values();
     const locations = this.locationFilter.values();
 
     return {
+      ...(folderPaths.length > 0 ? {[FOLDER_PARAM]: [...folderPaths]} : {}),
       ...(years.length > 0 ? {[YEAR_PARAM]: years.map(String)} : {}),
       ...(locations.length > 0 ? {[LOCATION_PARAM]: locations.map(String)} : {}),
     };
   });
 
   /** Whether a filter picks none of its options, so that no photo is shown. */
-  readonly nothingSelected = computed(() => this.yearFilter.noneSelected() || this.locationFilter.noneSelected());
+  readonly nothingSelected = computed(() => this.filters().some((filter) => filter.noneSelected()));
 
   /**
    * The filters sit in a sidebar on the left, which the user can hide to give the map the whole width. On a narrow
@@ -99,10 +110,12 @@ export class MapComponent implements OnInit {
   ngOnInit(): void {
     const params = this.activatedRoute.snapshot.queryParamMap;
 
+    this.folderFilter.request(params.getAll(FOLDER_PARAM));
     this.yearFilter.request(params.getAll(YEAR_PARAM));
     this.locationFilter.request(params.getAll(LOCATION_PARAM));
 
     this.loadPhotos();
+    this.loadFolders();
     this.loadYears();
     this.loadLocations();
   }
@@ -114,10 +127,11 @@ export class MapComponent implements OnInit {
     this.loadPhotos();
   }
 
-  /** Shows the photos of every year and every location again. */
+  /** Shows the photos of every folder, every year and every location again. */
   resetFilters(): void {
-    this.yearFilter.reset();
-    this.locationFilter.reset();
+    for (const filter of this.filters()) {
+      filter.reset();
+    }
 
     this.addQueryString();
     this.loadPhotos();
@@ -160,9 +174,8 @@ export class MapComponent implements OnInit {
   }
 
   /**
-   * Lists only the years and the locations that take some photo of the map along with the other filter, with how many
-   * photos each takes, see `GalleryFilter.narrowTo`: the years and the locations of the photos with no GPS location,
-   * or deleted, are left out too.
+   * Lists only the options of each filter that take some photo of the map along with the others, with how many photos
+   * each takes, see `GalleryFilter.narrowTo`: those of the photos with no GPS location, or deleted, are left out too.
    */
   private loadFacets(): void {
     const filter = this.photoFilter();
@@ -179,6 +192,7 @@ export class MapComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (facets) => {
+          this.folderFilter.narrowTo(facetCounts(facets.folders));
           this.yearFilter.narrowTo(facetCounts(facets.years));
           this.locationFilter.narrowTo([...facetCounts(facets.locations), [UNKNOWN_LOCATION, facets.unknownLocationCount]]);
         },
@@ -195,10 +209,35 @@ export class MapComponent implements OnInit {
 
     return {
       ...MAP_PHOTOS,
+      folderPaths: this.folderFilter.values(),
       years: this.yearFilter.values(),
       locationIds: locations.filter((location) => location !== UNKNOWN_LOCATION),
       unknownLocation: locations.includes(UNKNOWN_LOCATION),
     };
+  }
+
+  private filters(): readonly GalleryFilter<number | string>[] {
+    return [this.folderFilter, this.yearFilter, this.locationFilter];
+  }
+
+  /** The folders the photos are in, by name, without the name of the disk. */
+  private loadFolders(): void {
+    this.userPhotosService
+      .getUserPhotoFolders(this.userId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (folderPaths) => {
+          // the address asked for a folder there is no photo in, so the photos shown are not the ones now selected
+          if (this.folderFilter.setOptions(folderPaths.map((folderPath) => ({value: folderPath, label: folderLabel(folderPath)})))) {
+            this.addQueryString();
+            this.loadPhotos();
+          }
+        },
+        error: (error) => {
+          this.folderFilter.setOptions([]);
+          this.toastService.error('Could not load the folders to filter the photos by.', error);
+        },
+      });
   }
 
   /** The years, in UTC, the photos were taken in, oldest first. */
@@ -246,6 +285,10 @@ export class MapComponent implements OnInit {
 
   private addQueryString(): void {
     let params = new HttpParams();
+
+    for (const folderPath of this.folderFilter.values()) {
+      params = params.append(FOLDER_PARAM, folderPath);
+    }
 
     for (const year of this.yearFilter.values()) {
       params = params.append(YEAR_PARAM, year.toString());

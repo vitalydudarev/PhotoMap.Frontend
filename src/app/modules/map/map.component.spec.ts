@@ -33,9 +33,13 @@ describe('MapComponent', () => {
       [2016, 1],
       [2019, 1],
     ],
+    folders: [string, number][] = [
+      ['disk:/Camera Uploads', 1],
+      ['disk:/Trips', 1],
+    ],
   ) => ({
     photoSources: [],
-    folders: [],
+    folders: folders.map(([value, count]) => ({value, count})),
     years: years.map(([value, count]) => ({value, count})),
     categories: [],
     gps: [],
@@ -67,6 +71,7 @@ describe('MapComponent', () => {
 
     return [filter.locationIds, filter.unknownLocation];
   };
+  const lastFilter = () => getUserGeotaggedPhotos.mock.lastCall![1] as PhotoFilter;
   const lastYears = () => (getUserGeotaggedPhotos.mock.lastCall![1] as PhotoFilter).years;
   const checklists = () => [...element().querySelectorAll('.sidebar app-checklist')].map((checklist) => checklist.textContent);
   const mapView = () =>
@@ -117,6 +122,7 @@ describe('MapComponent', () => {
             getUserGeotaggedPhotos,
             getUserPhotoLocations: () => of(locations),
             getUserPhotoYears: () => of([2016, 2019]),
+            getUserPhotoFolders: () => of(['disk:/Camera Uploads', 'disk:/Trips']),
             getUserPhotoFacets,
           },
         },
@@ -133,7 +139,11 @@ describe('MapComponent', () => {
     expect(mapView()?.photos()).toEqual([photo]);
     expect(component.locationFilter.selected()).toEqual([0, 3, 8]);
     expect(component.yearFilter.selected()).toEqual([2016, 2019]);
-    expect(checklists()).toEqual([expect.stringContaining('Years'), expect.stringContaining('Location')]);
+    expect(checklists()).toEqual([
+      expect.stringContaining('Folders'),
+      expect.stringContaining('Years'),
+      expect.stringContaining('Location'),
+    ]);
     expect(text()).toContain('1 photo');
   });
 
@@ -191,6 +201,47 @@ describe('MapComponent', () => {
     expect(getUserPhotoFacets).not.toHaveBeenCalled();
   });
 
+  it('should narrow the photos down to the folders picked, and open the gallery on them too', () => {
+    build();
+
+    component.filterUpdated(component.folderFilter, ['disk:/Trips']);
+    fixture.detectChanges();
+
+    expect(lastFilter().folderPaths).toEqual(['disk:/Trips']);
+    expect(lastFilter().allFolders).toBe(true);
+    expect(component.folderFilter.options().map((option) => option.label)).toEqual(['/Camera Uploads', '/Trips']);
+    expect(mapView()?.galleryQueryParams()).toEqual({folder: ['disk:/Trips']});
+  });
+
+  it('should list only the folders of the years picked, and the years of the folders picked, with their counts', () => {
+    build();
+    getUserPhotoFacets.mockReturnValue(of(facets([[3, 4]], 0, [[2019, 4]], [['disk:/Trips', 4]])));
+
+    component.filterUpdated(component.yearFilter, [2019]);
+
+    expect(component.folderFilter.options()).toEqual([{value: 'disk:/Trips', label: '/Trips', count: 4}]);
+    expect(component.yearFilter.options().map((option) => option.count)).toEqual([4]);
+  });
+
+  it('should take the folders the address asks for', () => {
+    queryParams = {folder: 'disk:/Trips'};
+    build();
+
+    expect(lastFilter().folderPaths).toEqual(['disk:/Trips']);
+    expect(component.folderFilter.selected()).toEqual(['disk:/Trips']);
+  });
+
+  it('should show no photos while no folder is picked', () => {
+    build();
+    getUserGeotaggedPhotos.mockClear();
+
+    component.filterUpdated(component.folderFilter, []);
+    fixture.detectChanges();
+
+    expect(getUserGeotaggedPhotos).not.toHaveBeenCalled();
+    expect(text()).toContain('No folders are selected');
+  });
+
   it('should take the years the address asks for', () => {
     queryParams = {year: '2016'};
     build();
@@ -239,13 +290,14 @@ describe('MapComponent', () => {
 
     expect(lastLocations()).toEqual([[], false]);
     expect(component.locationFilter.selected()).toEqual([0, 3, 8]);
+    expect(component.folderFilter.values()).toEqual([]);
   });
 
   it('should say so when no photo is geocoded yet', () => {
     locations = [];
     build();
 
-    expect(checklists()).toEqual([expect.stringContaining('Years')]);
+    expect(checklists()).toEqual([expect.stringContaining('Folders'), expect.stringContaining('Years')]);
     expect(text()).toContain('once they are geocoded');
   });
 });
