@@ -73,6 +73,29 @@ export class GalleryFilter<T extends number | string = number> {
     return changed;
   }
 
+  /**
+   * Replaces the options once they are set, such as the folders with a photo of the years picked, which another filter
+   * narrows down. Every option is picked when every one was; otherwise the picked ones are kept, those no longer listed
+   * too, so that they are picked again once they are listed again. Before the options are set, they are set as
+   * `setOptions` does.
+   * @returns Whether the address asked for a value that is not among the options, see `setOptions`.
+   */
+  updateOptions(options: readonly MultiselectOption<T>[]): boolean {
+    if (this.options().length === 0) {
+      return this.setOptions(options);
+    }
+
+    const everySelected = this.values().length === 0 && !this.noneSelected();
+
+    this.options.set(options);
+
+    if (everySelected) {
+      this.selected.set(this.defaults(options));
+    }
+
+    return false;
+  }
+
   /** Picks the options picked until the user says otherwise, so the photos are not narrowed down by this filter. */
   reset(): void {
     this.selected.set(this.defaults(this.options()));

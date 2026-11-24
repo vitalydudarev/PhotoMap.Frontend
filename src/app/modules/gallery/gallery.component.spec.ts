@@ -847,6 +847,67 @@ describe('GalleryComponent', () => {
         expect(component.folderFilter.values()).toEqual(['disk:/Trips/Rome']);
       });
 
+      it('should list the folders with a photo of the years picked, keeping the folders picked', () => {
+        photosRequests();
+        flushYears();
+        flushFolders();
+        showAllPhotos();
+        component.filterUpdated(component.folderFilter, ['disk:/', 'disk:/Trips/Rome']);
+        photosRequests();
+
+        component.filterUpdated(component.yearFilter, [2019]);
+        const folders = http().expectOne((request) => request.url.endsWith('/users/1/photos/folders'));
+        expect(folders.request.params.getAll('year')).toEqual(['2019']);
+        folders.flush(['disk:/Camera Uploads', 'disk:/Trips/Rome']);
+        fixture.detectChanges();
+
+        expect(component.folderFilter.options().map((option) => option.value)).toEqual(['disk:/Camera Uploads', 'disk:/Trips/Rome']);
+        expect(component.folderFilter.values()).toEqual(['disk:/Trips/Rome']);
+
+        // the photos of the years picked are already asked for, which the folders no longer listed have none of
+        const [request] = photosRequests();
+        expect(request.request.params.getAll('year')).toEqual(['2019']);
+        expect(photosRequests()).toHaveLength(0);
+
+        component.filterUpdated(component.yearFilter, [2016, 2019]);
+        photosRequests();
+        const everyYear = http().expectOne((request) => request.url.endsWith('/users/1/photos/folders'));
+        expect(everyYear.request.params.getAll('year')).toBeNull();
+        everyYear.flush(['disk:/', 'disk:/Camera Uploads', 'disk:/Trips/Rome']);
+
+        expect(component.folderFilter.values()).toEqual(['disk:/', 'disk:/Trips/Rome']);
+      });
+
+      it('should list the years of the photos in the folders picked under All photos, keeping the years picked', () => {
+        photosRequests();
+        flushYears([2016, 2019, 2021]);
+        flushFolders();
+        showAllPhotos();
+        component.filterUpdated(component.yearFilter, [2016, 2021]);
+        photosRequests();
+        http()
+          .expectOne((request) => request.url.endsWith('/users/1/photos/folders'))
+          .flush(['disk:/', 'disk:/Camera Uploads', 'disk:/Trips/Rome']);
+
+        component.filterUpdated(component.folderFilter, ['disk:/Trips/Rome']);
+        photosRequests();
+        const years = http().expectOne((request) => request.url.endsWith('/photos/years'));
+        expect(years.request.params.getAll('folder')).toEqual(['disk:/Trips/Rome']);
+        years.flush([2019, 2021]);
+
+        expect(component.yearFilter.options().map((option) => option.value)).toEqual([2019, 2021]);
+        expect(component.yearFilter.values()).toEqual([2021]);
+
+        // the camera uploads are not narrowed down by the folders, so their years are those of every folder
+        component.selectView('camera');
+        photosRequests();
+        const everyFolder = http().expectOne((request) => request.url.endsWith('/photos/years'));
+        expect(everyFolder.request.params.getAll('folder')).toBeNull();
+        everyFolder.flush([2016, 2019, 2021]);
+
+        expect(component.yearFilter.values()).toEqual([2016, 2021]);
+      });
+
       it('should not ask for photos when no folder is selected', () => {
         photosRequests();
         flushYears();

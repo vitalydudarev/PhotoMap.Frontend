@@ -67,14 +67,26 @@ export class VideosService {
     return this.httpClient.get<PagedResponse<Video>>(`${this.url}/${userId}/videos`, {params});
   }
 
-  /** The years, in UTC, the videos of the user were taken in, oldest first. */
-  getUserVideoYears(userId: number): Observable<number[]> {
-    return this.httpClient.get<number[]>(`${this.url}/${userId}/videos/years`);
+  /**
+   * The years, in UTC, the videos of the user were taken in, oldest first.
+   * @param folderPaths The folders the videos are in, so that only the years of the videos in those folders are given;
+   * those of every folder when empty.
+   */
+  getUserVideoYears(userId: number, folderPaths: readonly string[] = []): Observable<number[]> {
+    const params = folderPaths.reduce((params, folderPath) => params.append('folder', folderPath), new HttpParams());
+
+    return this.httpClient.get<number[]>(`${this.url}/${userId}/videos/years`, {params});
   }
 
-  /** The folders the videos of the user are in, without the file names, by name. */
-  getUserVideoFolders(userId: number): Observable<string[]> {
-    return this.httpClient.get<string[]>(`${this.url}/${userId}/videos/folders`);
+  /**
+   * The folders the videos of the user are in, without the file names, by name.
+   * @param years The years, in UTC, the videos were taken in, so that only the folders with a video of those years are
+   * given; those of every year when empty.
+   */
+  getUserVideoFolders(userId: number, years: readonly number[] = []): Observable<string[]> {
+    const params = years.reduce((params, year) => params.append('year', year), new HttpParams());
+
+    return this.httpClient.get<string[]>(`${this.url}/${userId}/videos/folders`, {params});
   }
 
   /** The locations the videos of the user were taken in, by level, from the countries down, and by name. */

@@ -28,6 +28,8 @@ describe('VideosComponent', () => {
   let getUserVideoDuplicates: ReturnType<typeof vi.fn>;
   let queryParams: Record<string, string | string[]>;
   let folders: string[];
+  let getUserVideoFolders: ReturnType<typeof vi.fn>;
+  let getUserVideoYears: ReturnType<typeof vi.fn>;
   let locations: VideoLocation[];
 
   const video: Video = {
@@ -64,6 +66,8 @@ describe('VideosComponent', () => {
     getUserVideoDuplicates = vi.fn(() => of([group]));
     queryParams = {};
     folders = ['disk:/Camera Uploads', 'disk:/Videos'];
+    getUserVideoFolders = vi.fn(() => of(folders));
+    getUserVideoYears = vi.fn(() => of([2016, 2019]));
     // no video is geocoded, unless a test says otherwise
     locations = [];
 
@@ -84,8 +88,8 @@ describe('VideosComponent', () => {
           useValue: {
             getUserVideos,
             getUserVideoDuplicates,
-            getUserVideoFolders: vi.fn(() => of(folders)),
-            getUserVideoYears: () => of([2016, 2019]),
+            getUserVideoFolders,
+            getUserVideoYears,
             getUserVideoLocations: () => of(locations),
           },
         },
@@ -247,6 +251,75 @@ describe('VideosComponent', () => {
 
       expect(getUserVideos).not.toHaveBeenCalled();
       expect(text()).toContain('No years are selected');
+    });
+
+    it('should list the folders with a video of the years picked, keeping the folders picked', () => {
+      queryParams = {allFolders: 'true'};
+      folders = ['disk:/Camera Uploads', 'disk:/Trips', 'disk:/Videos'];
+      build();
+      component.filterUpdated(component.folderFilter, ['disk:/Trips', 'disk:/Videos']);
+      getUserVideoFolders.mockReturnValue(of(['disk:/Camera Uploads', 'disk:/Videos']));
+
+      component.filterUpdated(component.yearFilter, [2019]);
+
+      expect(getUserVideoFolders.mock.lastCall![1]).toEqual([2019]);
+      expect(component.folderFilter.options().map((option) => option.value)).toEqual(['disk:/Camera Uploads', 'disk:/Videos']);
+      expect(component.folderFilter.values()).toEqual(['disk:/Videos']);
+
+      getUserVideoFolders.mockReturnValue(of(folders));
+      component.filterUpdated(component.yearFilter, [2016, 2019]);
+
+      expect(getUserVideoFolders.mock.lastCall![1]).toEqual([]);
+      expect(component.folderFilter.values()).toEqual(['disk:/Trips', 'disk:/Videos']);
+    });
+
+    it('should ask for the camera uploads by the camera folders of the years picked, once they are listed', () => {
+      folders = ['disk:/Camera Uploads', '/Camera Uploads', 'disk:/Videos'];
+      build();
+      getUserVideoFolders.mockReturnValue(of(['/Camera Uploads']));
+
+      component.filterUpdated(component.yearFilter, [2019]);
+
+      expect(lastFolders()).toEqual(['/Camera Uploads']);
+      expect(lastYears()).toEqual([2019]);
+
+      getUserVideoFolders.mockReturnValue(of(folders));
+      component.filterUpdated(component.yearFilter, [2016, 2019]);
+
+      expect(lastFolders()).toEqual(['disk:/Camera Uploads', '/Camera Uploads']);
+      expect(lastYears()).toEqual([]);
+    });
+
+    it('should list the years of the videos in the folders picked, keeping the years picked', () => {
+      queryParams = {allFolders: 'true'};
+      getUserVideoYears.mockReturnValue(of([2016, 2019, 2021]));
+      build();
+      component.filterUpdated(component.yearFilter, [2016, 2021]);
+      getUserVideoYears.mockReturnValue(of([2019, 2021]));
+
+      component.filterUpdated(component.folderFilter, ['disk:/Videos']);
+
+      expect(getUserVideoYears.mock.lastCall![1]).toEqual(['disk:/Videos']);
+      expect(component.yearFilter.options().map((option) => option.value)).toEqual([2019, 2021]);
+      expect(component.yearFilter.values()).toEqual([2021]);
+
+      getUserVideoYears.mockReturnValue(of([2016, 2019, 2021]));
+      component.filterUpdated(component.folderFilter, ['disk:/Camera Uploads', 'disk:/Videos']);
+
+      expect(getUserVideoYears.mock.lastCall![1]).toEqual([]);
+      expect(component.yearFilter.values()).toEqual([2016, 2021]);
+    });
+
+    it('should list the years of every folder for the duplicates, which the folders do not narrow down', () => {
+      queryParams = {allFolders: 'true'};
+      build();
+      component.filterUpdated(component.folderFilter, ['disk:/Videos']);
+      getUserVideoYears.mockClear();
+
+      component.selectView('duplicates');
+
+      expect(getUserVideoYears).toHaveBeenCalledTimes(1);
+      expect(getUserVideoYears.mock.lastCall![1]).toEqual([]);
     });
 
     it('should show every year again once the filters are reset', () => {

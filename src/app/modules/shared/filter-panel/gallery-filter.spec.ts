@@ -205,4 +205,48 @@ describe('GalleryFilter', () => {
       expect(filter.values()).toEqual([0]);
     });
   });
+
+  describe('when the options are replaced, such as the folders of the years picked', () => {
+    const folders = (...values: string[]) => values.map((value) => ({value, label: value}));
+
+    it('should keep every option picked when every one was', () => {
+      const filter = new GalleryFilter<string>([], (value) => value);
+      filter.setOptions(folders('A', 'B'));
+
+      expect(filter.updateOptions(folders('A', 'B', 'C'))).toBe(false);
+
+      expect(filter.selected()).toEqual(['A', 'B', 'C']);
+      expect(filter.values()).toEqual([]);
+    });
+
+    it('should keep the options picked, those no longer listed too, and pick them again once they are listed again', () => {
+      const filter = new GalleryFilter<string>([], (value) => value);
+      filter.setOptions(folders('A', 'B', 'C'));
+      filter.selected.set(['A', 'B']);
+
+      filter.updateOptions(folders('B', 'C'));
+      expect(filter.values()).toEqual(['B']);
+
+      filter.updateOptions(folders('A', 'B', 'C'));
+      expect(filter.values()).toEqual(['A', 'B']);
+    });
+
+    it('should keep none picked when none was', () => {
+      const filter = new GalleryFilter<string>([], (value) => value);
+      filter.setOptions(folders('A', 'B'));
+      filter.selected.set([]);
+
+      filter.updateOptions(folders('A', 'B', 'C'));
+
+      expect(filter.noneSelected()).toBe(true);
+    });
+
+    it('should pick the values the address asked for when the options were not set yet', () => {
+      const filter = new GalleryFilter<string>([], (value) => value);
+      filter.request(['B', 'Z']);
+
+      expect(filter.updateOptions(folders('A', 'B'))).toBe(true);
+      expect(filter.selected()).toEqual(['B']);
+    });
+  });
 });

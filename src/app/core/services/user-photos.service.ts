@@ -68,9 +68,13 @@ export class UserPhotosService {
   /**
    * The folders the photos of the user are in, the deleted ones too, without the file names, by name, such as
    * `disk:/Camera Uploads`, and `disk:/` for the photos at the root of the disk.
+   * @param years The years, in UTC, the photos were taken in, so that only the folders with a photo of those years are
+   * given; those of every year when empty.
    */
-  public getUserPhotoFolders(userId: number): Observable<string[]> {
-    return this._httpClient.get<string[]>(`${this.url}/${userId}/photos/folders`);
+  public getUserPhotoFolders(userId: number, years: readonly number[] = []): Observable<string[]> {
+    const params = years.reduce((params, year) => params.append('year', year), new HttpParams());
+
+    return this._httpClient.get<string[]>(`${this.url}/${userId}/photos/folders`, {params});
   }
 
   /** The tags of the user that a photo has at least, by name. */
@@ -101,9 +105,15 @@ export class UserPhotosService {
     return this._httpClient.get<TagSuggestion[]>(`${this.url}/${userId}/photos/${photoId}/tags/suggestions`);
   }
 
-  /** The years, in UTC, the photos of the user were taken in, oldest first. */
-  public getUserPhotoYears(userId: number): Observable<number[]> {
-    return this._httpClient.get<number[]>(`${this.url}/${userId}/photos/years`);
+  /**
+   * The years, in UTC, the photos of the user were taken in, oldest first.
+   * @param folderPaths The folders the photos are in, so that only the years of the photos in those folders are given;
+   * those of every folder when empty.
+   */
+  public getUserPhotoYears(userId: number, folderPaths: readonly string[] = []): Observable<number[]> {
+    const params = folderPaths.reduce((params, folderPath) => params.append('folder', folderPath), new HttpParams());
+
+    return this._httpClient.get<number[]>(`${this.url}/${userId}/photos/years`, {params});
   }
 }
 
