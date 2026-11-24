@@ -26,10 +26,17 @@ describe('MapComponent', () => {
   let component: MapComponent;
   let getUserGeotaggedPhotos: ReturnType<typeof vi.fn>;
   let getUserPhotoFacets: ReturnType<typeof vi.fn>;
-  const facets = (counts: [number, number][], unknownLocationCount: number) => ({
+  const facets = (
+    counts: [number, number][],
+    unknownLocationCount: number,
+    years: [number, number][] = [
+      [2016, 1],
+      [2019, 1],
+    ],
+  ) => ({
     photoSources: [],
     folders: [],
-    years: [],
+    years: years.map(([value, count]) => ({value, count})),
     categories: [],
     gps: [],
     tags: [],
@@ -60,6 +67,8 @@ describe('MapComponent', () => {
 
     return [filter.locationIds, filter.unknownLocation];
   };
+  const lastYears = () => (getUserGeotaggedPhotos.mock.lastCall![1] as PhotoFilter).years;
+  const checklists = () => [...element().querySelectorAll('.sidebar app-checklist')].map((checklist) => checklist.textContent);
   const mapView = () =>
     fixture.debugElement.query((debug) => debug.componentInstance instanceof MapViewStubComponent)?.componentInstance as
       MapViewStubComponent | undefined;
@@ -104,7 +113,12 @@ describe('MapComponent', () => {
         },
         {
           provide: UserPhotosService,
-          useValue: {getUserGeotaggedPhotos, getUserPhotoLocations: () => of(locations), getUserPhotoFacets},
+          useValue: {
+            getUserGeotaggedPhotos,
+            getUserPhotoLocations: () => of(locations),
+            getUserPhotoYears: () => of([2016, 2019]),
+            getUserPhotoFacets,
+          },
         },
       ],
     }).overrideComponent(MapComponent, {
@@ -118,14 +132,15 @@ describe('MapComponent', () => {
     expect(lastLocations()).toEqual([[], false]);
     expect(mapView()?.photos()).toEqual([photo]);
     expect(component.locationFilter.selected()).toEqual([0, 3, 8]);
-    expect(element().querySelector('.sidebar app-checklist')?.textContent).toContain('Location');
+    expect(component.yearFilter.selected()).toEqual([2016, 2019]);
+    expect(checklists()).toEqual([expect.stringContaining('Years'), expect.stringContaining('Location')]);
     expect(text()).toContain('1 photo');
   });
 
   it('should narrow the photos down to the locations picked, the unknown one apart, and count it', () => {
     build();
 
-    component.locationsUpdated([0, 8]);
+    component.filterUpdated(component.locationFilter, [0, 8]);
     fixture.detectChanges();
 
     expect(lastLocations()).toEqual([[8], true]);
@@ -143,12 +158,56 @@ describe('MapComponent', () => {
     expect(component.locationFilter.options().map((option) => [option.label, option.count])).toEqual([['Belarus', 20]]);
   });
 
-  it('should keep the counts as the locations are picked, as nothing else narrows them down', () => {
+  it('should narrow the photos down to the years picked, and open the gallery on them too', () => {
     build();
 
-    component.locationsUpdated([8]);
+    component.filterUpdated(component.yearFilter, [2019]);
+    fixture.detectChanges();
 
-    expect(getUserPhotoFacets).toHaveBeenCalledTimes(1);
+    expect(lastYears()).toEqual([2019]);
+    expect(element().querySelector('.filters-count')?.textContent).toContain('1');
+    expect(mapView()?.galleryQueryParams()).toEqual({year: ['2019']});
+  });
+
+  it('should list only the years of the locations picked, and the locations of the years picked, with their counts', () => {
+    build();
+    getUserPhotoFacets.mockReturnValue(of(facets([[3, 6]], 0, [[2019, 6]])));
+
+    component.filterUpdated(component.locationFilter, [3, 8]);
+
+    const filter = getUserPhotoFacets.mock.lastCall![1] as PhotoFilter;
+    // the city of the country picked along with it does not narrow it down
+    expect(filter.locationIds).toEqual([3]);
+    expect(component.yearFilter.options()).toEqual([{value: 2019, label: '2019', count: 6}]);
+    expect(component.locationFilter.options().map((option) => [option.label, option.count])).toEqual([['Belarus', 6]]);
+  });
+
+  it('should not ask for the counts again for the same filters', () => {
+    build();
+    getUserPhotoFacets.mockClear();
+
+    component.filterUpdated(component.yearFilter, [2016, 2019]);
+
+    expect(getUserPhotoFacets).not.toHaveBeenCalled();
+  });
+
+  it('should take the years the address asks for', () => {
+    queryParams = {year: '2016'};
+    build();
+
+    expect(lastYears()).toEqual([2016]);
+    expect(component.yearFilter.selected()).toEqual([2016]);
+  });
+
+  it('should show no photos while no year is picked', () => {
+    build();
+    getUserGeotaggedPhotos.mockClear();
+
+    component.filterUpdated(component.yearFilter, []);
+    fixture.detectChanges();
+
+    expect(getUserGeotaggedPhotos).not.toHaveBeenCalled();
+    expect(text()).toContain('No years are selected');
   });
 
   it('should take the locations the address asks for', () => {
@@ -164,7 +223,7 @@ describe('MapComponent', () => {
     build();
     getUserGeotaggedPhotos.mockClear();
 
-    component.locationsUpdated([]);
+    component.filterUpdated(component.locationFilter, []);
     fixture.detectChanges();
 
     expect(getUserGeotaggedPhotos).not.toHaveBeenCalled();
@@ -173,7 +232,7 @@ describe('MapComponent', () => {
 
   it('should show every location again once the filters are reset', () => {
     build();
-    component.locationsUpdated([8]);
+    component.filterUpdated(component.locationFilter, [8]);
     fixture.detectChanges();
 
     element().querySelector<HTMLButtonElement>('.filters-reset')!.click();
@@ -186,7 +245,7 @@ describe('MapComponent', () => {
     locations = [];
     build();
 
-    expect(element().querySelector('.sidebar app-checklist')).toBeNull();
+    expect(checklists()).toEqual([expect.stringContaining('Years')]);
     expect(text()).toContain('once they are geocoded');
   });
 });

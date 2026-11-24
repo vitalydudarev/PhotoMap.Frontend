@@ -18,15 +18,17 @@ import {UNKNOWN_LOCATION, locationOptions} from '../shared/filter-panel/location
 import {PhotosMapViewComponent} from '../shared/photos-map-view/photos-map-view.component';
 import {sidebarOpen} from '../shared/sidebar-page/sidebar-open';
 
+const YEAR_PARAM = 'year';
 const LOCATION_PARAM = 'location';
 
-/** The photos of the map, before the locations narrow them down: every photo with a GPS location, of every folder. */
+/** The photos of the map, before the filters narrow them down: every photo with a GPS location, of every folder. */
 const MAP_PHOTOS: PhotoFilter = {sourceIds: [], years: [], categories: [], hasGps: true, allFolders: true};
 const SIDEBAR_OPEN_STORAGE_KEY = 'map-sidebar-open';
 
 /**
- * Every photo with a GPS location on a map, narrowed down to the locations picked in the sidebar on the left, as the
- * gallery and the videos are.
+ * Every photo with a GPS location on a map, narrowed down to the years and the locations picked in the sidebar on the
+ * left, as the gallery and the videos are. Each filter lists only the options that take some photo along with the
+ * other, with how many photos each takes.
  */
 @Component({
   selector: 'app-map',
@@ -40,28 +42,39 @@ export class MapComponent implements OnInit {
   readonly loading = signal(true);
   readonly failed = signal(false);
 
+  /** The years, in UTC, the photos were taken in. */
+  readonly yearFilter = new GalleryFilter();
+
   /**
    * The locations the photos were taken in, as the reverse geocoding of their GPS locations tells, from the countries
    * down, to narrow the photos down to; the photos in no location, not geocoded yet, are an option too.
    */
   readonly locationFilter = new GalleryFilter();
 
-  /** Whether the locations narrow the photos down, so that the filter is not forgotten with the sidebar hidden. */
-  readonly activeFilterCount = computed(() => (this.locationFilter.active() ? 1 : 0));
+  /** How many filters narrow the photos down, so that a filter is not forgotten with the sidebar hidden. */
+  readonly activeFilterCount = computed(() => [this.yearFilter, this.locationFilter].filter((filter) => filter.active()).length);
 
-  /** The locations, listed open as the only filter, once there are any to pick from. */
-  readonly filterItems = computed<readonly FilterPanelItem[]>(() =>
-    this.locationFilter.options().length > 0
+  /** The filters with options to pick from: the years, folded away, and the locations, listed open. */
+  readonly filterItems = computed<readonly FilterPanelItem[]>(() => [
+    ...(this.yearFilter.options().length > 0 ? [{filter: this.yearFilter, label: 'Years'}] : []),
+    ...(this.locationFilter.options().length > 0
       ? [{filter: this.locationFilter, label: 'Location', collapsed: false, searchable: true, fill: true}]
-      : [],
-  );
+      : []),
+  ]);
 
-  /** The locations the gallery is opened with too, so that it shows the photos the map does. */
+  /** The years and the locations the gallery is opened with too, so that it shows the photos the map does. */
   readonly galleryQueryParams = computed<Params>(() => {
+    const years = this.yearFilter.values();
     const locations = this.locationFilter.values();
 
-    return locations.length > 0 ? {[LOCATION_PARAM]: locations.map(String)} : {};
+    return {
+      ...(years.length > 0 ? {[YEAR_PARAM]: years.map(String)} : {}),
+      ...(locations.length > 0 ? {[LOCATION_PARAM]: locations.map(String)} : {}),
+    };
   });
+
+  /** Whether a filter picks none of its options, so that no photo is shown. */
+  readonly nothingSelected = computed(() => this.yearFilter.noneSelected() || this.locationFilter.noneSelected());
 
   /**
    * The filters sit in a sidebar on the left, which the user can hide to give the map the whole width. On a narrow
@@ -77,26 +90,33 @@ export class MapComponent implements OnInit {
   private readonly toastService = inject(ToastService);
 
   private photosRequest?: Subscription;
+  private facetsRequest?: Subscription;
+  /** The filter the options were last narrowed down for, so that they are asked for once for each. */
+  private facetsFilter: string | null = null;
 
   private userId = 1;
 
   ngOnInit(): void {
-    this.locationFilter.request(this.activatedRoute.snapshot.queryParamMap.getAll(LOCATION_PARAM));
+    const params = this.activatedRoute.snapshot.queryParamMap;
+
+    this.yearFilter.request(params.getAll(YEAR_PARAM));
+    this.locationFilter.request(params.getAll(LOCATION_PARAM));
 
     this.loadPhotos();
+    this.loadYears();
     this.loadLocations();
-    this.loadLocationCounts();
   }
 
-  locationsUpdated(values: readonly (number | string)[]): void {
-    this.locationFilter.pick(values as readonly number[]);
+  filterUpdated<T extends number | string>(filter: GalleryFilter<T>, values: readonly T[]): void {
+    filter.pick(values);
 
     this.addQueryString();
     this.loadPhotos();
   }
 
-  /** Shows the photos of every location again. */
+  /** Shows the photos of every year and every location again. */
   resetFilters(): void {
+    this.yearFilter.reset();
     this.locationFilter.reset();
 
     this.addQueryString();
@@ -104,10 +124,13 @@ export class MapComponent implements OnInit {
   }
 
   private loadPhotos(): void {
-    // a request still on its way is dropped, so an answer for the locations picked before cannot land after this one
+    // a request still on its way is dropped, so an answer for the filters picked before cannot land after this one
     this.photosRequest?.unsubscribe();
 
-    if (this.locationFilter.noneSelected()) {
+    // the photos may be left out by a filter that picks nothing, but the options of the other are still narrowed down
+    this.loadFacets();
+
+    if (this.nothingSelected()) {
       this.photos.set([]);
       this.failed.set(false);
       this.loading.set(false);
@@ -118,15 +141,9 @@ export class MapComponent implements OnInit {
     this.loading.set(true);
     this.failed.set(false);
 
-    const locations = this.locationFilter.values();
-
     // the map clusters what it shows, so it takes every photo with a location at once
     this.photosRequest = this.userPhotosService
-      .getUserGeotaggedPhotos(this.userId, {
-        ...MAP_PHOTOS,
-        locationIds: locations.filter((location) => location !== UNKNOWN_LOCATION),
-        unknownLocation: locations.includes(UNKNOWN_LOCATION),
-      })
+      .getUserGeotaggedPhotos(this.userId, this.photoFilter())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (photos) => {
@@ -138,6 +155,68 @@ export class MapComponent implements OnInit {
           this.failed.set(true);
           this.loading.set(false);
           this.toastService.error('Could not load the photos.', error);
+        },
+      });
+  }
+
+  /**
+   * Lists only the years and the locations that take some photo of the map along with the other filter, with how many
+   * photos each takes, see `GalleryFilter.narrowTo`: the years and the locations of the photos with no GPS location,
+   * or deleted, are left out too.
+   */
+  private loadFacets(): void {
+    const filter = this.photoFilter();
+    const key = JSON.stringify(filter);
+
+    if (key === this.facetsFilter) {
+      return;
+    }
+
+    this.facetsFilter = key;
+    this.facetsRequest?.unsubscribe();
+    this.facetsRequest = this.userPhotosService
+      .getUserPhotoFacets(this.userId, filter)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (facets) => {
+          this.yearFilter.narrowTo(facetCounts(facets.years));
+          this.locationFilter.narrowTo([...facetCounts(facets.locations), [UNKNOWN_LOCATION, facets.unknownLocationCount]]);
+        },
+        error: () => {
+          // every option stays listed, as it was, and the photos are narrowed down by those picked all the same
+          this.facetsFilter = null;
+        },
+      });
+  }
+
+  /** The photos of the map the filters take. */
+  private photoFilter(): PhotoFilter {
+    const locations = this.locationFilter.values();
+
+    return {
+      ...MAP_PHOTOS,
+      years: this.yearFilter.values(),
+      locationIds: locations.filter((location) => location !== UNKNOWN_LOCATION),
+      unknownLocation: locations.includes(UNKNOWN_LOCATION),
+    };
+  }
+
+  /** The years, in UTC, the photos were taken in, oldest first. */
+  private loadYears(): void {
+    this.userPhotosService
+      .getUserPhotoYears(this.userId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (years) => {
+          // the address asked for a year there is no photo of, so the photos shown are not the ones now selected
+          if (this.yearFilter.setOptions(years.map((year) => ({value: year, label: year.toString()})))) {
+            this.addQueryString();
+            this.loadPhotos();
+          }
+        },
+        error: (error) => {
+          this.yearFilter.setOptions([]);
+          this.toastService.error('Could not load the years to filter the photos by.', error);
         },
       });
   }
@@ -165,24 +244,12 @@ export class MapComponent implements OnInit {
       });
   }
 
-  /**
-   * How many photos of the map each location takes, listing only those with some: the locations of the photos with no
-   * GPS location, or deleted, are left out. The locations are the only filter, so the counts are those of every photo
-   * of the map, whatever is picked, and are loaded once.
-   */
-  private loadLocationCounts(): void {
-    this.userPhotosService
-      .getUserPhotoFacets(this.userId, MAP_PHOTOS)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (facets) => this.locationFilter.narrowTo([...facetCounts(facets.locations), [UNKNOWN_LOCATION, facets.unknownLocationCount]]),
-        // every location stays listed, with no count, and the photos are narrowed down by those picked all the same
-        error: () => undefined,
-      });
-  }
-
   private addQueryString(): void {
     let params = new HttpParams();
+
+    for (const year of this.yearFilter.values()) {
+      params = params.append(YEAR_PARAM, year.toString());
+    }
 
     for (const location of this.locationFilter.values()) {
       params = params.append(LOCATION_PARAM, location.toString());

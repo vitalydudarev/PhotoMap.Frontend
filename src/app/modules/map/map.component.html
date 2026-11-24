@@ -7,10 +7,10 @@
       <app-filter-panel
         [items]="filterItems()"
         [activeCount]="activeFilterCount()"
-        (filterChange)="locationsUpdated($event.values)"
+        (filterChange)="filterUpdated($event.filter, $event.values)"
         (resetFilters)="resetFilters()"
       >
-        @if (filterItems().length === 0) {
+        @if (locationFilter.options().length === 0) {
           <p class="sidebar-note">The photos can be narrowed down by their locations once they are geocoded.</p>
         }
       </app-filter-panel>
@@ -52,13 +52,17 @@
       <div class="state">
         <p>The photos could not be loaded.</p>
       </div>
+    } @else if (yearFilter.noneSelected()) {
+      <div class="state">
+        <p>No years are selected. Pick one to see the photos taken in it.</p>
+      </div>
     } @else if (locationFilter.noneSelected()) {
       <div class="state">
         <p>No locations are selected. Pick one to see the photos taken there.</p>
       </div>
-    } @else if (photos().length === 0 && locationFilter.values().length > 0) {
+    } @else if (photos().length === 0 && (yearFilter.values().length > 0 || locationFilter.values().length > 0)) {
       <div class="state">
-        <p>No photos taken in the selected locations.</p>
+        <p>No photos match the selected filters.</p>
       </div>
     } @else if (photos().length === 0) {
       <div class="state">
