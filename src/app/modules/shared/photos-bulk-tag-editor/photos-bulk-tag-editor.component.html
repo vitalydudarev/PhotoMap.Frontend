@@ -33,7 +33,7 @@
   [attr.aria-activedescendant]="query().trim() && options().length > 0 ? optionId(activeIndex()) : null"
   [maxLength]="maxLength"
   [disabled]="full() || saving()"
-  [placeholder]="full() ? 'A photo has ' + maxTags + ' tags at most' : 'Add a tag…'"
+  [placeholder]="full() ? 'A ' + kind() + ' has ' + maxTags + ' tags at most' : 'Add a tag…'"
   [value]="query()"
   (input)="onInput($any($event.target).value)"
   (keydown)="onKeydown($event)"
@@ -66,7 +66,7 @@
   </ul>
 }
 
-<p class="hint">The photos keep the tags they have.</p>
+<p class="hint">The {{ kind() }}s keep the tags they have.</p>
 
 <div class="footer">
   <button appButton="ghost" size="sm" type="button" (click)="closed.emit()">Cancel</button>

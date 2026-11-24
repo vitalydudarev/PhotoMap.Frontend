@@ -4,6 +4,7 @@ import {Observable} from 'rxjs';
 import {environment} from 'src/environments/environment';
 
 import {VideoFacets} from '../models/facets.model';
+import {VideoTags} from '../models/photo-tag.model';
 import {FailedFile} from '../models/failed-file.model';
 import {PagedResponse} from '../models/paged-response.model';
 import {VideoLocation} from '../models/photo-location.model';
@@ -114,6 +115,16 @@ export class VideosService {
    */
   setVideoTags(userId: number, videoId: string, names: readonly string[]): Observable<string[]> {
     return this.httpClient.put<string[]>(`${this.url}/${userId}/videos/${videoId}/tags`, names);
+  }
+
+  /**
+   * Adds the tags to the videos, keeping the tags they have; the tags are those of the photos too. A name the user has
+   * a tag of, whatever its case, takes that tag; the other names make new tags. The videos are all given the tags, or
+   * none of them is.
+   * @returns The tags of each video once they were added.
+   */
+  addVideoTags(userId: number, videoIds: readonly string[], names: readonly string[]): Observable<VideoTags[]> {
+    return this.httpClient.post<VideoTags[]>(`${this.url}/${userId}/videos/tags`, {videoIds, tags: names});
   }
 
   /** The years, in UTC, the videos of the user were taken in, oldest first. */

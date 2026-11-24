@@ -32,6 +32,12 @@ export interface PhotoTags {
   tags: string[];
 }
 
+/** Mirrors the backend's `VideoTagsDto`: the tags of a video, by name. */
+export interface VideoTags {
+  videoId: string;
+  tags: string[];
+}
+
 /** The longest name of a tag, and the most tags a photo has, as the backend takes them. */
 export const TAG_MAX_LENGTH = 50;
 export const TAGS_PER_PHOTO = 30;

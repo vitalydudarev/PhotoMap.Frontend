@@ -6,10 +6,11 @@ import {ActivatedRoute, Router} from '@angular/router';
 import {Subscription} from 'rxjs';
 import {facetCounts} from 'src/app/core/models/facets.model';
 import {PhotoSortOrder} from 'src/app/core/models/photo-sort-order.model';
-import {PhotoTag} from 'src/app/core/models/photo-tag.model';
+import {PhotoTag, PhotoTags} from 'src/app/core/models/photo-tag.model';
 import {Photo} from 'src/app/core/models/photo.model';
 import {Video, VideoDuplicateGroup} from 'src/app/core/models/video.model';
 import {UNAVAILABLE_IMAGE} from 'src/app/core/services/photo-viewer.service';
+import {ButtonDirective} from 'src/app/shared/ui/button/button.directive';
 import {PageEvent, PaginatorComponent} from 'src/app/shared/ui/paginator/paginator.component';
 import {SegmentedComponent, SegmentedOption} from 'src/app/shared/ui/segmented/segmented.component';
 import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
@@ -25,6 +26,7 @@ import {GalleryFilter, takenIn} from '../shared/filter-panel/gallery-filter';
 import {UNKNOWN_LOCATION, locationOptions} from '../shared/filter-panel/location-options';
 import {UNTAGGED, tagOptions} from '../shared/filter-panel/tag-options';
 import {PhotoTagEditorComponent} from '../shared/photo-tag-editor/photo-tag-editor.component';
+import {PhotosBulkTagEditorComponent} from '../shared/photos-bulk-tag-editor/photos-bulk-tag-editor.component';
 import {VideoDuplicatesComponent} from './video-duplicates/video-duplicates.component';
 import {VideoPlayerComponent} from './video-player/video-player.component';
 import {PhotoSelection} from '../shared/photos-map-view/photo-map.model';
@@ -75,6 +77,7 @@ const USER_ID = 1;
   templateUrl: './videos.component.html',
   styleUrls: ['./videos.component.scss'],
   imports: [
+    ButtonDirective,
     DatePipe,
     FilterPanelComponent,
     IconComponent,
@@ -82,6 +85,7 @@ const USER_ID = 1;
     NgTemplateOutlet,
     PaginatorComponent,
     PhotoTagEditorComponent,
+    PhotosBulkTagEditorComponent,
     PhotosMapViewComponent,
     ScrollControlComponent,
     SegmentedComponent,
@@ -93,7 +97,7 @@ const USER_ID = 1;
     '(document:click)': 'onDocumentClick($event)',
     // the keyboard of a phone, brought up by the input of the editor, resizes the window too
     '(window:resize)': 'placeEditor()',
-    '(document:keydown.escape)': 'closeTags()',
+    '(document:keydown.escape)': 'onEscape($event)',
   },
 })
 export class VideosComponent implements OnInit {
@@ -229,6 +233,19 @@ export class VideosComponent implements OnInit {
 
   readonly userId = USER_ID;
 
+  /** Whether a click on a preview selects the video, to tag several at once, rather than playing it. */
+  readonly selecting = signal(false);
+
+  /** The selected videos, by their ID; only ever videos of the grid. */
+  readonly selectedIds = signal<ReadonlySet<string>>(new Set());
+  readonly selectedCount = computed(() => this.selectedIds().size);
+
+  /** Whether the tags to add to the selected videos are being picked. */
+  readonly bulkTagging = signal(false);
+
+  /** Whether the videos can be selected: those of the grid, not the copies, nor those on the map. */
+  readonly canSelect = computed(() => !this.showDuplicates() && this.selectedViewMode() === 'grid');
+
   /**
    * The views and the filters sit in a sidebar on the left, which the user can hide to give the videos the whole
    * width. On a narrow screen it slides over the videos instead, so it starts hidden there.
@@ -251,6 +268,9 @@ export class VideosComponent implements OnInit {
 
   /** The tag button the editor was opened with, which it sits under. */
   private editorAnchor: HTMLElement | null = null;
+
+  /** The video selected or unselected last, from which a click with Shift selects a range, by its index. */
+  private selectionAnchor: number | null = null;
 
   private videosRequest?: Subscription;
   private facetsRequest?: Subscription;
@@ -318,6 +338,10 @@ export class VideosComponent implements OnInit {
 
       this.showDuplicates.set(view === 'duplicates');
 
+      if (view === 'duplicates') {
+        this.stopSelecting();
+      }
+
       this.addQueryString();
       this.load();
 
@@ -376,6 +400,11 @@ export class VideosComponent implements OnInit {
 
     this.selectedViewMode.set(viewMode);
 
+    // the map shows the videos where they were taken, to play, not to select
+    if (viewMode === 'map') {
+      this.stopSelecting();
+    }
+
     // the copies are listed the same whatever the view
     if (!this.showDuplicates()) {
       this.loadVideos();
@@ -425,6 +454,121 @@ export class VideosComponent implements OnInit {
     // the copies are all loaded, and narrowed down by the years as they are listed
     if (!this.showDuplicates()) {
       this.loadVideos();
+    }
+  }
+
+  /** Plays the video, or, while the videos are being selected, selects it; with Shift, the videos since the last one. */
+  onCardClick(video: Video, event: MouseEvent): void {
+    if (this.selecting()) {
+      this.toggleSelected(this.videos().indexOf(video), event.shiftKey);
+    } else {
+      this.play(video);
+    }
+  }
+
+  /** Starts selecting the videos, or stops, which clears the selection. */
+  toggleSelecting(): void {
+    if (this.selecting()) {
+      this.stopSelecting();
+    } else {
+      this.closeTags();
+      this.selecting.set(true);
+    }
+  }
+
+  stopSelecting(): void {
+    this.selecting.set(false);
+    this.clearSelection();
+  }
+
+  isSelected(video: Video): boolean {
+    return this.selectedIds().has(video.id);
+  }
+
+  /**
+   * Selects the video, or unselects it when it is selected. With `range`, every video from the one selected or
+   * unselected last to this one is made the same.
+   */
+  toggleSelected(index: number, range = false): void {
+    const videos = this.videos();
+    const video = videos[index];
+
+    if (!video) {
+      return;
+    }
+
+    const select = !this.isSelected(video);
+    const anchor = range && this.selectionAnchor !== null ? this.selectionAnchor : index;
+    const ids = new Set(this.selectedIds());
+
+    for (let i = Math.min(anchor, index); i <= Math.max(anchor, index); i++) {
+      const id = videos[i]?.id;
+
+      if (id === undefined) {
+        continue;
+      }
+
+      if (select) {
+        ids.add(id);
+      } else {
+        ids.delete(id);
+      }
+    }
+
+    this.selectionAnchor = index;
+    this.selectedIds.set(ids);
+
+    if (ids.size === 0) {
+      this.bulkTagging.set(false);
+    }
+  }
+
+  selectAll(): void {
+    this.selectedIds.set(new Set(this.videos().map((video) => video.id)));
+  }
+
+  clearSelection(): void {
+    this.selectedIds.set(new Set());
+    this.selectionAnchor = null;
+    this.bulkTagging.set(false);
+  }
+
+  /** The IDs of the selected videos, in the order of the grid. */
+  selectedVideoIds(): string[] {
+    const ids = this.selectedIds();
+
+    return this.videos()
+      .filter((video) => ids.has(video.id))
+      .map((video) => video.id);
+  }
+
+  /** The tags were added to the selected videos, which keep their place, as a single video tagged does. */
+  onBulkTagsSaved(videoTags: PhotoTags[]): void {
+    const tagsById = new Map(videoTags.map((video) => [String(video.photoId), video.tags]));
+
+    this.videos.update((videos) =>
+      videos.map((shown) => {
+        const tags = tagsById.get(String(shown.id));
+
+        return tags ? {...shown, tags} : shown;
+      }),
+    );
+
+    this.toastService.success(`Tagged ${videoTags.length} ${videoTags.length === 1 ? 'video' : 'videos'}.`);
+    this.stopSelecting();
+
+    // tags may have been made, and the counts have changed
+    this.loadTags(true);
+    this.facetsFilter = null;
+    this.loadFacets(this.requestedFolders());
+  }
+
+  /** Escape closes the tag editor, or leaves the selection, unless something nearer the focus took it first. */
+  onEscape(event: Event): void {
+    if (this.editingId() !== null) {
+      this.closeTags();
+    } else if (this.selecting() && !event.defaultPrevented) {
+      this.stopSelecting();
     }
   }
 
@@ -629,6 +773,25 @@ export class VideosComponent implements OnInit {
           }
         },
       });
+  }
+
+  /** Another page, or other filters: the videos selected that are not in the grid any more are no longer selected. */
+  private keepSelectedOfShown(): void {
+    if (this.selectedCount() === 0) {
+      return;
+    }
+
+    const shown = new Set(this.videos().map((video) => video.id));
+    const kept = [...this.selectedIds()].filter((id) => shown.has(id));
+
+    if (kept.length !== this.selectedCount()) {
+      this.selectedIds.set(new Set(kept));
+      this.selectionAnchor = null;
+
+      if (kept.length === 0) {
+        this.bulkTagging.set(false);
+      }
+    }
   }
 
   private videoFilters(): readonly GalleryFilter<number | string>[] {
@@ -885,6 +1048,7 @@ export class VideosComponent implements OnInit {
         next: (pagedResponse) => {
           this.totalCount.set(pagedResponse.total);
           this.videos.set(pagedResponse.values);
+          this.keepSelectedOfShown();
           this.showSpinner.set(false);
         },
         error: (error) => {

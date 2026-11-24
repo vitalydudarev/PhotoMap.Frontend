@@ -33,6 +33,7 @@ describe('VideosComponent', () => {
   let getUserGeotaggedVideos: ReturnType<typeof vi.fn>;
   let getUserPhotoTags: ReturnType<typeof vi.fn>;
   let setVideoTags: ReturnType<typeof vi.fn>;
+  let addVideoTags: ReturnType<typeof vi.fn>;
   let locations: VideoLocation[];
 
   const video: Video = {
@@ -74,6 +75,7 @@ describe('VideosComponent', () => {
     // the user has no tag yet, unless a test says otherwise
     getUserPhotoTags = vi.fn(() => of([]));
     setVideoTags = vi.fn((_userId: number, _videoId: string, names: string[]) => of(names));
+    addVideoTags = vi.fn((_userId: number, videoIds: string[], names: string[]) => of(videoIds.map((videoId) => ({videoId, tags: names}))));
     getUserVideoFacets = vi.fn(() =>
       of({
         folders: folders.map((value) => ({value, count: 1})),
@@ -111,6 +113,7 @@ describe('VideosComponent', () => {
             getUserGeotaggedVideos,
             getUserVideoLocations: () => of(locations),
             setVideoTags,
+            addVideoTags,
           },
         },
       ],
@@ -531,6 +534,92 @@ describe('VideosComponent', () => {
       build();
 
       expect(element().querySelector('.video-card .tag-button')).toBeNull();
+    });
+  });
+
+  describe('selecting', () => {
+    const second: Video = {...video, id: '2', fileName: 'beach.mp4'};
+    const third: Video = {...video, id: '3', fileName: 'hike.mp4'};
+    const selectToggle = () => element().querySelector<HTMLButtonElement>('.select-toggle')!;
+    const cards = () => [...element().querySelectorAll<HTMLButtonElement>('.video-card .thumb')];
+    const clickCard = (index: number, shiftKey = false) => {
+      cards()[index].dispatchEvent(new MouseEvent('click', {bubbles: true, shiftKey}));
+      fixture.detectChanges();
+    };
+
+    beforeEach(() => {
+      queryParams = {allFolders: 'true'};
+      getUserVideos.mockReturnValue(of({values: [video, second, third], total: 3, limit: 100, offset: 0}));
+      getUserPhotoTags.mockReturnValue(of([{id: 4, name: 'Family', photoCount: 3, videoCount: 1}]));
+    });
+
+    const startSelecting = () => {
+      build();
+      selectToggle().click();
+      fixture.detectChanges();
+    };
+
+    it('should select the videos clicked, rather than play them, with Shift selecting the ones between', () => {
+      startSelecting();
+
+      clickCard(0);
+      clickCard(2, true);
+
+      expect(component.selectedVideoIds()).toEqual(['1', '2', '3']);
+      expect(component.playingIndex()).toBeNull();
+      expect(element().querySelectorAll('.video-card--selected')).toHaveLength(3);
+      expect(text()).toContain('3 selected');
+      // the tags of a video alone are edited outside the selection
+      expect(element().querySelector('.video-card .tag-button')).toBeNull();
+    });
+
+    it('should add the tags picked to the videos selected, keeping them in place, and stop selecting', () => {
+      startSelecting();
+      clickCard(0);
+      clickCard(1);
+      getUserPhotoTags.mockClear();
+
+      component.bulkTagging.set(true);
+      fixture.detectChanges();
+      const editor = element().querySelector('app-photos-bulk-tag-editor');
+      expect(editor?.getAttribute('aria-label')).toBe('Add tags to 2 videos');
+
+      component.onBulkTagsSaved([
+        {photoId: '1', tags: ['Family', 'Paris']},
+        {photoId: '2', tags: ['Paris']},
+      ]);
+      fixture.detectChanges();
+
+      expect(component.videos().map((shown) => shown.tags)).toEqual([['Family', 'Paris'], ['Paris'], undefined]);
+      expect(component.selecting()).toBe(false);
+      expect(getUserPhotoTags).toHaveBeenCalledTimes(1);
+    });
+
+    it('should leave the selection on Escape, and when the map is shown', () => {
+      startSelecting();
+      clickCard(0);
+
+      document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}));
+      fixture.detectChanges();
+
+      expect(component.selecting()).toBe(false);
+      expect(component.selectedCount()).toBe(0);
+
+      selectToggle().click();
+      component.viewModeUpdated('map');
+
+      expect(component.selecting()).toBe(false);
+    });
+
+    it('should keep selected only the videos still shown once others are loaded', () => {
+      startSelecting();
+      clickCard(0);
+      clickCard(2);
+      getUserVideos.mockReturnValue(of({values: [third], total: 1, limit: 100, offset: 0}));
+
+      component.filterUpdated(component.yearFilter, [2019]);
+
+      expect(component.selectedVideoIds()).toEqual(['3']);
     });
   });
 

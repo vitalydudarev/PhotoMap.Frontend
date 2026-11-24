@@ -75,6 +75,18 @@
             />
 
             @if (selectedViewMode() === 'grid') {
+              <button
+                appButton="outline"
+                type="button"
+                class="select-toggle"
+                [attr.aria-pressed]="selecting()"
+                [disabled]="videos().length === 0"
+                (click)="toggleSelecting()"
+              >
+                <app-icon name="check-circle" [size]="16" />
+                <span class="select-label">{{ selecting() ? 'Cancel' : 'Select' }}</span>
+              </button>
+
               <app-segmented
                 class="width-modes"
                 aria-label="Grid width"
@@ -204,6 +216,51 @@
         }
       </section>
 
+      @if (selecting()) {
+        @if (bulkTagging() && selectedCount() > 0) {
+          <app-photos-bulk-tag-editor
+            class="bulk-tag-editor"
+            kind="video"
+            [photoIds]="selectedVideoIds()"
+            [userId]="userId"
+            [existingTags]="tags() ?? []"
+            (saved)="onBulkTagsSaved($event)"
+            (closed)="bulkTagging.set(false)"
+          />
+        }
+
+        <div class="selection-bar" role="toolbar" aria-label="Selected videos">
+          <span class="selection-count" aria-live="polite">
+            {{ selectedCount() === 0 ? 'Select videos' : selectedCount() + ' selected' }}
+          </span>
+
+          @if (selectedCount() < videos().length) {
+            <button appButton="ghost" size="sm" type="button" (click)="selectAll()">Select all</button>
+          } @else {
+            <button appButton="ghost" size="sm" type="button" (click)="clearSelection()">Clear</button>
+          }
+
+          @if (tags() !== null) {
+            <button
+              appButton="filled"
+              size="sm"
+              type="button"
+              aria-haspopup="dialog"
+              [attr.aria-expanded]="bulkTagging()"
+              [disabled]="selectedCount() === 0"
+              (click)="bulkTagging.set(!bulkTagging())"
+            >
+              <app-icon name="tag" [size]="14" />
+              Add tags
+            </button>
+          }
+
+          <button appButton="ghost" size="sm" type="button" iconOnly aria-label="Done selecting" title="Done" (click)="stopSelecting()">
+            <app-icon name="x" [size]="16" />
+          </button>
+        </div>
+      }
+
       <app-scroll-control />
     }
   </div>
@@ -214,13 +271,15 @@
 <ng-template #thumb let-video>
   @let videoTags = video.tags ?? [];
   @let editing = editingId() === video.id;
-  <div class="video-card" [class.video-card--editing]="editing">
+  @let selected = isSelected(video);
+  <div class="video-card" [class.video-card--editing]="editing" [class.video-card--selected]="selected">
     <button
       class="thumb"
       type="button"
       [title]="video.fileName + ' · ' + (video.dateTimeTaken | date: 'medium')"
-      [attr.aria-label]="'Play ' + video.fileName"
-      (click)="play(video)"
+      [attr.aria-label]="(selecting() ? 'Select ' : 'Play ') + video.fileName"
+      [attr.aria-pressed]="selecting() ? selected : null"
+      (click)="onCardClick(video, $event)"
     >
       <img [appLazySrc]="video.previewUrl" [alt]="video.fileName" width="190" height="190" (error)="onPreviewError($event)" />
       <span class="badge" aria-hidden="true">
@@ -237,9 +296,17 @@
           </span>
         </span>
       }
+
+      @if (selecting()) {
+        <span class="select-mark" aria-hidden="true">
+          @if (selected) {
+            <app-icon name="check" [size]="14" />
+          }
+        </span>
+      }
     </button>
 
-    @if (tags() !== null) {
+    @if (tags() !== null && !selecting()) {
       <button
         #tagButton
         class="tag-button"

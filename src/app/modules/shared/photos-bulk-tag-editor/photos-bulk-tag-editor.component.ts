@@ -13,8 +13,10 @@ import {
 } from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {PhotoTag, PhotoTags, TAGS_PER_PHOTO, TAG_MAX_LENGTH, cleanTagName, sameTag, tagUseCount} from 'src/app/core/models/photo-tag.model';
+import {Observable, map} from 'rxjs';
 import {ToastService} from 'src/app/core/services/toast.service';
 import {UserPhotosService} from 'src/app/core/services/user-photos.service';
+import {VideosService} from 'src/app/core/services/videos.service';
 import {ButtonDirective} from 'src/app/shared/ui/button/button.directive';
 import {IconComponent} from 'src/app/shared/ui/icon/icon.component';
 
@@ -29,8 +31,8 @@ interface TagOption {
 let nextId = 0;
 
 /**
- * Adds tags to several photos at once. Unlike the editor of the tags of one photo, the tags are gathered first and
- * saved together, as the photos keep the tags they have, and taking a tag off is not done here.
+ * Adds tags to several photos, or several videos, at once. Unlike the editor of the tags of one photo, the tags are
+ * gathered first and saved together, as the photos keep the tags they have, and taking a tag off is not done here.
  */
 @Component({
   selector: 'app-photos-bulk-tag-editor',
@@ -45,14 +47,17 @@ let nextId = 0;
   },
 })
 export class PhotosBulkTagEditorComponent {
-  /** The IDs of the photos to add the tags to. */
+  /** The IDs of the photos, or of the videos, to add the tags to, see `kind`. */
   readonly photoIds = input.required<readonly string[]>();
   readonly userId = input.required<number>();
+
+  /** Whether photos or videos are tagged, which take the same tags. */
+  readonly kind = input<'photo' | 'video'>('photo');
 
   /** The tags of the user, to pick from. */
   readonly existingTags = input<readonly PhotoTag[]>([]);
 
-  /** The tags were added, and the photos have these tags now. */
+  /** The tags were added, and the photos, or the videos, have these tags now, by their IDs as `photoId`. */
   readonly saved = output<PhotoTags[]>();
 
   /** The user is done, without adding the tags. */
@@ -72,7 +77,7 @@ export class PhotosBulkTagEditorComponent {
   readonly title = computed(() => {
     const count = this.photoIds().length;
 
-    return `Add tags to ${count} ${count === 1 ? 'photo' : 'photos'}`;
+    return `Add tags to ${count} ${count === 1 ? this.kind() : this.kind() + 's'}`;
   });
 
   readonly listId = `photos-bulk-tag-options-${nextId++}`;
@@ -102,6 +107,7 @@ export class PhotosBulkTagEditorComponent {
   private readonly input = viewChild<ElementRef<HTMLInputElement>>('input');
   private readonly destroyRef = inject(DestroyRef);
   private readonly userPhotosService = inject(UserPhotosService);
+  private readonly videosService = inject(VideosService);
   private readonly toastService = inject(ToastService);
 
   constructor() {
@@ -179,18 +185,22 @@ export class PhotosBulkTagEditorComponent {
 
     this.saving.set(true);
 
-    this.userPhotosService
-      .addPhotoTags(this.userId(), this.photoIds(), names)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (photoTags) => {
-          this.saving.set(false);
-          this.saved.emit(photoTags);
-        },
-        error: (error) => {
-          this.saving.set(false);
-          this.toastService.error('Could not add the tags.', error);
-        },
-      });
+    const request: Observable<PhotoTags[]> =
+      this.kind() === 'video'
+        ? this.videosService
+            .addVideoTags(this.userId(), this.photoIds(), names)
+            .pipe(map((videoTags) => videoTags.map(({videoId, tags}) => ({photoId: videoId, tags}))))
+        : this.userPhotosService.addPhotoTags(this.userId(), this.photoIds(), names);
+
+    request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (photoTags) => {
+        this.saving.set(false);
+        this.saved.emit(photoTags);
+      },
+      error: (error) => {
+        this.saving.set(false);
+        this.toastService.error('Could not add the tags.', error);
+      },
+    });
   }
 }
