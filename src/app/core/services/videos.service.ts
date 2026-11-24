@@ -8,6 +8,7 @@ import {TagSuggestion, VideoTags} from '../models/photo-tag.model';
 import {FailedFile} from '../models/failed-file.model';
 import {PagedResponse} from '../models/paged-response.model';
 import {VideoLocation} from '../models/photo-location.model';
+import {splitDates} from '../models/photo-month.model';
 import {PhotoSortOrder} from '../models/photo-sort-order.model';
 import {PhotoSourceProgress} from '../models/photo-source-progress.model';
 import {Video, VideoDuplicateGroup} from '../models/video.model';
@@ -32,7 +33,8 @@ export class VideosService {
 
   /**
    * @param folderPaths The folders to take the videos from, all of them when empty.
-   * @param years The years, in UTC, the videos were taken in, all of them when empty.
+   * @param years The years, in UTC, the videos were taken in, and the months, as the year times 100 plus the month,
+   * such as 201903, see `monthValue`: those taken in one of either; all of them when empty.
    * @param locationIds The locations the videos were taken in, any of them; with neither these nor `unknownLocation`,
    * the videos taken anywhere, and those in no location.
    * @param unknownLocation Whether the videos in no location are taken too: those with no GPS, not geocoded yet, or
@@ -189,8 +191,14 @@ function videoFilterParams(
     params = params.append('folder', folderPath);
   }
 
-  for (const year of years) {
+  const dates = splitDates(years);
+
+  for (const year of dates.years) {
     params = params.append('year', year);
+  }
+
+  for (const month of dates.months) {
+    params = params.append('month', month);
   }
 
   for (const locationId of locationIds) {

@@ -305,7 +305,7 @@ describe('GalleryComponent', () => {
       // the view is not a filter, so it stays
       expect(request.request.params.get('allFolders')).toBe('true');
       expect(request.request.params.get('skip')).toBe('0');
-      expect(component.yearFilter.selected()).toEqual([2016, 2019]);
+      expect(component.yearFilter.picked()).toEqual([2016, 2019]);
       expect(toggle().querySelector('.filters-count')).toBeNull();
       expect((fixture.nativeElement as HTMLElement).querySelector('.filters-reset')).toBeNull();
     });
@@ -322,7 +322,7 @@ describe('GalleryComponent', () => {
       flushYears();
 
       expect(component.sourceFilter.selected()).toEqual([1, 2]);
-      expect(component.yearFilter.selected()).toEqual([2016, 2019]);
+      expect(component.yearFilter.picked()).toEqual([2016, 2019]);
       expect(component.categoryFilter.selected()).toEqual([1, 2, 0]);
       expect(component.gpsFilter.selected()).toEqual([1, 0]);
       expect(request.request.params.getAll('source')).toBeNull();
@@ -420,6 +420,17 @@ describe('GalleryComponent', () => {
       expect(request.request.params.getAll('source')).toEqual(['2']);
       expect(request.request.params.getAll('year')).toEqual(['2019']);
       expect(request.request.params.get('skip')).toBe('0');
+    });
+
+    it('should ask for the photos of the months picked, apart from the years', () => {
+      photosRequests();
+      flushYears();
+
+      component.filterUpdated(component.yearFilter, [2016, 201903, 201904]);
+
+      const [request] = photosRequests();
+      expect(request.request.params.getAll('year')).toEqual(['2016']);
+      expect(request.request.params.getAll('month')).toEqual(['201903', '201904']);
     });
 
     it('should not ask for photos when no source is selected', () => {
@@ -791,6 +802,7 @@ describe('GalleryComponent', () => {
         ],
         folders: [{value: 'disk:/Trips/Rome', count: 5}],
         years: [{value: 2019, count: 5}],
+        months: [],
         categories: [{value: PhotoCategory.Other, count: 5}],
         gps: [{value: true, count: 5}],
         tags: [],
@@ -883,7 +895,12 @@ describe('GalleryComponent', () => {
         component.selectView('duplicates');
 
         expect(facetsRequests()).toHaveLength(0);
-        expect(component.yearFilter.options().map((option) => option.value)).toEqual([2016, 2019]);
+        expect(
+          component.yearFilter
+            .options()
+            .filter((option) => option.parent === undefined)
+            .map((option) => option.value),
+        ).toEqual([2016, 2019]);
       });
     });
 

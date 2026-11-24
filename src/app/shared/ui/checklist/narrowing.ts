@@ -27,8 +27,21 @@ export interface Narrowing<T> {
  * picked, but not all of them, and the groups below it then list only the options within those picked. A group that
  * picks them all, or none of them, leaves the groups below as they are, so that clearing the postcodes, say, does not
  * leave the photos with none. The options of no group are not narrowed, and do not narrow.
+ *
+ * Options listed as a tree, such as the months under their years, are not narrowed: an option with others under it is
+ * picked in effect when all of those are, and stands for them, otherwise those of them picked are.
  */
 export function narrow<T>(options: readonly MultiselectOption<T>[], selected: readonly T[]): Narrowing<T> {
+  if (isTree(options)) {
+    return {
+      nested: false,
+      shown: new Set(options.map((option) => option.value)),
+      narrowed: false,
+      picked: pickedInTree(options, selected),
+      candidates: options,
+    };
+  }
+
   const ungrouped = options.filter((option) => option.group === undefined);
   const nested = options.some((option) => option.within !== undefined);
 
@@ -95,6 +108,14 @@ export function pickForNarrowing<T>(options: readonly MultiselectOption<T>[], pi
   const inOrder = (values: ReadonlySet<T>) => options.filter((option) => values.has(option.value)).map((option) => option.value);
   const requested = inOrder(new Set(picked));
 
+  if (isTree(options)) {
+    // an option picked takes those under it along
+    const wanted = new Set(picked);
+    options.filter((option) => option.parent !== undefined && wanted.has(option.parent)).forEach((option) => wanted.add(option.value));
+
+    return withParents(options, inOrder(wanted));
+  }
+
   if (!options.some((option) => option.within !== undefined)) {
     return requested;
   }
@@ -126,4 +147,67 @@ function groupsOf<T>(options: readonly MultiselectOption<T>[]): MultiselectOptio
   }
 
   return [...byName.values()];
+}
+
+/** Whether the options are listed as a tree: some of them are listed under another one, see `MultiselectOption.parent`. */
+export function isTree<T>(options: readonly MultiselectOption<T>[]): boolean {
+  return options.some((option) => option.parent !== undefined);
+}
+
+/** The options listed under each option of the tree, by its value; an option with none listed under it is left out. */
+export function childrenOf<T>(options: readonly MultiselectOption<T>[]): ReadonlyMap<T, MultiselectOption<T>[]> {
+  const values = new Set(options.map((option) => option.value));
+  const children = new Map<T, MultiselectOption<T>[]>();
+
+  for (const option of options) {
+    // one whose parent is not among the options stands at the top
+    if (option.parent !== undefined && values.has(option.parent)) {
+      children.set(option.parent, [...(children.get(option.parent) ?? []), option]);
+    }
+  }
+
+  return children;
+}
+
+/**
+ * The values given, with an option that has others under it picked when all of those are, and not otherwise, so that
+ * it stands for them all; in the order of the options.
+ */
+export function withParents<T>(options: readonly MultiselectOption<T>[], values: readonly T[]): T[] {
+  const children = childrenOf(options);
+  const picked = new Set(values);
+
+  return options
+    .filter((option) => {
+      const under = children.get(option.value);
+
+      return under === undefined ? picked.has(option.value) : under.every((child) => picked.has(child.value));
+    })
+    .map((option) => option.value);
+}
+
+/**
+ * What is picked in effect of a tree: an option with others under it when all of those are picked, which takes them
+ * all, otherwise those of them picked; an option with none under it when it is picked.
+ */
+function pickedInTree<T>(options: readonly MultiselectOption<T>[], selected: readonly T[]): T[] {
+  const children = childrenOf(options);
+  const values = new Set(options.map((option) => option.value));
+
+  return options.flatMap((option) => {
+    if (option.parent !== undefined && values.has(option.parent)) {
+      // taken along with its parent
+      return [];
+    }
+
+    const under = children.get(option.value);
+
+    if (under === undefined) {
+      return selected.includes(option.value) ? [option.value] : [];
+    }
+
+    const picked = under.filter((child) => selected.includes(child.value)).map((child) => child.value);
+
+    return picked.length === under.length ? [option.value] : picked;
+  });
 }

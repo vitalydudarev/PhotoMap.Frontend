@@ -323,4 +323,61 @@ describe('ChecklistComponent', () => {
 
     expect(element().classList).not.toContain('checklist--fill');
   });
+
+  describe('as a tree', () => {
+    const toggles = () => [...element().querySelectorAll<HTMLButtonElement>('.tree-toggle')];
+
+    beforeEach(() => {
+      fixture.componentRef.setInput('label', 'Years');
+      fixture.componentRef.setInput('options', [
+        {value: 2016, label: '2016'},
+        {value: 201603, label: 'March', parent: 2016},
+        {value: 201607, label: 'July', parent: 2016},
+        {value: 2019, label: '2019'},
+        {value: 201905, label: 'May', parent: 2019},
+      ]);
+      fixture.componentRef.setInput('value', [2016, 201603, 201607, 2019, 201905]);
+      fixture.detectChanges();
+    });
+
+    it('should fold the options under each one away until its chevron unfolds them', () => {
+      expect(names().map((name) => name.textContent?.trim())).toEqual(['2016', '2019']);
+
+      click(toggles()[0]);
+
+      expect(toggles()[0].getAttribute('aria-expanded')).toBe('true');
+      expect(names().map((name) => name.textContent?.trim())).toEqual(['2016', 'March', 'July', '2019']);
+    });
+
+    it('should clear an option along with those under it, and pick it back with them', () => {
+      click(checkboxes()[1]);
+
+      expect(component.value()).toEqual([2019, 201905]);
+
+      click(checkboxes()[1]);
+
+      expect(component.value()).toEqual([2016, 201603, 201607, 2019, 201905]);
+    });
+
+    it('should half check an option some of whose options under it are picked, and say which one is', () => {
+      click(toggles()[0]);
+      // All, 2016, March, July, 2019
+      click(checkboxes()[2]);
+
+      expect(component.value()).toEqual([201607, 2019, 201905]);
+      expect(checkboxes()[1].checked).toBe(false);
+      expect(checkboxes()[1].indeterminate).toBe(true);
+
+      click(checkboxes()[4]);
+
+      expect(heading().textContent).toContain('July 2016');
+    });
+
+    it('should pick an option alone, with those under it, on a click on its name', () => {
+      click(names()[1]);
+
+      expect(component.value()).toEqual([2019, 201905]);
+      expect(heading().textContent).toContain('2019');
+    });
+  });
 });

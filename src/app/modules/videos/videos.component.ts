@@ -22,7 +22,8 @@ import {VideosService} from '../../core/services/videos.service';
 import {IconComponent} from '../../shared/ui/icon/icon.component';
 import {LazySrcDirective} from '../../shared/ui/lazy-src/lazy-src.directive';
 import {FilterPanelComponent, FilterPanelItem} from '../shared/filter-panel/filter-panel.component';
-import {GalleryFilter, takenIn} from '../shared/filter-panel/gallery-filter';
+import {splitDates} from 'src/app/core/models/photo-month.model';
+import {GalleryFilter, dateCounts, dateOptions, takenIn} from '../shared/filter-panel/gallery-filter';
 import {UNKNOWN_LOCATION, locationOptions} from '../shared/filter-panel/location-options';
 import {UNTAGGED, tagOptions} from '../shared/filter-panel/tag-options';
 import {PhotoTagEditorComponent} from '../shared/photo-tag-editor/photo-tag-editor.component';
@@ -39,6 +40,7 @@ const PAGE_SIZE_PARAM = 'pageSize';
 const SORT_PARAM = 'sort';
 const FOLDER_PARAM = 'folder';
 const YEAR_PARAM = 'year';
+const MONTH_PARAM = 'month';
 const LOCATION_PARAM = 'location';
 const TAG_PARAM = 'tag';
 const DUPLICATES_PARAM = 'duplicates';
@@ -282,6 +284,14 @@ export class VideosComponent implements OnInit {
 
   constructor() {
     effect(() => writeWidthPreference(this.selectedWidth()));
+
+    // the copies are narrowed down by the years and the months alone, so those of the copies are listed, with how many
+    // groups each takes; all of them until the copies load
+    effect(() => {
+      if (this.showDuplicates()) {
+        this.narrowDatesToDuplicates(this.duplicateGroups());
+      }
+    });
   }
 
   ngOnInit(): void {
@@ -303,7 +313,7 @@ export class VideosComponent implements OnInit {
     }
 
     this.folderFilter.request(params.getAll(FOLDER_PARAM));
-    this.yearFilter.request(params.getAll(YEAR_PARAM));
+    this.yearFilter.request([...params.getAll(YEAR_PARAM), ...params.getAll(MONTH_PARAM)]);
     this.locationFilter.request(params.getAll(LOCATION_PARAM));
     this.tagFilter.request(params.getAll(TAG_PARAM));
     this.showDuplicates.set(params.get(DUPLICATES_PARAM) === 'true');
@@ -696,7 +706,7 @@ export class VideosComponent implements OnInit {
       .subscribe({
         next: (years) => {
           // the address asked for a year there is no video of, so the videos shown are not the ones now selected
-          if (this.yearFilter.setOptions(years.map((year) => ({value: year, label: year.toString()})))) {
+          if (this.yearFilter.setOptions(dateOptions(years))) {
             this.pageIndex = 0;
             this.addQueryString();
 
@@ -855,8 +865,14 @@ export class VideosComponent implements OnInit {
       params = params.append(FOLDER_PARAM, folderPath);
     }
 
-    for (const year of this.yearFilter.values()) {
+    const dates = splitDates(this.yearFilter.values());
+
+    for (const year of dates.years) {
       params = params.append(YEAR_PARAM, year.toString());
+    }
+
+    for (const month of dates.months) {
+      params = params.append(MONTH_PARAM, month.toString());
     }
 
     for (const location of this.locationFilter.values()) {
@@ -882,13 +898,16 @@ export class VideosComponent implements OnInit {
     if (this.showDuplicates()) {
       this.loadDuplicates();
 
-      // the copies are narrowed down by the years alone, as they are listed, so every year is listed for them
+      // the copies are narrowed down by the years alone, as they are listed, so every option is listed for them, but
+      // the years and the months, narrowed down to those of the copies as they load, see the constructor
       this.facetsRequest?.unsubscribe();
       this.facetsFilter = null;
 
-      for (const filter of this.videoFilters()) {
+      for (const filter of this.videoFilters().filter((filter) => filter !== this.yearFilter)) {
         filter.narrowTo(null);
       }
+
+      this.narrowDatesToDuplicates(this.duplicateGroups());
     } else {
       this.loadVideos();
     }
@@ -915,6 +934,16 @@ export class VideosComponent implements OnInit {
           this.toastService.error('Could not load the duplicate videos.', error);
         },
       });
+  }
+
+  /**
+   * Lists only the years and the months the copies were taken in, with how many groups each takes, as they are narrowed
+   * down by them alone; all of them while there are no copies, such as until they load.
+   */
+  private narrowDatesToDuplicates(groups: readonly VideoDuplicateGroup[]): void {
+    this.yearFilter.narrowTo(
+      groups.length > 0 ? dateCounts(groups.map((group) => group.videos.map((video) => video.dateTimeTaken))) : null,
+    );
   }
 
   /**
@@ -957,7 +986,7 @@ export class VideosComponent implements OnInit {
       .subscribe({
         next: (facets) => {
           this.folderFilter.narrowTo(facetCounts(facets.folders));
-          this.yearFilter.narrowTo(facetCounts(facets.years));
+          this.yearFilter.narrowTo([...facetCounts(facets.years), ...facetCounts(facets.months)]);
           this.locationFilter.narrowTo([...facetCounts(facets.locations), [UNKNOWN_LOCATION, facets.unknownLocationCount]]);
           this.tagFilter.narrowTo([...facetCounts(facets.tags), [UNTAGGED, facets.untaggedCount]]);
         },

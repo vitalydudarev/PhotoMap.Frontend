@@ -17,7 +17,8 @@ import {ToastService} from '../../core/services/toast.service';
 import {UserPhotosService} from '../../core/services/user-photos.service';
 import {CATEGORY_OPTIONS} from '../shared/filter-panel/category-options';
 import {FilterPanelComponent, FilterPanelItem} from '../shared/filter-panel/filter-panel.component';
-import {GalleryFilter} from '../shared/filter-panel/gallery-filter';
+import {splitDates} from 'src/app/core/models/photo-month.model';
+import {GalleryFilter, dateOptions} from '../shared/filter-panel/gallery-filter';
 import {UNKNOWN_LOCATION, locationOptions} from '../shared/filter-panel/location-options';
 import {UNTAGGED, tagOptions} from '../shared/filter-panel/tag-options';
 import {PhotosMapViewComponent} from '../shared/photos-map-view/photos-map-view.component';
@@ -26,6 +27,7 @@ import {sidebarOpen} from '../shared/sidebar-page/sidebar-open';
 const SOURCE_PARAM = 'source';
 const FOLDER_PARAM = 'folder';
 const YEAR_PARAM = 'year';
+const MONTH_PARAM = 'month';
 const CATEGORY_PARAM = 'category';
 const TAG_PARAM = 'tag';
 const LOCATION_PARAM = 'location';
@@ -97,7 +99,7 @@ export class MapComponent implements OnInit {
   readonly galleryQueryParams = computed<Params>(() => {
     const sourceIds = this.sourceFilter.values();
     const folderPaths = this.folderFilter.values();
-    const years = this.yearFilter.values();
+    const {years, months} = splitDates(this.yearFilter.values());
     const categories = this.categoryFilter.values();
     const tags = this.tagFilter.values();
     const locations = this.locationFilter.values();
@@ -106,6 +108,7 @@ export class MapComponent implements OnInit {
       ...(sourceIds.length > 0 ? {[SOURCE_PARAM]: sourceIds.map(String)} : {}),
       ...(folderPaths.length > 0 ? {[FOLDER_PARAM]: [...folderPaths]} : {}),
       ...(years.length > 0 ? {[YEAR_PARAM]: years.map(String)} : {}),
+      ...(months.length > 0 ? {[MONTH_PARAM]: months.map(String)} : {}),
       ...(categories.length > 0 ? {[CATEGORY_PARAM]: categories.map(String)} : {}),
       ...(tags.length > 0 ? {[TAG_PARAM]: tags.map(String)} : {}),
       ...(locations.length > 0 ? {[LOCATION_PARAM]: locations.map(String)} : {}),
@@ -141,7 +144,7 @@ export class MapComponent implements OnInit {
 
     this.sourceFilter.request(params.getAll(SOURCE_PARAM));
     this.folderFilter.request(params.getAll(FOLDER_PARAM));
-    this.yearFilter.request(params.getAll(YEAR_PARAM));
+    this.yearFilter.request([...params.getAll(YEAR_PARAM), ...params.getAll(MONTH_PARAM)]);
     this.categoryFilter.request(params.getAll(CATEGORY_PARAM));
     this.tagFilter.request(params.getAll(TAG_PARAM));
     this.locationFilter.request(params.getAll(LOCATION_PARAM));
@@ -231,7 +234,7 @@ export class MapComponent implements OnInit {
         next: (facets) => {
           this.sourceFilter.narrowTo(facetCounts(facets.photoSources));
           this.folderFilter.narrowTo(facetCounts(facets.folders));
-          this.yearFilter.narrowTo(facetCounts(facets.years));
+          this.yearFilter.narrowTo([...facetCounts(facets.years), ...facetCounts(facets.months)]);
           this.categoryFilter.narrowTo(facetCounts(facets.categories));
           this.tagFilter.narrowTo([...facetCounts(facets.tags), [UNTAGGED, facets.untaggedCount]]);
           this.locationFilter.narrowTo([...facetCounts(facets.locations), [UNKNOWN_LOCATION, facets.unknownLocationCount]]);
@@ -251,7 +254,7 @@ export class MapComponent implements OnInit {
       ...MAP_PHOTOS,
       sourceIds: this.sourceFilter.values(),
       folderPaths: this.folderFilter.values(),
-      years: this.yearFilter.values(),
+      ...splitDates(this.yearFilter.values()),
       categories: this.categoryFilter.values() as PhotoCategory[],
       tagIds: this.tagFilter.values().filter((tag) => tag !== UNTAGGED),
       untagged: this.tagFilter.values().includes(UNTAGGED),
@@ -314,7 +317,7 @@ export class MapComponent implements OnInit {
       .subscribe({
         next: (years) => {
           // the address asked for a year there is no photo of, so the photos shown are not the ones now selected
-          if (this.yearFilter.setOptions(years.map((year) => ({value: year, label: year.toString()})))) {
+          if (this.yearFilter.setOptions(dateOptions(years))) {
             this.addQueryString();
             this.loadPhotos();
           }
@@ -380,8 +383,14 @@ export class MapComponent implements OnInit {
       params = params.append(FOLDER_PARAM, folderPath);
     }
 
-    for (const year of this.yearFilter.values()) {
+    const dates = splitDates(this.yearFilter.values());
+
+    for (const year of dates.years) {
       params = params.append(YEAR_PARAM, year.toString());
+    }
+
+    for (const month of dates.months) {
+      params = params.append(MONTH_PARAM, month.toString());
     }
 
     for (const category of this.categoryFilter.values()) {

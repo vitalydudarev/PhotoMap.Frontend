@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 
-import {GalleryFilter} from './gallery-filter';
+import {GalleryFilter, dateCounts, dateOptions, takenIn} from './gallery-filter';
 
 describe('GalleryFilter', () => {
   const options = [
@@ -269,6 +269,69 @@ describe('GalleryFilter', () => {
 
       expect(filter.setOptions(years)).toBe(false);
       expect(filter.values()).toEqual([2016]);
+    });
+  });
+
+  describe('of the years and their months', () => {
+    const months = (year: number) => Array.from({length: 12}, (_, index) => year * 100 + index + 1);
+
+    it('should list each year with its months under it', () => {
+      const options = dateOptions([2019]);
+
+      expect(options.map((option) => option.value)).toEqual([2019, ...months(2019)]);
+      expect(options[3]).toEqual({value: 201903, label: expect.any(String), parent: 2019});
+    });
+
+    it('should ask for a year whose months are all picked, and for the months picked of the others', () => {
+      const filter = new GalleryFilter();
+      filter.setOptions(dateOptions([2016, 2019]));
+
+      filter.pick([...months(2016).slice(2, 4)]);
+
+      expect(filter.values()).toEqual([201603, 201604]);
+
+      filter.pick([2019]);
+
+      expect(filter.values()).toEqual([2019]);
+    });
+
+    it('should pick the years and the months the address asked for', () => {
+      const filter = new GalleryFilter();
+      filter.request(['2016', '201905']);
+      filter.setOptions(dateOptions([2016, 2019]));
+
+      expect(filter.values()).toEqual([2016, 201905]);
+    });
+
+    it('should keep the months not listed as they were, but clear those of a year cleared with none of its months listed', () => {
+      const filter = new GalleryFilter();
+      filter.setOptions(dateOptions([2016, 2019]));
+      // only March 2016 and the whole of 2019 take some photo along with the other filters
+      filter.narrowTo([
+        [2016, 1],
+        [201603, 1],
+        [2019, 2],
+      ]);
+
+      filter.pick([2016, 201603]);
+
+      expect(filter.values()).toEqual([2016]);
+    });
+
+    it('should tell whether a photo was taken in one of the years or the months', () => {
+      expect(takenIn('2019-05-01T10:00:00Z', [])).toBe(true);
+      expect(takenIn('2019-05-01T10:00:00Z', [2019])).toBe(true);
+      expect(takenIn('2019-05-01T10:00:00Z', [201905])).toBe(true);
+      expect(takenIn('2019-05-01T10:00:00Z', [2016, 201906])).toBe(false);
+    });
+
+    it('should count each item once for each year and month any of its dates is in', () => {
+      expect(dateCounts([['2019-05-01T10:00:00Z', '2019-05-20T10:00:00Z'], ['2016-03-01T10:00:00Z']])).toEqual([
+        [2019, 1],
+        [201905, 1],
+        [2016, 1],
+        [201603, 1],
+      ]);
     });
   });
 });

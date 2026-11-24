@@ -17,6 +17,11 @@ export interface MultiselectOption<T> {
    * see `narrow`.
    */
   within?: readonly T[];
+  /**
+   * The option it is listed under, as in a tree, such as the year of a month; none for one at the top. The checklist
+   * folds it away under that option, whose checkbox picks or clears it along with the others under it, see `narrow`.
+   */
+  parent?: T;
 }
 
 /**

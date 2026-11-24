@@ -7,8 +7,13 @@ import {PhotoCategory} from './photo-category.model';
  */
 export interface PhotoFilter {
   sourceIds: readonly number[];
-  /** The years, in UTC, the photos were taken in. */
+  /** The years, in UTC, the photos were taken in; with the months, those taken in one of either are taken. */
   years: readonly number[];
+  /**
+   * The months, in UTC, the photos were taken in, as the year times 100 plus the month, such as 201903 for March 2019;
+   * with the years, those taken in one of either are taken.
+   */
+  months?: readonly number[];
   /** The categories the photos are in, any of them. */
   categories: readonly PhotoCategory[];
   /** Whether the photos have a GPS location; the photos with and without one when not given. */

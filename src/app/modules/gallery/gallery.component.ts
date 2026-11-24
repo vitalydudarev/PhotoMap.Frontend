@@ -20,7 +20,7 @@ import {PhotoCategory} from 'src/app/core/models/photo-category.model';
 import {MapArea, formatMapArea, parseMapArea} from 'src/app/core/models/map-area.model';
 import {facetCounts} from 'src/app/core/models/facets.model';
 import {PhotoFilter} from 'src/app/core/models/photo-filter.model';
-import {PhotoMonth, photoMonthKey} from 'src/app/core/models/photo-month.model';
+import {PhotoMonth, photoMonthKey, splitDates} from 'src/app/core/models/photo-month.model';
 import {PhotoSortOrder} from 'src/app/core/models/photo-sort-order.model';
 import {PhotoTag, PhotoTags} from 'src/app/core/models/photo-tag.model';
 import {Photo, PhotoDuplicateGroup} from 'src/app/core/models/photo.model';
@@ -41,7 +41,7 @@ import {isNarrowScreen, sidebarOpen} from '../shared/sidebar-page/sidebar-open';
 import {DeleteCopiesDialogComponent} from './delete-copies-dialog/delete-copies-dialog.component';
 import {CATEGORY_OPTIONS} from '../shared/filter-panel/category-options';
 import {FilterPanelComponent, FilterPanelItem} from '../shared/filter-panel/filter-panel.component';
-import {GalleryFilter, takenIn} from '../shared/filter-panel/gallery-filter';
+import {GalleryFilter, dateCounts, dateOptions, takenIn} from '../shared/filter-panel/gallery-filter';
 import {UNKNOWN_LOCATION, locationOptions} from '../shared/filter-panel/location-options';
 import {UNTAGGED, tagOptions} from '../shared/filter-panel/tag-options';
 import {GalleryTimelineComponent} from './gallery-timeline/gallery-timeline.component';
@@ -313,6 +313,7 @@ export class GalleryComponent implements OnInit {
   private sortConst = 'sort';
   private sourceConst = 'source';
   private yearConst = 'year';
+  private monthConst = 'month';
   private categoryConst = 'category';
   private gpsConst = 'gps';
   private tagConst = 'tag';
@@ -341,6 +342,14 @@ export class GalleryComponent implements OnInit {
     effect(() => {
       if (this.showDuplicates() || this.selectedViewMode() !== 'thumb') {
         this.selecting.set(false);
+      }
+    });
+
+    // the copies are narrowed down by the years and the months alone, so those of the copies are listed, with how many
+    // groups each takes; all of them until the copies load
+    effect(() => {
+      if (this.showDuplicates()) {
+        this.narrowDatesToDuplicates(this.duplicateGroups());
       }
     });
 
@@ -387,7 +396,7 @@ export class GalleryComponent implements OnInit {
         }
 
         this.sourceFilter.request(params[this.sourceConst]);
-        this.yearFilter.request(params[this.yearConst]);
+        this.yearFilter.request(([] as string[]).concat(params[this.yearConst] ?? [], params[this.monthConst] ?? []));
         this.categoryFilter.request(params[this.categoryConst]);
         this.gpsFilter.request(params[this.gpsConst]);
         this.tagFilter.request(params[this.tagConst]);
@@ -761,11 +770,7 @@ export class GalleryComponent implements OnInit {
       .getUserPhotoYears(this.userId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (years) =>
-          this.setFilterOptions(
-            this.yearFilter,
-            years.map((year) => ({value: year, label: year.toString()})),
-          ),
+        next: (years) => this.setFilterOptions(this.yearFilter, dateOptions(years)),
         error: (error) => {
           this.yearFilter.setOptions([]);
           this.toastService.error('Could not load the years to filter the photos by.', error);
@@ -867,8 +872,14 @@ export class GalleryComponent implements OnInit {
       params = params.append(this.sourceConst, sourceId.toString());
     }
 
-    for (const year of this.yearFilter.values()) {
+    const dates = splitDates(this.yearFilter.values());
+
+    for (const year of dates.years) {
       params = params.append(this.yearConst, year.toString());
+    }
+
+    for (const month of dates.months) {
+      params = params.append(this.monthConst, month.toString());
     }
 
     for (const category of this.categoryFilter.values()) {
@@ -991,6 +1002,16 @@ export class GalleryComponent implements OnInit {
   }
 
   /**
+   * Lists only the years and the months the copies were taken in, with how many groups each takes, as they are narrowed
+   * down by them alone; all of them while there are no copies, such as until they load.
+   */
+  private narrowDatesToDuplicates(groups: readonly PhotoDuplicateGroup[]): void {
+    this.yearFilter.narrowTo(
+      groups.length > 0 ? dateCounts(groups.map((group) => group.photos.map((photo) => photo.dateTimeTaken))) : null,
+    );
+  }
+
+  /**
    * Lists only the options of each filter that take some photo along with the other filters, such as the years of the
    * photos in the folders picked; see `GalleryFilter.narrowTo`. The copies are narrowed down by the years alone, as
    * they are listed, so every option is listed for them.
@@ -1010,9 +1031,12 @@ export class GalleryComponent implements OnInit {
     this.facetsRequest?.unsubscribe();
 
     if (this.showDuplicates()) {
-      for (const narrowed of this.narrowedFilters()) {
+      // the years and the months are narrowed down to those of the copies as they load, see the constructor
+      for (const narrowed of this.narrowedFilters().filter((narrowed) => narrowed !== this.yearFilter)) {
         narrowed.narrowTo(null);
       }
+
+      this.narrowDatesToDuplicates(this.duplicateGroups());
 
       return;
     }
@@ -1024,7 +1048,7 @@ export class GalleryComponent implements OnInit {
         next: (facets) => {
           this.sourceFilter.narrowTo(facetCounts(facets.photoSources));
           this.folderFilter.narrowTo(facetCounts(facets.folders));
-          this.yearFilter.narrowTo(facetCounts(facets.years));
+          this.yearFilter.narrowTo([...facetCounts(facets.years), ...facetCounts(facets.months)]);
           this.categoryFilter.narrowTo(facetCounts(facets.categories));
           // the photos with no GPS location are not on the map, so they are not listed there either
           this.gpsFilter.narrowTo(
@@ -1066,7 +1090,7 @@ export class GalleryComponent implements OnInit {
   private photoFilter(): PhotoFilter {
     return {
       sourceIds: this.sourceFilter.values(),
-      years: this.yearFilter.values(),
+      ...splitDates(this.yearFilter.values()),
       categories: this.showDeleted() ? [PhotoCategory.Deleted] : (this.categoryFilter.values() as PhotoCategory[]),
       hasGps: this.hasGps(),
       allFolders: this.showDeleted() || this.allFolders(),

@@ -3,7 +3,7 @@ import {ChangeDetectionStrategy, Component, computed, input, model, signal} from
 
 import {IconComponent} from '../icon/icon.component';
 import {MultiselectOption} from '../multiselect/multiselect.component';
-import {narrow} from './narrowing';
+import {childrenOf, isTree, narrow, withParents} from './narrowing';
 
 let nextId = 0;
 
@@ -44,6 +44,10 @@ interface ShownGroup<T> {
  * what is picked of the groups above, so that Rome can be picked among the cities of Italy; the options of no group
  * are cleared, as they are not narrowed down.
  *
+ * Options listed as a tree, such as the months under their years, are folded away under the option they are listed
+ * under, which a chevron unfolds. Its checkbox picks or clears them all, and is checked when all of them are picked, or
+ * half checked when some are; a click on its name picks it alone, with them.
+ *
  * Asked to fill, the list takes the height left to it, such as the rest of a sidebar, and scrolls within it.
  */
 @Component({
@@ -83,6 +87,22 @@ export class ChecklistComponent<T> {
 
   /** How the options are narrowed down by what is picked, when they are nested. */
   readonly narrowing = computed(() => narrow(this.options(), this.value()));
+
+  /** Whether the options are listed as a tree, such as the months under their years. */
+  readonly tree = computed(() => isTree(this.options()));
+
+  /** The options listed under each option of the tree, by its value. */
+  readonly children = computed(() => childrenOf(this.options()));
+
+  /** The options at the top of the tree, the others folded away under them. */
+  readonly treeOptions = computed(() => {
+    const values = new Set(this.options().map((option) => option.value));
+
+    return this.options().filter((option) => option.parent === undefined || !values.has(option.parent));
+  });
+
+  /** The options of the tree whose options are unfolded; all of them start folded away. */
+  readonly expandedOptions = signal<ReadonlySet<T>>(new Set());
 
   /** The options of no group, listed first, above the groups. */
   readonly ungroupedOptions = computed(() => this.options().filter((option) => option.group === undefined));
@@ -128,15 +148,19 @@ export class ChecklistComponent<T> {
   readonly searching = computed(() => !this.grouped() && normalize(this.query()).length > 0);
 
   /** Whether every option listed is picked: all of them, or all those the search finds. */
-  readonly allShownSelected = computed(() => this.shownOptions().every((option) => this.value().includes(option.value)));
-  readonly noneShownSelected = computed(() => !this.shownOptions().some((option) => this.value().includes(option.value)));
+  readonly allShownSelected = computed(() => this.shownOptions().every((option) => this.isSelected(option)));
+  readonly noneShownSelected = computed(() => !this.shownOptions().some((option) => this.isSelected(option)));
 
-  readonly allSelected = computed(() => this.options().every((option) => this.value().includes(option.value)));
-  readonly noneSelected = computed(() => !this.options().some((option) => this.value().includes(option.value)));
+  readonly allSelected = computed(() => this.options().every((option) => this.isSelected(option)));
+  readonly noneSelected = computed(() => !this.options().some((option) => this.isSelected(option)));
 
   /** What is picked: of all the options, or, once they are narrowed down, of those what is picked in effect is of. */
   readonly summary = computed(() => {
     const {narrowed, picked, candidates} = this.narrowing();
+
+    if (this.tree()) {
+      return this.treeSummary(picked);
+    }
 
     return narrowed
       ? summarize(
@@ -149,17 +173,45 @@ export class ChecklistComponent<T> {
         );
   });
 
+  /** Whether the option is picked; one of the tree with others under it when all of them are. */
   isSelected(option: MultiselectOption<T>): boolean {
-    return this.value().includes(option.value);
+    const children = this.children().get(option.value);
+
+    return children === undefined ? this.value().includes(option.value) : children.every((child) => this.value().includes(child.value));
+  }
+
+  /** Whether some of the options under the option are picked, but not all of them, so that its checkbox is half checked. */
+  isPartlySelected(option: MultiselectOption<T>): boolean {
+    const children = this.children().get(option.value);
+
+    return children !== undefined && !this.isSelected(option) && children.some((child) => this.value().includes(child.value));
+  }
+
+  /** Whether the options under the option of the tree are unfolded. */
+  isExpanded(option: MultiselectOption<T>): boolean {
+    return this.expandedOptions().has(option.value);
+  }
+
+  /** Folds the options under the option of the tree away, or unfolds them. */
+  toggleExpanded(option: MultiselectOption<T>): void {
+    const expanded = new Set(this.expandedOptions());
+
+    if (!expanded.delete(option.value)) {
+      expanded.add(option.value);
+    }
+
+    this.expandedOptions.set(expanded);
   }
 
   toggle(option: MultiselectOption<T>): void {
     const selected = this.isSelected(option);
+    // one of the tree takes those under it along
+    const toggled = [option, ...(this.children().get(option.value) ?? [])];
 
     // kept in the order of the options, whatever the order they are picked in
-    this.value.set(
+    this.setValue(
       this.options()
-        .filter((candidate) => (candidate === option ? !selected : this.isSelected(candidate)))
+        .filter((candidate) => (toggled.includes(candidate) ? !selected : this.value().includes(candidate.value)))
         .map((candidate) => candidate.value),
     );
   }
@@ -175,6 +227,15 @@ export class ChecklistComponent<T> {
 
     if (option.group !== undefined && this.narrowing().nested) {
       this.pickOnlyInGroup(option);
+      return;
+    }
+
+    if (this.tree()) {
+      const picked = this.narrowing().picked;
+      const onlyThis = picked.length === 1 && picked[0] === option.value;
+      const alone = [option, ...(this.children().get(option.value) ?? [])].map((candidate) => candidate.value);
+
+      this.setValue(onlyThis ? this.options().map((candidate) => candidate.value) : alone);
       return;
     }
 
@@ -212,9 +273,9 @@ export class ChecklistComponent<T> {
   toggleAll(shown: readonly MultiselectOption<T>[] = this.shownOptions()): void {
     const select = !shown.every((option) => this.isSelected(option));
 
-    this.value.set(
+    this.setValue(
       this.options()
-        .filter((option) => (shown.includes(option) ? select : this.isSelected(option)))
+        .filter((option) => (shown.includes(option) ? select : this.value().includes(option.value)))
         .map((option) => option.value),
     );
   }
@@ -232,6 +293,38 @@ export class ChecklistComponent<T> {
 
   searchGroup(name: string, query: string): void {
     this.groupQueries.set(new Map(this.groupQueries()).set(name, query));
+  }
+
+  /** Sets what is picked, with an option of the tree that has others under it picked just when all of them are. */
+  private setValue(values: readonly T[]): void {
+    this.value.set(this.tree() ? withParents(this.options(), values) : values);
+  }
+
+  /**
+   * What is picked of a tree: all, none, the one option, as the name of the option above it too, such as March 2019,
+   * how many of those at the top when only they are picked, or how many in all.
+   */
+  private treeSummary(picked: readonly T[]): string {
+    const top = this.treeOptions();
+
+    if (top.every((option) => this.isSelected(option))) {
+      return 'All';
+    }
+
+    if (picked.length === 0) {
+      return 'None';
+    }
+
+    const byValue = new Map(this.options().map((option) => [option.value, option]));
+
+    if (picked.length === 1) {
+      const option = byValue.get(picked[0]);
+      const parent = option?.parent === undefined ? undefined : byValue.get(option.parent);
+
+      return parent === undefined ? (option?.label ?? '') : `${option?.label} ${parent.label}`;
+    }
+
+    return picked.every((value) => top.includes(byValue.get(value)!)) ? `${picked.length} of ${top.length}` : `${picked.length} selected`;
   }
 }
 

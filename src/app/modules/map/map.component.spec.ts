@@ -57,6 +57,7 @@ describe('MapComponent', () => {
     photoSources: sources.map(([value, count]) => ({value, count})),
     folders: folders.map(([value, count]) => ({value, count})),
     years: years.map(([value, count]) => ({value, count})),
+    months: [],
     categories: categories.map(([value, count]) => ({value, count})),
     gps: [],
     tags: tags.map(([value, count]) => ({value, count})),
@@ -169,7 +170,7 @@ describe('MapComponent', () => {
     expect(lastLocations()).toEqual([[], false]);
     expect(mapView()?.photos()).toEqual([photo]);
     expect(component.locationFilter.selected()).toEqual([0, 3, 8]);
-    expect(component.yearFilter.selected()).toEqual([2016, 2019]);
+    expect(component.yearFilter.picked()).toEqual([2016, 2019]);
     expect(checklists()).toEqual([
       expect.stringContaining('Sources'),
       expect.stringContaining('Folders'),
@@ -398,7 +399,7 @@ describe('MapComponent', () => {
     build();
 
     expect(lastYears()).toEqual([2016]);
-    expect(component.yearFilter.selected()).toEqual([2016]);
+    expect(component.yearFilter.picked()).toEqual([2016]);
   });
 
   it('should show no photos while no year is picked', () => {

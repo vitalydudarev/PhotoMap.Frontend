@@ -128,6 +128,10 @@ function filterParams(params: HttpParams, filter: PhotoFilter): HttpParams {
     params = params.append('year', year);
   }
 
+  for (const month of filter.months ?? []) {
+    params = params.append('month', month);
+  }
+
   for (const category of filter.categories) {
     params = params.append('category', category);
   }

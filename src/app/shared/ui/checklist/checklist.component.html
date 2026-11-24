@@ -38,8 +38,38 @@
       <p class="no-match">Nothing found.</p>
     }
 
-    @for (option of grouped() ? ungroupedOptions() : shownOptions(); track option.value) {
-      <ng-container *ngTemplateOutlet="row; context: {$implicit: option}" />
+    @if (tree()) {
+      @for (option of treeOptions(); track option.value) {
+        @let under = children().get(option.value);
+        <div class="tree-row">
+          @if (under) {
+            <button
+              type="button"
+              class="tree-toggle"
+              [attr.aria-expanded]="isExpanded(option)"
+              [attr.aria-label]="(isExpanded(option) ? 'Hide the options of ' : 'Show the options of ') + option.label"
+              (click)="toggleExpanded(option)"
+            >
+              <app-icon class="group-chevron" [class.group-chevron--open]="isExpanded(option)" name="chevron-down" [size]="14" />
+            </button>
+          } @else {
+            <span class="tree-toggle" aria-hidden="true"></span>
+          }
+          <ng-container *ngTemplateOutlet="row; context: {$implicit: option}" />
+        </div>
+
+        @if (under && isExpanded(option)) {
+          <div class="tree-children" role="group" [attr.aria-label]="option.label">
+            @for (child of under; track child.value) {
+              <ng-container *ngTemplateOutlet="row; context: {$implicit: child}" />
+            }
+          </div>
+        }
+      }
+    } @else {
+      @for (option of grouped() ? ungroupedOptions() : shownOptions(); track option.value) {
+        <ng-container *ngTemplateOutlet="row; context: {$implicit: option}" />
+      }
     }
 
     @for (group of groups(); track group.name) {
@@ -99,7 +129,7 @@
        since the keyboard reaches the checkbox -->
   <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
   <label class="option" (click)="pickOnly(option, $event)">
-    <input type="checkbox" [checked]="isSelected(option)" (change)="toggle(option)" />
+    <input type="checkbox" [checked]="isSelected(option)" [indeterminate]="isPartlySelected(option)" (change)="toggle(option)" />
     <!-- a long label, such as a folder, is cut short, so the whole of it shows on hover -->
     <span class="option-label" [title]="option.hint ? option.label + ', ' + option.hint : option.label"
       >{{ option.label }}

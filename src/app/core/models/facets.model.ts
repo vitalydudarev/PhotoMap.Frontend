@@ -18,6 +18,8 @@ export interface PhotoFacets {
   folders: FacetCount<string>[];
   /** The years, in UTC. */
   years: FacetCount<number>[];
+  /** The months, in UTC, as the year times 100 plus the month, such as 201903; counted as the years are. */
+  months: FacetCount<number>[];
   /** The categories of the photos, Other for those in none; never Deleted, as the deleted photos are listed apart. */
   categories: FacetCount<PhotoCategory>[];
   /** Whether the photos have a GPS location. */
@@ -35,6 +37,8 @@ export interface PhotoFacets {
 export interface VideoFacets {
   folders: FacetCount<string>[];
   years: FacetCount<number>[];
+  /** The months, in UTC, as the year times 100 plus the month, such as 201903; counted as the years are. */
+  months: FacetCount<number>[];
   locations: FacetCount<number>[];
   /** How many of the videos are in no location. */
   unknownLocationCount: number;

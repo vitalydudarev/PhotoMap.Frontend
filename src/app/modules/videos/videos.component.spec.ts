@@ -44,7 +44,7 @@ describe('VideosComponent', () => {
     fileName: 'trip.mp4',
     folderPath: 'disk:/Videos',
     size: 1024,
-    dateTimeTaken: new Date('2024-05-01T10:00:00Z'),
+    dateTimeTaken: new Date('2019-05-01T10:00:00Z'),
   };
 
   const copy: Video = {...video, id: '7', folderPath: 'disk:/Camera Uploads'};
@@ -80,6 +80,7 @@ describe('VideosComponent', () => {
       of({
         folders: folders.map((value) => ({value, count: 1})),
         years: [2016, 2019].map((value) => ({value, count: 1})),
+        months: [],
         locations: locations.map((location) => ({value: location.id, count: 1})),
         unknownLocationCount: 1,
         tags: [],
@@ -238,6 +239,7 @@ describe('VideosComponent', () => {
         of({
           folders: [{value: 'disk:/Videos', count: 2}],
           years: [{value: 2019, count: 2}],
+          months: [],
           locations: [],
           unknownLocationCount: 2,
           tags: [],
@@ -264,6 +266,7 @@ describe('VideosComponent', () => {
             {value: 'disk:/Videos', count: 1},
           ],
           years: [{value: 2019, count: 2}],
+          months: [],
           locations: [],
           unknownLocationCount: 2,
           tags: [],
@@ -285,6 +288,7 @@ describe('VideosComponent', () => {
         of({
           folders: [{value: '/Camera Uploads', count: 1}],
           years: [{value: 2019, count: 1}],
+          months: [],
           locations: [],
           unknownLocationCount: 1,
           tags: [],
@@ -307,6 +311,7 @@ describe('VideosComponent', () => {
         of({
           folders: [{value: 'disk:/Videos', count: 7}],
           years: [{value: 2019, count: 7}],
+          months: [],
           locations: [],
           unknownLocationCount: 7,
           tags: [],
@@ -351,7 +356,7 @@ describe('VideosComponent', () => {
         expect.stringContaining('Years'),
         expect.stringContaining('Folders'),
       ]);
-      expect(component.yearFilter.selected()).toEqual([2016, 2019]);
+      expect(component.yearFilter.picked()).toEqual([2016, 2019]);
       expect(lastYears()).toEqual([]);
     });
 
@@ -373,7 +378,7 @@ describe('VideosComponent', () => {
       build();
 
       expect(lastYears()).toEqual([2016]);
-      expect(component.yearFilter.selected()).toEqual([2016]);
+      expect(component.yearFilter.picked()).toEqual([2016]);
     });
 
     it('should show no videos while no year is picked', () => {
@@ -397,7 +402,7 @@ describe('VideosComponent', () => {
       element().querySelector<HTMLButtonElement>('.filters-reset')!.click();
 
       expect(lastYears()).toEqual([]);
-      expect(component.yearFilter.selected()).toEqual([2016, 2019]);
+      expect(component.yearFilter.picked()).toEqual([2016, 2019]);
     });
   });
 
@@ -411,6 +416,7 @@ describe('VideosComponent', () => {
       of({
         folders: folders.map((value) => ({value, count: 1})),
         years: [2016, 2019].map((value) => ({value, count: 1})),
+        months: [],
         locations: [],
         unknownLocationCount: 1,
         tags: tagCounts.map(([value, count]) => ({value, count})),
@@ -938,10 +944,19 @@ describe('VideosComponent', () => {
     expect(text()).not.toContain('1.5 KB');
     expect(toggle().querySelector('.filters-count')?.textContent).toContain('1');
 
-    component.filterUpdated(component.yearFilter, [2019]);
+    // only the years and the months of the copies are listed, with how many groups each takes
+    expect(component.yearFilter.options().map((option) => [option.value, option.count])).toEqual([
+      [2016, 1],
+      [201603, 1],
+      [2019, 1],
+      [201905, 1],
+    ]);
+
+    component.filterUpdated(component.yearFilter, [201905]);
     fixture.detectChanges();
 
-    expect(text()).toContain('No duplicate videos taken in the selected years.');
+    expect(text()).toContain('2 videos in 1 groups of copies');
+    expect(text()).toContain('1.5 KB');
 
     element().querySelector<HTMLButtonElement>('.filters-reset')!.click();
     fixture.detectChanges();

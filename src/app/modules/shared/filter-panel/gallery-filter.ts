@@ -1,5 +1,6 @@
 import {computed, signal} from '@angular/core';
-import {narrow, pickForNarrowing} from 'src/app/shared/ui/checklist/narrowing';
+import {childrenOf, isTree, narrow, pickForNarrowing, withParents} from 'src/app/shared/ui/checklist/narrowing';
+import {monthValue} from 'src/app/core/models/photo-month.model';
 import {MultiselectOption} from 'src/app/shared/ui/multiselect/multiselect.component';
 
 /**
@@ -74,15 +75,19 @@ export class GalleryFilter<T extends number | string = number> {
    * Picks the values the user picked among the options listed, keeping those not listed picked, or not, as they were.
    */
   pick(values: readonly T[]): void {
+    const options = this.allOptions();
+    const tree = isTree(options);
     const listed = new Set(this.options().map((option) => option.value));
-    const picked = new Set([...values, ...this.selected().filter((value) => !listed.has(value))]);
+    // an option of a tree picked takes all those under it, those not listed too
+    const given = tree ? pickForNarrowing(options, values) : values;
+    const cleared = tree ? this.clearedInTree(values, listed) : new Set<T>();
+    const picked = new Set([...given, ...this.selected().filter((value) => !listed.has(value) && !cleared.has(value))]);
 
     // kept in the order of the options
-    this.selected.set(
-      this.allOptions()
-        .map((option) => option.value)
-        .filter((value) => picked.has(value)),
-    );
+    const selected = options.map((option) => option.value).filter((value) => picked.has(value));
+
+    // and is picked only when all of them are
+    this.selected.set(tree ? withParents(options, selected) : selected);
   }
 
   /**
@@ -124,6 +129,24 @@ export class GalleryFilter<T extends number | string = number> {
     this.selected.set(this.defaults(this.allOptions()));
   }
 
+  /**
+   * The options under those of a tree the user cleared, with none of those listed under them picked either, so that
+   * those not listed are cleared too, rather than left picked as they were and picking it back.
+   */
+  private clearedInTree(values: readonly T[], listed: ReadonlySet<T>): Set<T> {
+    const cleared = new Set<T>();
+
+    for (const [parent, children] of childrenOf(this.allOptions())) {
+      const listedChildren = children.filter((child) => listed.has(child.value));
+
+      if (listed.has(parent) && !values.includes(parent) && !listedChildren.some((child) => values.includes(child.value))) {
+        children.forEach((child) => cleared.add(child.value));
+      }
+    }
+
+    return cleared;
+  }
+
   /** The options picked until the user says otherwise. */
   private defaults(options: readonly MultiselectOption<T>[]): T[] {
     return options.map((option) => option.value).filter((value) => !this.optIn.includes(value));
@@ -136,7 +159,55 @@ function parseNumber(value: string): number | undefined {
   return isNaN(number) ? undefined : number;
 }
 
-/** Whether the photo or the video was taken, in UTC, in one of the years given; in any year when none is given. */
-export function takenIn(dateTimeTaken: Date | string, years: readonly number[]): boolean {
-  return years.length === 0 || years.includes(new Date(dateTimeTaken).getUTCFullYear());
+/**
+ * Whether the photo or the video was taken, in UTC, in one of the years or the months given, see `dateOptions`; in any
+ * year when none is given.
+ */
+export function takenIn(dateTimeTaken: Date | string, dates: readonly number[]): boolean {
+  if (dates.length === 0) {
+    return true;
+  }
+
+  const date = new Date(dateTimeTaken);
+
+  return dates.includes(date.getUTCFullYear()) || dates.includes(monthValue(date.getUTCFullYear(), date.getUTCMonth() + 1));
 }
+
+/**
+ * The options of the year filter: each year, with its months under it, as the year times 100 plus the month of the
+ * year, such as 201903 for March 2019, which is how the backend asks for a month too.
+ */
+export function dateOptions(years: readonly number[]): MultiselectOption<number>[] {
+  return years.flatMap((year) => [
+    {value: year, label: year.toString()},
+    ...MONTH_NAMES.map((label, index) => ({value: monthValue(year, index + 1), label, parent: year})),
+  ]);
+}
+
+/**
+ * How many of the items, such as the groups of copies, were taken, in UTC, in each year and each month, by the values
+ * of the year filter, see `dateOptions`: one counts once for a year or a month any of its dates is in, as `takenIn`
+ * lists it for any of them.
+ */
+export function dateCounts(items: Iterable<readonly (Date | string)[]>): [number, number][] {
+  const counts = new Map<number, number>();
+
+  for (const dates of items) {
+    const values = new Set(
+      dates.flatMap((dateTimeTaken) => {
+        const date = new Date(dateTimeTaken);
+        const year = date.getUTCFullYear();
+
+        return [year, monthValue(year, date.getUTCMonth() + 1)];
+      }),
+    );
+
+    values.forEach((value) => counts.set(value, (counts.get(value) ?? 0) + 1));
+  }
+
+  return [...counts];
+}
+
+const MONTH_NAMES = Array.from({length: 12}, (_, index) =>
+  new Intl.DateTimeFormat(undefined, {month: 'long', timeZone: 'UTC'}).format(new Date(Date.UTC(2000, index, 1))),
+);

@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 
-import {narrow, pickForNarrowing} from './narrowing';
+import {narrow, pickForNarrowing, withParents} from './narrowing';
 
 describe('narrow', () => {
   const locations = [
@@ -78,5 +78,40 @@ describe('pickForNarrowing', () => {
 
   it('should pick nothing more for the photos in no location alone', () => {
     expect(pickForNarrowing(locations, [0])).toEqual([0]);
+  });
+});
+
+describe('a tree of options', () => {
+  const dates = [
+    {value: 2016, label: '2016'},
+    {value: 201603, label: 'March', parent: 2016},
+    {value: 201607, label: 'July', parent: 2016},
+    {value: 2019, label: '2019'},
+    {value: 201905, label: 'May', parent: 2019},
+  ];
+
+  it('should take an option whose options under it are all picked, which stands for them', () => {
+    expect(narrow(dates, [2016, 201603, 201607, 201905]).picked).toEqual([2016, 2019]);
+  });
+
+  it('should take the options picked under an option when only some of them are, whether it is picked or not', () => {
+    expect(narrow(dates, [2016, 201607]).picked).toEqual([201607]);
+    expect(narrow(dates, [201603]).picked).toEqual([201603]);
+  });
+
+  it('should list every option, as a tree does not narrow', () => {
+    const narrowing = narrow(dates, [201603]);
+
+    expect(narrowing.narrowed).toBe(false);
+    expect([...narrowing.shown]).toEqual([2016, 201603, 201607, 2019, 201905]);
+  });
+
+  it('should pick the options under one asked for, along with it', () => {
+    expect(pickForNarrowing(dates, [2016, 201905])).toEqual([2016, 201603, 201607, 2019, 201905]);
+    expect(pickForNarrowing(dates, [201603])).toEqual([201603]);
+  });
+
+  it('should pick an option just when all of those under it are', () => {
+    expect(withParents(dates, [2016, 201603, 201905])).toEqual([201603, 2019, 201905]);
   });
 });

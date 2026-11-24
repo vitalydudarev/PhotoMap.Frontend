@@ -221,3 +221,47 @@
   color: var(--app-fg-subtle);
   font-size: var(--app-text-sm);
 }
+
+/* An option of a tree, such as a year, with the chevron that unfolds the options under it, such as its months. */
+.tree-row {
+  display: flex;
+  align-items: center;
+}
+
+.tree-row .option {
+  flex: 1;
+  min-width: 0;
+  padding-inline-start: 0;
+}
+
+.tree-toggle {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--app-radius-sm);
+  background: transparent;
+  color: var(--app-fg-subtle);
+  cursor: pointer;
+}
+
+button.tree-toggle:hover {
+  background: var(--app-surface-hover);
+  color: var(--app-fg-muted);
+}
+
+button.tree-toggle:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: -2px;
+}
+
+/* The options under one of the tree, lined up with its checkbox and indented from it. */
+.tree-children {
+  display: flex;
+  flex-direction: column;
+  padding-inline-start: calc(24px + var(--app-space-1));
+}
