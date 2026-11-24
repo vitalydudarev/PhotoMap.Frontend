@@ -43,6 +43,7 @@ import {CATEGORY_OPTIONS} from '../shared/filter-panel/category-options';
 import {FilterPanelComponent, FilterPanelItem} from '../shared/filter-panel/filter-panel.component';
 import {GalleryFilter, takenIn} from '../shared/filter-panel/gallery-filter';
 import {UNKNOWN_LOCATION, locationOptions} from '../shared/filter-panel/location-options';
+import {UNTAGGED, tagOptions} from '../shared/filter-panel/tag-options';
 import {GalleryTimelineComponent} from './gallery-timeline/gallery-timeline.component';
 import {PhotoDuplicatesComponent} from './photo-duplicates/photo-duplicates.component';
 
@@ -69,12 +70,6 @@ const GPS_OPTIONS: readonly MultiselectOption<number>[] = [
   {value: WITH_GPS, label: 'With GPS'},
   {value: WITHOUT_GPS, label: 'Without GPS'},
 ];
-
-/**
- * The photos with no tag are an option of the tags too, so that picking every tag still leaves no photo out. The
- * IDs of the tags start at 1.
- */
-const UNTAGGED = 0;
 
 @Component({
   selector: 'app-gallery-page',
@@ -795,10 +790,7 @@ export class GalleryComponent implements OnInit {
           }
 
           // with no tag at all, there is nothing to filter by
-          this.setFilterOptions(
-            this.tagFilter,
-            tags.length === 0 ? [] : [...tags.map((tag) => ({value: tag.id, label: tag.name})), {value: UNTAGGED, label: 'Untagged'}],
-          );
+          this.setFilterOptions(this.tagFilter, tagOptions(tags));
         },
         error: (error) => {
           // the photos can still be tagged, with new tags

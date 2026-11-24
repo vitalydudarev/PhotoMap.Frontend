@@ -48,14 +48,19 @@ describe('MapComponent', () => {
       [PhotoCategory.DroneFootage, 1],
       [PhotoCategory.Other, 1],
     ],
+    tags: [number, number][] = [
+      [4, 1],
+      [9, 1],
+    ],
+    untaggedCount = 1,
   ) => ({
     photoSources: sources.map(([value, count]) => ({value, count})),
     folders: folders.map(([value, count]) => ({value, count})),
     years: years.map(([value, count]) => ({value, count})),
     categories: categories.map(([value, count]) => ({value, count})),
     gps: [],
-    tags: [],
-    untaggedCount: 0,
+    tags: tags.map(([value, count]) => ({value, count})),
+    untaggedCount,
     locations: counts.map(([value, count]) => ({value, count})),
     unknownLocationCount,
   });
@@ -144,6 +149,11 @@ describe('MapComponent', () => {
             getUserPhotoLocations: () => of(locations),
             getUserPhotoYears: () => of([2016, 2019]),
             getUserPhotoFolders: () => of(['disk:/Camera Uploads', 'disk:/Trips']),
+            getUserPhotoTags: () =>
+              of([
+                {id: 4, name: 'Family', photoCount: 3},
+                {id: 9, name: 'Paris', photoCount: 1},
+              ]),
             getUserPhotoFacets,
           },
         },
@@ -165,6 +175,7 @@ describe('MapComponent', () => {
       expect.stringContaining('Folders'),
       expect.stringContaining('Years'),
       expect.stringContaining('Category'),
+      expect.stringContaining('Tags'),
       expect.stringContaining('Location'),
     ]);
     expect(text()).toContain('1 photo');
@@ -302,6 +313,48 @@ describe('MapComponent', () => {
     expect(text()).toContain('No categories are selected');
   });
 
+  it('should narrow the photos down to the tags picked, the untagged ones apart, and open the gallery on them too', () => {
+    build();
+
+    component.filterUpdated(component.tagFilter, [9, 0]);
+    fixture.detectChanges();
+
+    expect([lastFilter().tagIds, lastFilter().untagged]).toEqual([[9], true]);
+    expect(mapView()?.galleryQueryParams()).toEqual({tag: ['9', '0']});
+  });
+
+  it('should list only the tags of the photos the other filters take, with their counts', () => {
+    build();
+    getUserPhotoFacets.mockReturnValue(
+      of(facets([[3, 4]], 0, [[2019, 4]], [['disk:/Trips', 4]], [[2, 4]], [[PhotoCategory.Other, 4]], [[9, 3]], 1)),
+    );
+
+    component.filterUpdated(component.yearFilter, [2019]);
+
+    expect(component.tagFilter.options()).toEqual([
+      {value: 9, label: 'Paris', count: 3},
+      {value: 0, label: 'Untagged', count: 1},
+    ]);
+  });
+
+  it('should take the tags the address asks for', () => {
+    queryParams = {tag: '4'};
+    build();
+
+    expect([lastFilter().tagIds, lastFilter().untagged]).toEqual([[4], false]);
+  });
+
+  it('should show no photos while no tag is picked', () => {
+    build();
+    getUserGeotaggedPhotos.mockClear();
+
+    component.filterUpdated(component.tagFilter, []);
+    fixture.detectChanges();
+
+    expect(getUserGeotaggedPhotos).not.toHaveBeenCalled();
+    expect(text()).toContain('No tags are selected');
+  });
+
   it('should take the sources the address asks for', () => {
     queryParams = {source: '1'};
     build();
@@ -400,6 +453,7 @@ describe('MapComponent', () => {
       expect.stringContaining('Folders'),
       expect.stringContaining('Years'),
       expect.stringContaining('Category'),
+      expect.stringContaining('Tags'),
     ]);
     expect(text()).toContain('once they are geocoded');
   });

@@ -68,6 +68,10 @@
       <div class="state">
         <p>No categories are selected. Pick one to see its photos.</p>
       </div>
+    } @else if (tagFilter.noneSelected()) {
+      <div class="state">
+        <p>No tags are selected. Pick one to see its photos.</p>
+      </div>
     } @else if (locationFilter.noneSelected()) {
       <div class="state">
         <p>No locations are selected. Pick one to see the photos taken there.</p>
@@ -78,6 +82,7 @@
         folderFilter.values().length > 0 ||
         yearFilter.values().length > 0 ||
         categoryFilter.values().length > 0 ||
+        tagFilter.values().length > 0 ||
         locationFilter.values().length > 0)
     ) {
       <div class="state">
