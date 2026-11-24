@@ -52,6 +52,10 @@
       <div class="state">
         <p>The photos could not be loaded.</p>
       </div>
+    } @else if (sourceFilter.noneSelected()) {
+      <div class="state">
+        <p>No photo sources are selected. Pick one to see its photos.</p>
+      </div>
     } @else if (folderFilter.noneSelected()) {
       <div class="state">
         <p>No folders are selected. Pick one to see its photos.</p>
@@ -65,7 +69,11 @@
         <p>No locations are selected. Pick one to see the photos taken there.</p>
       </div>
     } @else if (
-      photos().length === 0 && (folderFilter.values().length > 0 || yearFilter.values().length > 0 || locationFilter.values().length > 0)
+      photos().length === 0 &&
+      (sourceFilter.values().length > 0 ||
+        folderFilter.values().length > 0 ||
+        yearFilter.values().length > 0 ||
+        locationFilter.values().length > 0)
     ) {
       <div class="state">
         <p>No photos match the selected filters.</p>

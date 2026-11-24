@@ -7,6 +7,7 @@ import {Subscription} from 'rxjs';
 import {facetCounts} from 'src/app/core/models/facets.model';
 import {PhotoFilter} from 'src/app/core/models/photo-filter.model';
 import {Photo} from 'src/app/core/models/photo.model';
+import {UsersPhotoSourcesClient} from 'src/app/shared/models/photomap-backend.swagger';
 import {IconComponent} from 'src/app/shared/ui/icon/icon.component';
 import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
 
@@ -19,6 +20,7 @@ import {UNKNOWN_LOCATION, locationOptions} from '../shared/filter-panel/location
 import {PhotosMapViewComponent} from '../shared/photos-map-view/photos-map-view.component';
 import {sidebarOpen} from '../shared/sidebar-page/sidebar-open';
 
+const SOURCE_PARAM = 'source';
 const FOLDER_PARAM = 'folder';
 const YEAR_PARAM = 'year';
 const LOCATION_PARAM = 'location';
@@ -28,8 +30,8 @@ const MAP_PHOTOS: PhotoFilter = {sourceIds: [], years: [], categories: [], hasGp
 const SIDEBAR_OPEN_STORAGE_KEY = 'map-sidebar-open';
 
 /**
- * Every photo with a GPS location on a map, narrowed down to the folders, the years and the locations picked in the
- * sidebar on the left, as the gallery and the videos are. Each filter lists only the options that take some photo
+ * Every photo with a GPS location on a map, narrowed down to the sources, the folders, the years and the locations
+ * picked in the sidebar on the left, as the gallery and the videos are. Each filter lists only the options that take some photo
  * along with the others, with how many photos each takes.
  */
 @Component({
@@ -43,6 +45,9 @@ export class MapComponent implements OnInit {
   readonly photos = signal<Photo[]>([]);
   readonly loading = signal(true);
   readonly failed = signal(false);
+
+  /** The photo sources the photos come from. */
+  readonly sourceFilter = new GalleryFilter();
 
   /** The folders the photos are in, without the file names, of every folder, as the map shows them all. */
   readonly folderFilter = new GalleryFilter<string>([], (value) => value || undefined);
@@ -59,8 +64,12 @@ export class MapComponent implements OnInit {
   /** How many filters narrow the photos down, so that a filter is not forgotten with the sidebar hidden. */
   readonly activeFilterCount = computed(() => this.filters().filter((filter) => filter.active()).length);
 
-  /** The filters with options to pick from: the folders and the years, folded away, and the locations, listed open. */
+  /**
+   * The filters with options to pick from: the sources, the folders and the years, folded away, and the locations,
+   * listed open.
+   */
   readonly filterItems = computed<readonly FilterPanelItem[]>(() => [
+    ...(this.sourceFilter.options().length > 0 ? [{filter: this.sourceFilter, label: 'Sources'}] : []),
     ...(this.folderFilter.options().length > 0 ? [{filter: this.folderFilter, label: 'Folders', searchable: true}] : []),
     ...(this.yearFilter.options().length > 0 ? [{filter: this.yearFilter, label: 'Years'}] : []),
     ...(this.locationFilter.options().length > 0
@@ -69,15 +78,17 @@ export class MapComponent implements OnInit {
   ]);
 
   /**
-   * The folders, the years and the locations the gallery is opened with too, so that it shows the photos the map does;
-   * it is opened on all the photos, which the folders narrow down.
+   * The sources, the folders, the years and the locations the gallery is opened with too, so that it shows the photos
+   * the map does; it is opened on all the photos, which the folders narrow down.
    */
   readonly galleryQueryParams = computed<Params>(() => {
+    const sourceIds = this.sourceFilter.values();
     const folderPaths = this.folderFilter.values();
     const years = this.yearFilter.values();
     const locations = this.locationFilter.values();
 
     return {
+      ...(sourceIds.length > 0 ? {[SOURCE_PARAM]: sourceIds.map(String)} : {}),
       ...(folderPaths.length > 0 ? {[FOLDER_PARAM]: [...folderPaths]} : {}),
       ...(years.length > 0 ? {[YEAR_PARAM]: years.map(String)} : {}),
       ...(locations.length > 0 ? {[LOCATION_PARAM]: locations.map(String)} : {}),
@@ -98,6 +109,7 @@ export class MapComponent implements OnInit {
   private readonly location = inject(Location);
   private readonly activatedRoute = inject(ActivatedRoute);
   private readonly userPhotosService = inject(UserPhotosService);
+  private readonly usersPhotoSourcesClient = inject(UsersPhotoSourcesClient);
   private readonly toastService = inject(ToastService);
 
   private photosRequest?: Subscription;
@@ -110,11 +122,13 @@ export class MapComponent implements OnInit {
   ngOnInit(): void {
     const params = this.activatedRoute.snapshot.queryParamMap;
 
+    this.sourceFilter.request(params.getAll(SOURCE_PARAM));
     this.folderFilter.request(params.getAll(FOLDER_PARAM));
     this.yearFilter.request(params.getAll(YEAR_PARAM));
     this.locationFilter.request(params.getAll(LOCATION_PARAM));
 
     this.loadPhotos();
+    this.loadSources();
     this.loadFolders();
     this.loadYears();
     this.loadLocations();
@@ -127,7 +141,7 @@ export class MapComponent implements OnInit {
     this.loadPhotos();
   }
 
-  /** Shows the photos of every folder, every year and every location again. */
+  /** Shows the photos of every source, every folder, every year and every location again. */
   resetFilters(): void {
     for (const filter of this.filters()) {
       filter.reset();
@@ -192,6 +206,7 @@ export class MapComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (facets) => {
+          this.sourceFilter.narrowTo(facetCounts(facets.photoSources));
           this.folderFilter.narrowTo(facetCounts(facets.folders));
           this.yearFilter.narrowTo(facetCounts(facets.years));
           this.locationFilter.narrowTo([...facetCounts(facets.locations), [UNKNOWN_LOCATION, facets.unknownLocationCount]]);
@@ -209,6 +224,7 @@ export class MapComponent implements OnInit {
 
     return {
       ...MAP_PHOTOS,
+      sourceIds: this.sourceFilter.values(),
       folderPaths: this.folderFilter.values(),
       years: this.yearFilter.values(),
       locationIds: locations.filter((location) => location !== UNKNOWN_LOCATION),
@@ -217,7 +233,29 @@ export class MapComponent implements OnInit {
   }
 
   private filters(): readonly GalleryFilter<number | string>[] {
-    return [this.folderFilter, this.yearFilter, this.locationFilter];
+    return [this.sourceFilter, this.folderFilter, this.yearFilter, this.locationFilter];
+  }
+
+  /** The photo sources of the user, by name. */
+  private loadSources(): void {
+    this.usersPhotoSourcesClient
+      .getUserPhotoSources(this.userId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (sources) => {
+          const options = sources
+            .filter((source) => source.photoSourceId !== undefined)
+            .map((source) => ({value: source.photoSourceId!, label: source.photoSourceName ?? `Source ${source.photoSourceId}`}));
+
+          // the address asked for a source there is no photo from, so the photos shown are not the ones now selected
+          if (this.sourceFilter.setOptions(options)) {
+            this.addQueryString();
+            this.loadPhotos();
+          }
+        },
+        // the header already reports that the sources could not be loaded; the photos are just not filtered by them
+        error: () => this.sourceFilter.setOptions([]),
+      });
   }
 
   /** The folders the photos are in, by name, without the name of the disk. */
@@ -285,6 +323,10 @@ export class MapComponent implements OnInit {
 
   private addQueryString(): void {
     let params = new HttpParams();
+
+    for (const sourceId of this.sourceFilter.values()) {
+      params = params.append(SOURCE_PARAM, sourceId.toString());
+    }
 
     for (const folderPath of this.folderFilter.values()) {
       params = params.append(FOLDER_PARAM, folderPath);

@@ -8,6 +8,7 @@ import {PhotoFilter} from '../../core/models/photo-filter.model';
 import {PhotoLocation} from '../../core/models/photo-location.model';
 import {Photo} from '../../core/models/photo.model';
 import {UserPhotosService} from '../../core/services/user-photos.service';
+import {UsersPhotoSourcesClient} from '../../shared/models/photomap-backend.swagger';
 import {FilterPanelComponent} from '../shared/filter-panel/filter-panel.component';
 import {IconComponent} from '../../shared/ui/icon/icon.component';
 import {SpinnerComponent} from '../../shared/ui/spinner/spinner.component';
@@ -37,8 +38,12 @@ describe('MapComponent', () => {
       ['disk:/Camera Uploads', 1],
       ['disk:/Trips', 1],
     ],
+    sources: [number, number][] = [
+      [1, 1],
+      [2, 1],
+    ],
   ) => ({
-    photoSources: [],
+    photoSources: sources.map(([value, count]) => ({value, count})),
     folders: folders.map(([value, count]) => ({value, count})),
     years: years.map(([value, count]) => ({value, count})),
     categories: [],
@@ -117,6 +122,16 @@ describe('MapComponent', () => {
           },
         },
         {
+          provide: UsersPhotoSourcesClient,
+          useValue: {
+            getUserPhotoSources: () =>
+              of([
+                {photoSourceId: 1, photoSourceName: 'Dropbox'},
+                {photoSourceId: 2, photoSourceName: 'Yandex.Disk'},
+              ]),
+          },
+        },
+        {
           provide: UserPhotosService,
           useValue: {
             getUserGeotaggedPhotos,
@@ -140,6 +155,7 @@ describe('MapComponent', () => {
     expect(component.locationFilter.selected()).toEqual([0, 3, 8]);
     expect(component.yearFilter.selected()).toEqual([2016, 2019]);
     expect(checklists()).toEqual([
+      expect.stringContaining('Sources'),
       expect.stringContaining('Folders'),
       expect.stringContaining('Years'),
       expect.stringContaining('Location'),
@@ -223,6 +239,44 @@ describe('MapComponent', () => {
     expect(component.yearFilter.options().map((option) => option.count)).toEqual([4]);
   });
 
+  it('should narrow the photos down to the sources picked, and open the gallery on them too', () => {
+    build();
+
+    component.filterUpdated(component.sourceFilter, [2]);
+    fixture.detectChanges();
+
+    expect(lastFilter().sourceIds).toEqual([2]);
+    expect(mapView()?.galleryQueryParams()).toEqual({source: ['2']});
+  });
+
+  it('should list only the sources of the other filters picked, with their counts', () => {
+    build();
+    getUserPhotoFacets.mockReturnValue(of(facets([[3, 4]], 0, [[2019, 4]], [['disk:/Trips', 4]], [[2, 4]])));
+
+    component.filterUpdated(component.yearFilter, [2019]);
+
+    expect(component.sourceFilter.options()).toEqual([{value: 2, label: 'Yandex.Disk', count: 4}]);
+  });
+
+  it('should take the sources the address asks for', () => {
+    queryParams = {source: '1'};
+    build();
+
+    expect(lastFilter().sourceIds).toEqual([1]);
+    expect(component.sourceFilter.selected()).toEqual([1]);
+  });
+
+  it('should show no photos while no source is picked', () => {
+    build();
+    getUserGeotaggedPhotos.mockClear();
+
+    component.filterUpdated(component.sourceFilter, []);
+    fixture.detectChanges();
+
+    expect(getUserGeotaggedPhotos).not.toHaveBeenCalled();
+    expect(text()).toContain('No photo sources are selected');
+  });
+
   it('should take the folders the address asks for', () => {
     queryParams = {folder: 'disk:/Trips'};
     build();
@@ -297,7 +351,11 @@ describe('MapComponent', () => {
     locations = [];
     build();
 
-    expect(checklists()).toEqual([expect.stringContaining('Folders'), expect.stringContaining('Years')]);
+    expect(checklists()).toEqual([
+      expect.stringContaining('Sources'),
+      expect.stringContaining('Folders'),
+      expect.stringContaining('Years'),
+    ]);
     expect(text()).toContain('once they are geocoded');
   });
 });
