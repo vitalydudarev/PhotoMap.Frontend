@@ -807,6 +807,40 @@ describe('GalleryComponent', () => {
         expect(component.yearFilter.values()).toEqual([2019]);
       });
 
+      it('should count only the photos with a GPS location on the map, which shows only those, and all of them again in the grid', () => {
+        photosRequests();
+        flushYears();
+        facetsRequests();
+
+        component.viewModeUpdated('map');
+        http().match((request) => request.url.endsWith('/photos/geotagged'));
+        const [onMap] = facetsRequests();
+        expect(onMap.request.params.get('gps')).toBe('true');
+        onMap.flush({
+          ...facets,
+          gps: [
+            {value: true, count: 5},
+            {value: false, count: 9},
+          ],
+        });
+
+        expect(component.gpsFilter.options()).toEqual([{value: 1, label: 'With GPS', count: 5}]);
+
+        component.viewModeUpdated('thumb');
+        photosRequests();
+        const [inGrid] = facetsRequests();
+        expect(inGrid.request.params.get('gps')).toBeNull();
+        inGrid.flush({
+          ...facets,
+          gps: [
+            {value: true, count: 5},
+            {value: false, count: 9},
+          ],
+        });
+
+        expect(component.gpsFilter.options().map((option) => option.count)).toEqual([5, 9]);
+      });
+
       it('should not ask for the options again for another page of the same photos', () => {
         photosRequests();
         flushYears();

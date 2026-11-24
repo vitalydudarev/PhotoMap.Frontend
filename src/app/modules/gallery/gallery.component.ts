@@ -1015,7 +1015,9 @@ export class GalleryComponent implements OnInit {
    * @param force Whether the options are narrowed down again for the same filter, as the photos have changed.
    */
   private loadFacets(force = false): void {
-    const filter = this.photoFilter();
+    // the map shows only the photos with a GPS location, so it counts only those
+    const onMap = this.selectedViewMode() === 'map';
+    const filter: PhotoFilter = onMap ? {...this.photoFilter(), hasGps: true} : this.photoFilter();
     const key = this.showDuplicates() ? 'duplicates' : JSON.stringify(filter);
 
     if (key === this.facetsFilter && !force) {
@@ -1042,7 +1044,10 @@ export class GalleryComponent implements OnInit {
           this.folderFilter.narrowTo(facetCounts(facets.folders));
           this.yearFilter.narrowTo(facetCounts(facets.years));
           this.categoryFilter.narrowTo(facetCounts(facets.categories));
-          this.gpsFilter.narrowTo(facets.gps.map(({value, count}) => [value ? WITH_GPS : WITHOUT_GPS, count]));
+          // the photos with no GPS location are not on the map, so they are not listed there either
+          this.gpsFilter.narrowTo(
+            facets.gps.filter(({value}) => value || !onMap).map(({value, count}) => [value ? WITH_GPS : WITHOUT_GPS, count]),
+          );
           this.tagFilter.narrowTo([...facetCounts(facets.tags), [UNTAGGED, facets.untaggedCount]]);
           this.locationFilter.narrowTo([...facetCounts(facets.locations), [UNKNOWN_LOCATION, facets.unknownLocationCount]]);
         },
