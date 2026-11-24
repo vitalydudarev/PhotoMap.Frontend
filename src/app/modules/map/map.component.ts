@@ -5,6 +5,7 @@ import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {ActivatedRoute, Params, Router} from '@angular/router';
 import {Subscription} from 'rxjs';
 import {facetCounts} from 'src/app/core/models/facets.model';
+import {PhotoCategory} from 'src/app/core/models/photo-category.model';
 import {PhotoFilter} from 'src/app/core/models/photo-filter.model';
 import {Photo} from 'src/app/core/models/photo.model';
 import {UsersPhotoSourcesClient} from 'src/app/shared/models/photomap-backend.swagger';
@@ -14,6 +15,7 @@ import {SpinnerComponent} from 'src/app/shared/ui/spinner/spinner.component';
 import {folderLabel} from '../../core/helpers/file-labels.helper';
 import {ToastService} from '../../core/services/toast.service';
 import {UserPhotosService} from '../../core/services/user-photos.service';
+import {CATEGORY_OPTIONS} from '../shared/filter-panel/category-options';
 import {FilterPanelComponent, FilterPanelItem} from '../shared/filter-panel/filter-panel.component';
 import {GalleryFilter} from '../shared/filter-panel/gallery-filter';
 import {UNKNOWN_LOCATION, locationOptions} from '../shared/filter-panel/location-options';
@@ -23,6 +25,7 @@ import {sidebarOpen} from '../shared/sidebar-page/sidebar-open';
 const SOURCE_PARAM = 'source';
 const FOLDER_PARAM = 'folder';
 const YEAR_PARAM = 'year';
+const CATEGORY_PARAM = 'category';
 const LOCATION_PARAM = 'location';
 
 /** The photos of the map, before the filters narrow them down: every photo with a GPS location, of every folder. */
@@ -30,8 +33,8 @@ const MAP_PHOTOS: PhotoFilter = {sourceIds: [], years: [], categories: [], hasGp
 const SIDEBAR_OPEN_STORAGE_KEY = 'map-sidebar-open';
 
 /**
- * Every photo with a GPS location on a map, narrowed down to the sources, the folders, the years and the locations
- * picked in the sidebar on the left, as the gallery and the videos are. Each filter lists only the options that take some photo
+ * Every photo with a GPS location on a map, narrowed down to the sources, the folders, the years, the categories and
+ * the locations picked in the sidebar on the left, as the gallery and the videos are. Each filter lists only the options that take some photo
  * along with the others, with how many photos each takes.
  */
 @Component({
@@ -55,6 +58,9 @@ export class MapComponent implements OnInit {
   /** The years, in UTC, the photos were taken in. */
   readonly yearFilter = new GalleryFilter();
 
+  /** The categories the photos are in, such as the screenshots, and the other photos, in none. */
+  readonly categoryFilter = new GalleryFilter();
+
   /**
    * The locations the photos were taken in, as the reverse geocoding of their GPS locations tells, from the countries
    * down, to narrow the photos down to; the photos in no location, not geocoded yet, are an option too.
@@ -65,32 +71,35 @@ export class MapComponent implements OnInit {
   readonly activeFilterCount = computed(() => this.filters().filter((filter) => filter.active()).length);
 
   /**
-   * The filters with options to pick from: the sources, the folders and the years, folded away, and the locations,
-   * listed open.
+   * The filters with options to pick from: the sources, the folders, the years and the categories, folded away, and
+   * the locations, listed open.
    */
   readonly filterItems = computed<readonly FilterPanelItem[]>(() => [
     ...(this.sourceFilter.options().length > 0 ? [{filter: this.sourceFilter, label: 'Sources'}] : []),
     ...(this.folderFilter.options().length > 0 ? [{filter: this.folderFilter, label: 'Folders', searchable: true}] : []),
     ...(this.yearFilter.options().length > 0 ? [{filter: this.yearFilter, label: 'Years'}] : []),
+    ...(this.categoryFilter.options().length > 0 ? [{filter: this.categoryFilter, label: 'Category'}] : []),
     ...(this.locationFilter.options().length > 0
       ? [{filter: this.locationFilter, label: 'Location', collapsed: false, searchable: true, fill: true}]
       : []),
   ]);
 
   /**
-   * The sources, the folders, the years and the locations the gallery is opened with too, so that it shows the photos
+   * The sources, the folders, the years, the categories and the locations the gallery is opened with too, so that it shows the photos
    * the map does; it is opened on all the photos, which the folders narrow down.
    */
   readonly galleryQueryParams = computed<Params>(() => {
     const sourceIds = this.sourceFilter.values();
     const folderPaths = this.folderFilter.values();
     const years = this.yearFilter.values();
+    const categories = this.categoryFilter.values();
     const locations = this.locationFilter.values();
 
     return {
       ...(sourceIds.length > 0 ? {[SOURCE_PARAM]: sourceIds.map(String)} : {}),
       ...(folderPaths.length > 0 ? {[FOLDER_PARAM]: [...folderPaths]} : {}),
       ...(years.length > 0 ? {[YEAR_PARAM]: years.map(String)} : {}),
+      ...(categories.length > 0 ? {[CATEGORY_PARAM]: categories.map(String)} : {}),
       ...(locations.length > 0 ? {[LOCATION_PARAM]: locations.map(String)} : {}),
     };
   });
@@ -125,7 +134,11 @@ export class MapComponent implements OnInit {
     this.sourceFilter.request(params.getAll(SOURCE_PARAM));
     this.folderFilter.request(params.getAll(FOLDER_PARAM));
     this.yearFilter.request(params.getAll(YEAR_PARAM));
+    this.categoryFilter.request(params.getAll(CATEGORY_PARAM));
     this.locationFilter.request(params.getAll(LOCATION_PARAM));
+
+    // these options are known up front, so a value the address asks for that is not one is dropped before asking
+    this.categoryFilter.setOptions(CATEGORY_OPTIONS);
 
     this.loadPhotos();
     this.loadSources();
@@ -141,7 +154,7 @@ export class MapComponent implements OnInit {
     this.loadPhotos();
   }
 
-  /** Shows the photos of every source, every folder, every year and every location again. */
+  /** Shows the photos of every source, every folder, every year, every category and every location again. */
   resetFilters(): void {
     for (const filter of this.filters()) {
       filter.reset();
@@ -209,6 +222,7 @@ export class MapComponent implements OnInit {
           this.sourceFilter.narrowTo(facetCounts(facets.photoSources));
           this.folderFilter.narrowTo(facetCounts(facets.folders));
           this.yearFilter.narrowTo(facetCounts(facets.years));
+          this.categoryFilter.narrowTo(facetCounts(facets.categories));
           this.locationFilter.narrowTo([...facetCounts(facets.locations), [UNKNOWN_LOCATION, facets.unknownLocationCount]]);
         },
         error: () => {
@@ -227,13 +241,14 @@ export class MapComponent implements OnInit {
       sourceIds: this.sourceFilter.values(),
       folderPaths: this.folderFilter.values(),
       years: this.yearFilter.values(),
+      categories: this.categoryFilter.values() as PhotoCategory[],
       locationIds: locations.filter((location) => location !== UNKNOWN_LOCATION),
       unknownLocation: locations.includes(UNKNOWN_LOCATION),
     };
   }
 
   private filters(): readonly GalleryFilter<number | string>[] {
-    return [this.sourceFilter, this.folderFilter, this.yearFilter, this.locationFilter];
+    return [this.sourceFilter, this.folderFilter, this.yearFilter, this.categoryFilter, this.locationFilter];
   }
 
   /** The photo sources of the user, by name. */
@@ -334,6 +349,10 @@ export class MapComponent implements OnInit {
 
     for (const year of this.yearFilter.values()) {
       params = params.append(YEAR_PARAM, year.toString());
+    }
+
+    for (const category of this.categoryFilter.values()) {
+      params = params.append(CATEGORY_PARAM, category.toString());
     }
 
     for (const location of this.locationFilter.values()) {

@@ -39,6 +39,7 @@ import {PhotosMapViewComponent} from '../shared/photos-map-view/photos-map-view.
 import {PhotoTagsChange, PhotosThumbViewComponent} from '../shared/photos-thumb-view/photos-thumb-view.component';
 import {isNarrowScreen, sidebarOpen} from '../shared/sidebar-page/sidebar-open';
 import {DeleteCopiesDialogComponent} from './delete-copies-dialog/delete-copies-dialog.component';
+import {CATEGORY_OPTIONS} from '../shared/filter-panel/category-options';
 import {FilterPanelComponent, FilterPanelItem} from '../shared/filter-panel/filter-panel.component';
 import {GalleryFilter, takenIn} from '../shared/filter-panel/gallery-filter';
 import {UNKNOWN_LOCATION, locationOptions} from '../shared/filter-panel/location-options';
@@ -60,17 +61,6 @@ export type GalleryView = 'camera' | 'all' | 'duplicates' | 'deleted';
 
 const WIDTH_STORAGE_KEY = 'gallery-width';
 const SIDEBAR_OPEN_STORAGE_KEY = 'gallery-sidebar-open';
-
-/**
- * Other photos are an option too, so that picking every category still leaves no photo out. The deleted photos are a
- * view of their own rather than a category, as the server takes them along with the photos of the other categories
- * rather than narrowing them down.
- */
-const CATEGORY_OPTIONS: readonly MultiselectOption<number>[] = [
-  {value: PhotoCategory.Screenshot, label: 'Screenshots'},
-  {value: PhotoCategory.DroneFootage, label: 'Drone footage'},
-  {value: PhotoCategory.Other, label: 'Other photos'},
-];
 
 const WITH_GPS = 1;
 const WITHOUT_GPS = 0;

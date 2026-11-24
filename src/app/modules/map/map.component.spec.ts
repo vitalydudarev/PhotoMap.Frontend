@@ -4,6 +4,7 @@ import {ActivatedRoute, Params, convertToParamMap, provideRouter} from '@angular
 import {of} from 'rxjs';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
+import {PhotoCategory} from '../../core/models/photo-category.model';
 import {PhotoFilter} from '../../core/models/photo-filter.model';
 import {PhotoLocation} from '../../core/models/photo-location.model';
 import {Photo} from '../../core/models/photo.model';
@@ -42,11 +43,16 @@ describe('MapComponent', () => {
       [1, 1],
       [2, 1],
     ],
+    categories: [PhotoCategory, number][] = [
+      [PhotoCategory.Screenshot, 1],
+      [PhotoCategory.DroneFootage, 1],
+      [PhotoCategory.Other, 1],
+    ],
   ) => ({
     photoSources: sources.map(([value, count]) => ({value, count})),
     folders: folders.map(([value, count]) => ({value, count})),
     years: years.map(([value, count]) => ({value, count})),
-    categories: [],
+    categories: categories.map(([value, count]) => ({value, count})),
     gps: [],
     tags: [],
     untaggedCount: 0,
@@ -158,6 +164,7 @@ describe('MapComponent', () => {
       expect.stringContaining('Sources'),
       expect.stringContaining('Folders'),
       expect.stringContaining('Years'),
+      expect.stringContaining('Category'),
       expect.stringContaining('Location'),
     ]);
     expect(text()).toContain('1 photo');
@@ -258,6 +265,43 @@ describe('MapComponent', () => {
     expect(component.sourceFilter.options()).toEqual([{value: 2, label: 'Yandex.Disk', count: 4}]);
   });
 
+  it('should narrow the photos down to the categories picked, and open the gallery on them too', () => {
+    build();
+
+    component.filterUpdated(component.categoryFilter, [PhotoCategory.Screenshot]);
+    fixture.detectChanges();
+
+    expect(lastFilter().categories).toEqual([PhotoCategory.Screenshot]);
+    expect(mapView()?.galleryQueryParams()).toEqual({category: [String(PhotoCategory.Screenshot)]});
+  });
+
+  it('should list only the categories of the photos the other filters take, with their counts', () => {
+    build();
+    getUserPhotoFacets.mockReturnValue(of(facets([[3, 4]], 0, [[2019, 4]], [['disk:/Trips', 4]], [[2, 4]], [[PhotoCategory.Other, 4]])));
+
+    component.filterUpdated(component.yearFilter, [2019]);
+
+    expect(component.categoryFilter.options()).toEqual([{value: PhotoCategory.Other, label: 'Other photos', count: 4}]);
+  });
+
+  it('should take the categories the address asks for', () => {
+    queryParams = {category: String(PhotoCategory.DroneFootage)};
+    build();
+
+    expect(lastFilter().categories).toEqual([PhotoCategory.DroneFootage]);
+  });
+
+  it('should show no photos while no category is picked', () => {
+    build();
+    getUserGeotaggedPhotos.mockClear();
+
+    component.filterUpdated(component.categoryFilter, []);
+    fixture.detectChanges();
+
+    expect(getUserGeotaggedPhotos).not.toHaveBeenCalled();
+    expect(text()).toContain('No categories are selected');
+  });
+
   it('should take the sources the address asks for', () => {
     queryParams = {source: '1'};
     build();
@@ -355,6 +399,7 @@ describe('MapComponent', () => {
       expect.stringContaining('Sources'),
       expect.stringContaining('Folders'),
       expect.stringContaining('Years'),
+      expect.stringContaining('Category'),
     ]);
     expect(text()).toContain('once they are geocoded');
   });
