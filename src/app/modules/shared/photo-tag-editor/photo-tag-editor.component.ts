@@ -69,7 +69,10 @@ export class PhotoTagEditorComponent implements OnInit {
   readonly photo = input.required<Taggable>();
   readonly userId = input.required<number>();
 
-  /** Whether a photo or a video is tagged: the tags of a video are saved as such, and nothing is suggested for it. */
+  /**
+   * Whether a photo or a video is tagged: the tags of a video are saved as such, and suggested by the photos and the
+   * videos taken around it, the tags being the same for both.
+   */
   readonly kind = input<TaggedKind>('photo');
 
   /** The tags of the user, to pick from. */
@@ -140,22 +143,19 @@ export class PhotoTagEditorComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    // the suggestions are by the tags of the photos taken around the same time and place, so a photo's alone
-    if (this.kind() === 'video') {
-      return;
-    }
+    const suggestions =
+      this.kind() === 'video'
+        ? this.videosService.getVideoTagSuggestions(this.userId(), this.photo().id)
+        : this.userPhotosService.getPhotoTagSuggestions(this.userId(), this.photo().id);
 
-    this.userPhotosService
-      .getPhotoTagSuggestions(this.userId(), this.photo().id)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (suggestions) => this.suggestions.set(suggestions),
-        // the tags can still be picked and typed, so this is not worth a toast
-        error: () => {
-          this.suggestions.set([]);
-          this.suggestionsFailed.set(true);
-        },
-      });
+    suggestions.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (suggestions) => this.suggestions.set(suggestions),
+      // the tags can still be picked and typed, so this is not worth a toast
+      error: () => {
+        this.suggestions.set([]);
+        this.suggestionsFailed.set(true);
+      },
+    });
   }
 
   add(name: string): void {
@@ -215,11 +215,14 @@ export class PhotoTagEditorComponent implements OnInit {
   }
 
   suggestionReason(suggestion: TagSuggestion): string {
+    // a video's tags are suggested by the photos and the videos around it, a photo's by the photos alone
+    const others = this.kind() === 'video' ? 'Photos and videos' : 'Photos';
+
     if (suggestion.byDate && suggestion.byLocation) {
-      return 'Photos taken around the same time and place have it';
+      return `${others} taken around the same time and place have it`;
     }
 
-    return suggestion.byLocation ? 'Photos taken nearby have it' : 'By the date the photo was taken';
+    return suggestion.byLocation ? `${others} taken nearby have it` : `By the date the ${this.kind()} was taken`;
   }
 
   private commit(tags: string[]): void {

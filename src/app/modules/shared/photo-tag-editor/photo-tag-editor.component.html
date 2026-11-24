@@ -66,31 +66,29 @@
   </ul>
 }
 
-@if (kind() === 'photo') {
-  <div class="suggestions">
-    <span class="section-title">Suggested</span>
-    @if (suggestions() === null) {
-      <p class="hint">Looking at the photos taken around the same time and place…</p>
-    } @else if (shownSuggestions().length === 0) {
-      <p class="hint">{{ suggestionsFailed() ? 'Could not load the suggestions.' : 'Nothing more to suggest.' }}</p>
-    } @else {
-      <ul class="chips">
-        @for (suggestion of shownSuggestions(); track suggestion.name) {
-          <li>
-            <button
-              class="suggestion"
-              type="button"
-              [title]="suggestionReason(suggestion)"
-              [attr.aria-label]="'Add ' + suggestion.name + ': ' + suggestionReason(suggestion)"
-              [disabled]="full()"
-              (click)="add(suggestion.name)"
-            >
-              <app-icon [name]="suggestion.byLocation ? 'map-pin' : 'calendar'" [size]="12" />
-              <span>{{ suggestion.name }}</span>
-            </button>
-          </li>
-        }
-      </ul>
-    }
-  </div>
-}
+<div class="suggestions">
+  <span class="section-title">Suggested</span>
+  @if (suggestions() === null) {
+    <p class="hint">Looking at the {{ kind() === 'video' ? 'photos and videos' : 'photos' }} taken around the same time and place…</p>
+  } @else if (shownSuggestions().length === 0) {
+    <p class="hint">{{ suggestionsFailed() ? 'Could not load the suggestions.' : 'Nothing more to suggest.' }}</p>
+  } @else {
+    <ul class="chips">
+      @for (suggestion of shownSuggestions(); track suggestion.name) {
+        <li>
+          <button
+            class="suggestion"
+            type="button"
+            [title]="suggestionReason(suggestion)"
+            [attr.aria-label]="'Add ' + suggestion.name + ': ' + suggestionReason(suggestion)"
+            [disabled]="full()"
+            (click)="add(suggestion.name)"
+          >
+            <app-icon [name]="suggestion.byLocation ? 'map-pin' : 'calendar'" [size]="12" />
+            <span>{{ suggestion.name }}</span>
+          </button>
+        </li>
+      }
+    </ul>
+  }
+</div>

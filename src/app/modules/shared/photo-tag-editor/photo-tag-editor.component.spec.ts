@@ -225,6 +225,13 @@ describe('PhotoTagEditorComponent', () => {
   });
 
   describe('of a video', () => {
+    const flushVideoSuggestions = (body = [{name: 'Beach', byDate: true, byLocation: true}]) => {
+      http()
+        .expectOne((request) => request.url.endsWith('/users/1/videos/5/tags/suggestions'))
+        .flush(body);
+      fixture.detectChanges();
+    };
+
     beforeEach(() => {
       // the photo's suggestions, asked for as the editor opened, are of no use here
       flushSuggestions();
@@ -238,14 +245,24 @@ describe('PhotoTagEditorComponent', () => {
       fixture.detectChanges();
     });
 
-    it('should suggest nothing, as the suggestions are by the photos taken around the same time and place', () => {
-      http().expectNone((request) => request.url.includes('/suggestions'));
+    it('should suggest the tags of the photos and the videos taken around it, saying so', () => {
+      expect(element().querySelector('.suggestions .hint')?.textContent).toContain('photos and videos');
 
-      expect(element().querySelector('.suggestions')).toBeNull();
+      flushVideoSuggestions();
+
+      expect(suggestions().map((suggestion) => suggestion.textContent?.trim())).toEqual(['Beach']);
+      expect(suggestions()[0].title).toBe('Photos and videos taken around the same time and place have it');
       expect(element().querySelector('.chips')?.getAttribute('aria-label')).toBe('Tags of the video');
     });
 
+    it('should tell the date suggestions by the date of the video', () => {
+      flushVideoSuggestions([{name: '2019', byDate: true, byLocation: false}]);
+
+      expect(suggestions()[0].title).toBe('By the date the video was taken');
+    });
+
     it('should save the tags of the video as such, keeping the tags shared with the photos', () => {
+      flushVideoSuggestions();
       type('paris');
       press('Enter');
 
@@ -257,6 +274,7 @@ describe('PhotoTagEditorComponent', () => {
     });
 
     it('should offer the tags used the most, by photos and videos alike, first', () => {
+      flushVideoSuggestions();
       type('i');
 
       // Hike is on no photo, but on more videos than Spain and Paris are on photos

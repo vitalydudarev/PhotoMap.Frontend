@@ -4,7 +4,7 @@ import {Observable} from 'rxjs';
 import {environment} from 'src/environments/environment';
 
 import {VideoFacets} from '../models/facets.model';
-import {VideoTags} from '../models/photo-tag.model';
+import {TagSuggestion, VideoTags} from '../models/photo-tag.model';
 import {FailedFile} from '../models/failed-file.model';
 import {PagedResponse} from '../models/paged-response.model';
 import {VideoLocation} from '../models/photo-location.model';
@@ -125,6 +125,11 @@ export class VideosService {
    */
   addVideoTags(userId: number, videoIds: readonly string[], names: readonly string[]): Observable<VideoTags[]> {
     return this.httpClient.post<VideoTags[]>(`${this.url}/${userId}/videos/tags`, {videoIds, tags: names});
+  }
+
+  /** Tags for the video by when and where it was taken, by the photos and videos taken around it, the likeliest first. */
+  getVideoTagSuggestions(userId: number, videoId: string): Observable<TagSuggestion[]> {
+    return this.httpClient.get<TagSuggestion[]>(`${this.url}/${userId}/videos/${videoId}/tags/suggestions`);
   }
 
   /** The years, in UTC, the videos of the user were taken in, oldest first. */

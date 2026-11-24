@@ -114,6 +114,7 @@ describe('VideosComponent', () => {
             getUserVideoLocations: () => of(locations),
             setVideoTags,
             addVideoTags,
+            getVideoTagSuggestions: () => of([]),
           },
         },
       ],
