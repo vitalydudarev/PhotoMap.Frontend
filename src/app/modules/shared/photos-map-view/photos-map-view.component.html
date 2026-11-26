@@ -6,7 +6,8 @@
     [noun]="noun()"
     (photosSelected)="openPhotos($event)"
     (groupOpened)="group.set($event)"
-    (areaChanged)="area.set($event)"
+    [initialArea]="startArea()"
+    (areaChanged)="areaChanged($event)"
   />
 } @else {
   <app-leaflet-photo-map
@@ -16,7 +17,8 @@
     [noun]="noun()"
     (photosSelected)="openPhotos($event)"
     (groupOpened)="group.set($event)"
-    (areaChanged)="area.set($event)"
+    [initialArea]="startArea()"
+    (areaChanged)="areaChanged($event)"
   />
 }
 

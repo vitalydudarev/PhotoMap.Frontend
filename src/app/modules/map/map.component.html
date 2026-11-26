@@ -93,7 +93,14 @@
         <p>No photos with a location yet. Connect a photo source and start processing to see them here.</p>
       </div>
     } @else {
-      <app-photos-map-view class="map" [photos]="photos()" [showInGallery]="true" [galleryQueryParams]="galleryQueryParams()" />
+      <app-photos-map-view
+        class="map"
+        [photos]="photos()"
+        [showInGallery]="true"
+        [galleryQueryParams]="galleryQueryParams()"
+        [initialArea]="initialArea"
+        (areaChange)="areaChanged($event)"
+      />
     }
   </div>
 </div>

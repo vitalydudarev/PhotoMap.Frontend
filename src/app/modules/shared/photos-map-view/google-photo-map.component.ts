@@ -10,10 +10,11 @@ import {
   input,
   output,
   signal,
+  untracked,
   viewChild,
 } from '@angular/core';
 import {importLibrary, setOptions} from '@googlemaps/js-api-loader';
-import {MapArea, mapAreaOfView} from 'src/app/core/models/map-area.model';
+import {MapArea, mapAreaOfView, mapAreaView} from 'src/app/core/models/map-area.model';
 import {
   AlgorithmInput,
   AlgorithmOutput,
@@ -117,6 +118,8 @@ export class GooglePhotoMapComponent {
   readonly groupOpened = output<readonly GeotaggedPhoto[]>();
   /** The area the map shows, each time it has moved or zoomed. */
   readonly areaChanged = output<MapArea>();
+  /** The area the map shows first, such as the one it showed before, rather than one around all the photos. */
+  readonly initialArea = input<MapArea | undefined>(undefined);
   /** Photos whose spot stands out on the map, for as long as they are shown together. */
   readonly highlighted = input<readonly GeotaggedPhoto[] | undefined>(undefined);
   /** Whether the areas of all the photos whose location may be far off are circled, not only the hovered one's. */
@@ -143,6 +146,8 @@ export class GooglePhotoMapComponent {
   /** The areas of all the photos whose location may be far off, while they are all circled. */
   private accuracyCircles: google.maps.Circle[] = [];
   private stopWatchingHover?: () => void;
+  /** Whether the photos have been put on the map, after which it is fitted around the photos shown, not the initial area. */
+  private photosShown = false;
 
   constructor() {
     afterNextRender(() => this.zone.runOutsideAngular(() => this.createMap()));
@@ -269,6 +274,19 @@ export class GooglePhotoMapComponent {
     this.clusterer!.addMarkers(markers);
     this.inaccurateById = inaccuratePhotosById(photos);
     this.accuracyCircle!.setMap(null);
+
+    const initialArea = this.photosShown ? undefined : untracked(this.initialArea);
+    const {clientWidth: width, clientHeight: height} = this.container().nativeElement;
+
+    this.photosShown = true;
+
+    if (initialArea && width > 0 && height > 0) {
+      const view = mapAreaView(initialArea, width, height, map.get('minZoom') ?? 0, map.get('maxZoom') ?? CLUSTER_MAX_ZOOM);
+
+      map.moveCamera({center: {lat: view.latitude, lng: view.longitude}, zoom: view.zoom});
+
+      return;
+    }
 
     if (photos.length === 0) {
       return;

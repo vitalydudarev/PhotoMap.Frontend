@@ -19,6 +19,7 @@ class MapStubComponent {
   readonly highlighted = input<readonly GeotaggedPhoto[] | undefined>(undefined);
   readonly showAccuracyAreas = input(false);
   readonly noun = input('photo');
+  readonly initialArea = input<MapArea | undefined>(undefined);
   readonly photosSelected = output<PhotoSelection>();
   readonly groupOpened = output<readonly GeotaggedPhoto[]>();
   readonly areaChanged = output<MapArea>();

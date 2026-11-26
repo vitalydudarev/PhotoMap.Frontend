@@ -10,12 +10,13 @@ import {
   input,
   output,
   signal,
+  untracked,
   viewChild,
 } from '@angular/core';
 // The default import is Leaflet's own exports object, the one leaflet.markercluster extends through the `L`
 // global; a namespace import would be a copy taken before the plugin adds `markerClusterGroup` to it.
 import L from 'leaflet';
-import {MapArea, mapAreaOfView} from 'src/app/core/models/map-area.model';
+import {MapArea, mapAreaOfView, mapAreaView} from 'src/app/core/models/map-area.model';
 import 'leaflet.markercluster';
 
 import {
@@ -71,6 +72,8 @@ export class LeafletPhotoMapComponent {
   readonly groupOpened = output<readonly GeotaggedPhoto[]>();
   /** The area the map shows, each time it has moved or zoomed. */
   readonly areaChanged = output<MapArea>();
+  /** The area the map shows first, such as the one it showed before, rather than one around all the photos. */
+  readonly initialArea = input<MapArea | undefined>(undefined);
   /** Photos whose spot stands out on the map, for as long as they are shown together. */
   readonly highlighted = input<readonly GeotaggedPhoto[] | undefined>(undefined);
   /** Whether the areas of all the photos whose location may be far off are circled, not only the hovered one's. */
@@ -96,6 +99,8 @@ export class LeafletPhotoMapComponent {
   /** The clusters drawn at the deepest zoom, the only ones spread, and the most tiles each has room for there. */
   private readonly spreadTiles = new WeakMap<L.MarkerCluster, number>();
   private layoutPending = false;
+  /** Whether the photos have been put on the map, after which it is fitted around the photos shown, not the initial area. */
+  private photosShown = false;
 
   constructor() {
     // Leaflet fires a stream of DOM events while the map is dragged; none of them need change detection.
@@ -221,7 +226,16 @@ export class LeafletPhotoMapComponent {
     this.inaccurateById = inaccuratePhotosById(photos);
     this.accuracyCircle.remove();
 
-    if (photos.length > 0) {
+    const initialArea = this.photosShown ? undefined : untracked(this.initialArea);
+    const {x: width, y: height} = map.getSize();
+
+    this.photosShown = true;
+
+    if (initialArea && width > 0 && height > 0) {
+      const view = mapAreaView(initialArea, width, height, map.getMinZoom(), map.getMaxZoom());
+
+      map.setView([view.latitude, view.longitude], view.zoom, {animate: false});
+    } else if (photos.length > 0) {
       map.fitBounds(L.latLngBounds(photos.map((photo) => [photo.latitude, photo.longitude])), {
         padding: [FIT_PADDING, FIT_PADDING],
         maxZoom: FIT_MAX_ZOOM,

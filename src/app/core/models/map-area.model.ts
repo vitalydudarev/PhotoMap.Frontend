@@ -78,3 +78,44 @@ function wrapLongitude(longitude: number): number {
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
+
+/** The center and the zoom a map is set to so that it shows an area. */
+export interface MapAreaView {
+  latitude: number;
+  longitude: number;
+  zoom: number;
+}
+
+/** The size of the world, in pixels, at zoom 0, in the Web Mercator tiles both Leaflet and Google Maps draw. */
+const WORLD_SIZE = 256;
+const MAX_LATITUDE = 85.0511287798;
+
+/**
+ * The center and the zoom at which a map `width` by `height` pixels shows no more than the area, as close to it as
+ * whole zooms allow: the zoom at which the area was seen, when it is the area a map of that size reported, as it is
+ * rounded outwards. Fitting the map around the area instead would zoom out a level each time the area is shown again.
+ */
+export function mapAreaView(area: MapArea, width: number, height: number, minZoom: number, maxZoom: number): MapAreaView {
+  const top = mercatorY(area.north);
+  const bottom = mercatorY(area.south);
+  const zoomFor = (pixels: number, fraction: number) => (fraction > 0 ? Math.log2(pixels / (WORLD_SIZE * fraction)) : Infinity);
+  const zoom = Math.max(zoomFor(width, (area.east - area.west) / 360), zoomFor(height, bottom - top));
+
+  return {
+    latitude: latitudeOfMercatorY((top + bottom) / 2),
+    longitude: (area.west + area.east) / 2,
+    // the tiny tolerance keeps a zoom computed a hair above a whole one from being taken as the next one
+    zoom: clamp(Number.isFinite(zoom) ? Math.ceil(zoom - 1e-9) : maxZoom, minZoom, maxZoom),
+  };
+}
+
+/** The latitude, as a fraction of the height of the Web Mercator world, from 0 at its top to 1 at its bottom. */
+function mercatorY(latitude: number): number {
+  const radians = (clamp(latitude, -MAX_LATITUDE, MAX_LATITUDE) * Math.PI) / 180;
+
+  return (1 - Math.log(Math.tan(Math.PI / 4 + radians / 2)) / Math.PI) / 2;
+}
+
+function latitudeOfMercatorY(y: number): number {
+  return (Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180) / Math.PI;
+}

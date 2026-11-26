@@ -52,6 +52,12 @@ export class PhotosMapViewComponent {
   /** The photos clicked, with the rest to step through, when they are not opened in the photo viewer. */
   readonly opened = output<PhotoSelection>();
 
+  /** The area the map shows first, such as the one it showed before, rather than one around all the photos. */
+  readonly initialArea = input<MapArea | undefined>(undefined);
+
+  /** The area the map shows, each time it has moved or zoomed. */
+  readonly areaChange = output<MapArea>();
+
   readonly geotaggedPhotos = computed(() => this.photos().filter(isGeotagged));
 
   readonly providers: readonly SegmentedOption<MapProvider>[] = [
@@ -92,6 +98,17 @@ export class PhotosMapViewComponent {
       this.geotaggedPhotos();
       this.group.set(undefined);
     });
+  }
+
+  /**
+   * The area the map of a provider shows first: the one the map of the other showed, when the provider is switched,
+   * so that switching keeps the view.
+   */
+  readonly startArea = computed(() => this.area() ?? this.initialArea());
+
+  areaChanged(area: MapArea): void {
+    this.area.set(area);
+    this.areaChange.emit(area);
   }
 
   openPhotos(selection: PhotoSelection): void {

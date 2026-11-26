@@ -1,9 +1,11 @@
-import {Component, input} from '@angular/core';
+import {Location} from '@angular/common';
+import {Component, input, output} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {ActivatedRoute, Params, convertToParamMap, provideRouter} from '@angular/router';
 import {of} from 'rxjs';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
+import {MapArea} from '../../core/models/map-area.model';
 import {PhotoCategory} from '../../core/models/photo-category.model';
 import {PhotoFilter} from '../../core/models/photo-filter.model';
 import {PhotoLocation} from '../../core/models/photo-location.model';
@@ -21,6 +23,8 @@ class MapViewStubComponent {
   readonly photos = input<readonly Photo[]>([]);
   readonly showInGallery = input(false);
   readonly galleryQueryParams = input<Params>({});
+  readonly initialArea = input<MapArea | undefined>(undefined);
+  readonly areaChange = output<MapArea>();
 }
 
 describe('MapComponent', () => {
@@ -420,6 +424,30 @@ describe('MapComponent', () => {
     expect(lastLocations()).toEqual([[3], false]);
     // the cities of the country too, which do not narrow it down
     expect(component.locationFilter.selected()).toEqual([3, 8]);
+  });
+
+  it('should show the area of the map the address asks for again', () => {
+    queryParams = {area: '27.5,53.85,27.65,53.95'};
+    build();
+
+    expect(mapView()!.initialArea()).toEqual({west: 27.5, south: 53.85, east: 27.65, north: 53.95});
+  });
+
+  it('should keep the area the map shows in the address, with the filters, without adding to the history', () => {
+    build();
+    const location = TestBed.inject(Location);
+    const replaceState = vi.spyOn(location, 'replaceState');
+    const go = vi.spyOn(location, 'go');
+
+    component.filterUpdated(component.locationFilter, [8]);
+    mapView()!.areaChange.emit({west: 27.5, south: 53.85, east: 27.65, north: 53.95});
+
+    expect(replaceState).toHaveBeenLastCalledWith('/', 'location=8&area=27.5,53.85,27.65,53.95');
+    expect(component.initialArea).toBeUndefined();
+
+    component.filterUpdated(component.locationFilter, [3, 8]);
+
+    expect(go).toHaveBeenLastCalledWith('/', 'location=3&area=27.5,53.85,27.65,53.95');
   });
 
   it('should show no photos while no location is picked', () => {

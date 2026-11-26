@@ -4,6 +4,7 @@ import {ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {ActivatedRoute, Params, Router} from '@angular/router';
 import {Subscription} from 'rxjs';
+import {MapArea, formatMapArea, parseMapArea} from 'src/app/core/models/map-area.model';
 import {facetCounts} from 'src/app/core/models/facets.model';
 import {PhotoCategory} from 'src/app/core/models/photo-category.model';
 import {PhotoFilter} from 'src/app/core/models/photo-filter.model';
@@ -31,6 +32,7 @@ const MONTH_PARAM = 'month';
 const CATEGORY_PARAM = 'category';
 const TAG_PARAM = 'tag';
 const LOCATION_PARAM = 'location';
+const AREA_PARAM = 'area';
 
 /** The photos of the map, before the filters narrow them down: every photo with a GPS location, of every folder. */
 const MAP_PHOTOS: PhotoFilter = {sourceIds: [], years: [], categories: [], hasGps: true, allFolders: true};
@@ -139,8 +141,20 @@ export class MapComponent implements OnInit {
 
   private userId = 1;
 
+  /**
+   * The area the map showed when the page was left, from the address, so that coming back, from the gallery for
+   * instance, shows it again rather than all the photos; undefined for an address without one, or not an area.
+   */
+  initialArea?: MapArea;
+
+  /** The area the map shows, kept in the address as the map moves. */
+  private area?: MapArea;
+
   ngOnInit(): void {
     const params = this.activatedRoute.snapshot.queryParamMap;
+
+    this.initialArea = parseMapArea(params.get(AREA_PARAM));
+    this.area = this.initialArea;
 
     this.sourceFilter.request(params.getAll(SOURCE_PARAM));
     this.folderFilter.request(params.getAll(FOLDER_PARAM));
@@ -165,6 +179,14 @@ export class MapComponent implements OnInit {
 
     this.addQueryString();
     this.loadPhotos();
+  }
+
+  /** Keeps the area the map shows in the address, in place of the one before, so that moving the map adds no history. */
+  areaChanged(area: MapArea): void {
+    this.area = area;
+    // the map is drawn again once the filters change, around the photos they take then
+    this.initialArea = undefined;
+    this.addQueryString(true);
   }
 
   /** Shows the photos of every source, folder, year, category, tag and location again. */
@@ -372,7 +394,7 @@ export class MapComponent implements OnInit {
       });
   }
 
-  private addQueryString(): void {
+  private addQueryString(replace = false): void {
     let params = new HttpParams();
 
     for (const sourceId of this.sourceFilter.values()) {
@@ -405,6 +427,16 @@ export class MapComponent implements OnInit {
       params = params.append(LOCATION_PARAM, location.toString());
     }
 
-    this.location.go(this.router.url.split('?')[0], params.toString());
+    if (this.area) {
+      params = params.append(AREA_PARAM, formatMapArea(this.area));
+    }
+
+    const path = this.router.url.split('?')[0];
+
+    if (replace) {
+      this.location.replaceState(path, params.toString());
+    } else {
+      this.location.go(path, params.toString());
+    }
   }
 }

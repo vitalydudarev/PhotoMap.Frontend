@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 
-import {formatMapArea, mapAreaContains, mapAreaOfView, parseMapArea} from './map-area.model';
+import {formatMapArea, mapAreaContains, mapAreaOfView, mapAreaView, parseMapArea} from './map-area.model';
 
 describe('map area', () => {
   describe('mapAreaOfView', () => {
@@ -80,6 +80,40 @@ describe('map area', () => {
       '0,2,1,1',
     ])('should not read %s', (text) => {
       expect(parseMapArea(text)).toBeUndefined();
+    });
+  });
+
+  describe('mapAreaView', () => {
+    it('should show the whole world at zoom 0 on a map of its size', () => {
+      expect(mapAreaView({west: -180, south: -85.0511287798, east: 180, north: 85.0511287798}, 256, 256, 0, 19)).toEqual({
+        latitude: expect.closeTo(0, 9),
+        longitude: 0,
+        zoom: 0,
+      });
+    });
+
+    it('should zoom back to the zoom the area was seen at, though it was rounded outwards', () => {
+      // a map 1024 pixels wide at zoom 12 spans 1024 / (256 * 2^12) of the world, 0.3515625 degrees
+      const area = {west: 2.17578, south: 41.35, east: 2.52734 + 0.00001, north: 41.45};
+
+      expect(mapAreaView(area, 1024, 300, 0, 19).zoom).toBe(12);
+    });
+
+    it('should center the area between its sides on the map', () => {
+      const view = mapAreaView({west: 10, south: 0, east: 20, north: 60}, 800, 600, 0, 19);
+
+      expect(view.longitude).toBe(15);
+      // the middle in Web Mercator is further north than the middle of the latitudes
+      expect(view.latitude).toBeGreaterThan(30);
+      expect(view.latitude).toBeLessThan(60);
+    });
+
+    it('should zoom in as far as allowed on a single point', () => {
+      expect(mapAreaView({west: 1, south: 2, east: 1, north: 2}, 800, 600, 0, 19)).toEqual({
+        latitude: expect.closeTo(2, 9),
+        longitude: 1,
+        zoom: 19,
+      });
     });
   });
 });
